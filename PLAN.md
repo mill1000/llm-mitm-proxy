@@ -21,7 +21,7 @@
 ### Non-goals (v1)
 
 - Not a general-purpose mitmproxy / TLS-intercepting man-in-the-middle for arbitrary TLS clients (see §10 for how we stay on the "API proxy" side of that line).
-- Not a multi-upstream load balancer / router in v1 (single upstream; routing is a roadmap item).
+
 - Not a full feature-clone of any existing tool; it borrows the *vibe* (mitmproxy + Llama.cpp WebUI).
 
 ---
@@ -353,33 +353,40 @@ Notes:
 **Vibe:** mitmproxy (list on the left) + Llama.cpp WebUI (chat in the main pane). Single page, no build step.
 
 ```
-+---------------------------------------------------------------+
-|  LLM Proxy                         [Clients:3]  [Upstream:ok] |
-+---------------+-----------------------------------------------+
-|  CLIENTS       |  client-a  (my-app)        [Export][Clear][⏵]|
-|  ▸ client-a    +-----------------------------------------------+
-|    client-b    |  #1  11:58:01.100  (Δ ttft 181ms · total 1.8s)|
-|    client-c    |  ┌ CLIENT (left) ───────────────────────────┐ |
-|  + [filter]    |  │ POST /v1/chat/completions  model=local   │ |
-|                |  │ ▸ expand full request (headers+body)     │ |
-|                |  │ [Replay]  re-send this request           │ |
-|                |  └──────────────────────────────────────────┘ |
-|                |  ┌ SERVER (right) ──────────────────────────┐ |
-|                |  │ 200  stream: true                         │ |
-|                |  │ Hello! Hello there! ...   (live tokens)  │ |
-|                |  │ ▸ expand full response (raw SSE + usage) │ |
-|                |  └──────────────────────────────────────────┘ |
-|                |  #2  11:58:05.020  ...                        |
-+---------------+-----------------------------------------------+
+
++----------------+---------------------------------------------+
+|  LLM Proxy                        [Clients:3]  [Upstream:ok] |
++----------------+---------------------------------------------+
+|  CLIENTS       |  client-a (my-app)        [Export][Clear][⏵]|
+|  ▸ client-a    |+-------------------------------------------+|
+|    client-b    |  #1  11:58:01.100 (Δ ttft 181ms · 1.8s)     |
+|    client-c    |  ┌ CLIENT (left) ──────────────────────────┐|
+|  + [filter]    |  │ POST /v1/chat/completions  model=local  │|
+|                |  │ ▸ expand full request (headers+body)    │|
+|                |  │ [Replay] re-send as-is (M4: dock edit)  │|
+|                |  └─────────────────────────────────────────┘|
+|                |  ┌ SERVER (right) ─────────────────────────┐|
+|                |  │ 200  stream: true                       │|
+|                |  │ ▸ thinking… (M4, collapsed) 123 tok     │|
+|                |  │ Hello! Hello there! ... (live tokens)   │|
+|                |  │ ▸ expand response (raw SSE + usage)     │|
+|                |  └─────────────────────────────────────────┘|
+|                |  #2  11:58:05.020  ...                      |
+|                |+-------------------------------------------+|
+|                |  REPLAY (M4) — collapsible, while editing   |
+|                |  model=local  temp=0.7  msgs[1] [raw][Send] |
++----------------+---------------------------------------------+
+
 ```
 
 Features:
 - **Left dock:** live list of clients/conversations with a "new activity" pulse; click to select; optional search/filter.
 - **Main pane:** chronological exchange list. Each exchange renders **client request on the left, server response on the right** (two-sided, like chat bubbles but wire-level).
 - **Live:** streaming responses render token-by-token as they arrive over `/ws`; timing deltas update live (TTFT, running total, tok/s).
+- **Thinking text:** the server card shows the model's reasoning block inline (v1); in **M4** it is collapsible to a one-line summary (see mockup).
 - **Expand:** each side expands to the **full wire call** — method, path, headers, raw body, status, raw SSE/JSON, size, usage.
 - **Timestamps & deltas:** per-exchange absolute timestamp + TTFT, total, and per-token metrics.
-- **Replay (on the client/request side):** a button on the **client request** re-sends that captured request (the prompt) to the upstream **as-is** (no body/model-edit dialog in the UI; body overrides, e.g. `model`, are available on the replay API endpoint, §5.2). The fresh result is appended as a **new exchange** flagged `is_replay` (so the original response is preserved for comparison).
+- **Replay (on the client/request side):** a button on the **client request** re-sends that captured request (the prompt) to the upstream **as-is** (v1: no body/model-edit dialog in the UI; body overrides, e.g. `model`, are available on the replay API endpoint, §5.2). The fresh result is appended as a **new exchange** flagged `is_replay` (so the original response is preserved for comparison). In **M4** the button opens the **bottom-dock editor** (structured fields + raw JSON) for full customization before re-sending — see the dock in the mockup above.
 - **Export:** per-conversation (and per-exchange) JSON download per §7.
 - **Auto-follow:** a "stick to bottom" toggle for live conversations.
 
@@ -411,7 +418,7 @@ The overhead target is **near-zero added latency**, dominated by the model, not 
 - **No client auth by default.** Clients connect with no key; identity comes from source IP (+ optional key as a tag). There is no `PROXY_API_KEYS` gate in the default path.
 - **Optional client key** is purely an *identifier* (to split conversation tabs), not a security credential.
 - **Upstream key:** client-supplied keys are **passed through unchanged** (transparent). `UPSTREAM_API_KEY` is only a server-side *fallback* injected when a client sends no key; it is never exposed to clients.
-- **UI auth / TLS:** out of scope for the trusted-network default. Both remain opt-in toggles (`UI_AUTH_TOKEN`, reverse-proxy TLS) in case the deployment context ever changes.
+- **UI auth / TLS:** out of scope (trusted network). The only auth behavior is transparent pass-through of the client's key to the upstream (§5.1) — no proxy-side keys, no UI token.
 - **Secrets in dumps:** mask `authorization`/secret headers in exports by default (cheap insurance even on a trusted net).
 - **No arbitrary egress:** the proxy only talks to the single configured upstream.
 - **Run as non-root** in the container.
@@ -500,7 +507,7 @@ services:
 #   llm-proxy-data:
 ```
 
-**Config (env vars):** `LISTEN_HOST`, `LISTEN_PORT`, `UPSTREAM_BASE_URL`, `UPSTREAM_API_KEY` (optional), `IN_ADAPTER`, `OUT_ADAPTER`, `CLIENT_ID_HEADER` (optional), `SPLIT_CONVERSATIONS` (optional), `RETENTION_MAX_EXCHANGES`, `RETENTION_MAX_AGE_HOURS`, `INCLUDE_RAW_CHUNKS`, `PROXY_DATA_DIR` (future persistence), `LOG_LEVEL`, `USE_UVLOOP`. (`PROXY_API_KEYS` / `UI_AUTH_TOKEN` remain as opt-in toggles for non-trusted deployments.)
+**Config (env vars):** `LISTEN_HOST`, `LISTEN_PORT`, `UPSTREAM_BASE_URL`, `UPSTREAM_API_KEY` (optional), `IN_ADAPTER`, `OUT_ADAPTER`, `CLIENT_ID_HEADER` (optional), `SPLIT_CONVERSATIONS` (optional), `RETENTION_MAX_EXCHANGES`, `RETENTION_MAX_AGE_HOURS`, `INCLUDE_RAW_CHUNKS`, `PROXY_DATA_DIR` (future persistence), `LOG_LEVEL`, `USE_UVLOOP`.
 
 **Build:** `docker compose build` / `docker build -t llm-proxy .` — optionally `docker buildx` for `amd64`/`arm64`. **`[OPEN]`** Q11: target arch.
 
@@ -542,8 +549,8 @@ services:
 | Q2 | Streaming emphasis | `stream: true` is the dominant case; UI renders tokens live. (Matches llama.cpp usage.) |
 | Q9 | Plugin scope | v1 = structural adapters with OpenAI↔OpenAI passthrough; cross-format (OpenAI↔Anthropic) is roadmap. |
 | Q10 | Dump consumers | Human / LLM inspection only (no specific ingest tool). |
-| Q11 | Container arch | `amd64` first; multi-arch (`arm64`) is a one-line `buildx` add if needed. |
-| Q12 | Observability extras | Structured JSON logs; Prometheus `/metrics` optional. |
+| Q11 | Container arch | `amd64` first; multi-arch (`arm64`) is part of M3. |
+| Q12 | Observability extras | Structured JSON logs. |
 
 ---
 
@@ -569,10 +576,22 @@ services:
 **M3 — Adapter seams + hardening**
 - Formalize In/Out adapter protocols + registry; config-driven `IN_ADAPTER`/`OUT_ADAPTER`.
 - Error handling, timeouts, backpressure, slow-client guards, structured logs.
-- Auth (proxy keys, optional UI token), non-root image, healthcheck.
-- *Exit: clean plugin surface; stable under concurrent streaming clients.*
+- **Non-root image (high priority)**; multi-arch build (amd64 + arm64); healthcheck.
+  No auth work — trusted network; the only auth behavior is transparent pass-through of the client's key to the upstream (§5.1).
+- *Exit: clean plugin surface; stable under concurrent streaming clients; non-root, multi-arch image.*
 
-**M4 (roadmap, not v1)** — cross-format adapters (OpenAI→Anthropic), multi-upstream routing, on-disk persistence, Prometheus metrics, multi-arch image.
+**M4 — Polish**
+- Fully customizable replay message in the WebUI: edit the captured request (model, params, messages) before re-sending. Builds on the §5.2 override endpoint — v1's UI button replays as-is; M4 adds the full edit UI.
+  - *Design: replay editor lives in a **collapsible dock at the bottom of the conversation pane** (right column only — does not span the left dock). The Replay button on a captured request opens the dock pre-populated with that exchange's wire request (model, params, messages); the dock holds the **Re-send** (and **Cancel**) actions. The conversation list stays above the dock; the dock only occupies space while open.*
+  - *Editor granularity: **structured fields** (model, params, message list) with a **raw JSON body** fallback view, mirroring the expand view.*
+- **Collapsible thinking text:** the server card's reasoning/thinking block is collapsible to a one-line summary (e.g. `▸ thinking… 123 tok · 2.1s`); click to expand the full text. Live updates continue while collapsed. Suggested default: expanded while streaming, auto-collapse once thinking completes.
+- (Additional polish items to be added as requested.)
+- *Exit: a captured request can be fully customized and re-sent from the UI, with the result appended as a replay.*
+
+**M5 (roadmap / future ideas)**
+- Cross-format adapters (e.g. OpenAI→Anthropic, both directions).
+- On-disk persistence (SQLite or JSON; `PROXY_DATA_DIR`).
+
 
 ---
 
