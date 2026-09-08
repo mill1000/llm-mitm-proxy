@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <title>LLM Proxy</title>
+    <style>
+      :root { color-scheme: dark; }
+      body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background: #0f1115; color: #e6e6e6; margin: 0; padding: 2rem; }
+      h1 { font-size: 1.4rem; margin: 0 0 .3rem; }
+      h2 { font-size: .95rem; color: #8ab4f8; margin: 1.4rem 0 .5rem; text-transform: uppercase; letter-spacing: .04em; }
+      a { color: #7cc7ff; text-decoration: none; }
+      a:hover { text-decoration: underline; }
+      code { background: #1b1e24; padding: .1em .4em; border-radius: 4px; }
+      pre { background: #0a0c0f; border: 1px solid #23262d; padding: 1rem; border-radius: 8px; overflow: auto; font-size: .8rem; max-height: 60vh; }
+      .ok { color: #7ee0a1; }
+      .muted { color: #8b93a1; }
+    </style>
+  </head>
+  <body>
+    <h1>LLM Proxy</h1>
+    <p id="status" class="muted">Checking proxy status…</p>
+
+    <h2>Endpoints</h2>
+    <ul>
+      <li><a href="/health">GET /health</a> — liveness</li>
+      <li><a href="/api/clients">GET /api/clients</a> — known clients</li>
+      <li><code>GET /api/conversations/{id}</code> — full conversation</li>
+      <li><code>GET /api/conversations/{id}/export</code> — JSON dump</li>
+    </ul>
+
+    <h2>Known clients</h2>
+    <pre id="clients">—</pre>
+
+    <script>
+      (async () => {
+        const status = document.getElementById('status');
+        try {
+          const h = await (await fetch('/health')).json();
+          status.textContent = 'Proxy online (' + h.status + ')';
+          status.className = 'ok';
+        } catch (e) {
+          status.textContent = 'Proxy error: ' + e;
+          status.className = 'muted';
+        }
+        try {
+          const clients = await (await fetch('/api/clients')).json();
+          document.getElementById('clients').textContent = JSON.stringify(clients, null, 2);
+        } catch (e) {
+          document.getElementById('clients').textContent = String(e);
+        }
+      })();
+    </script>
+  </body>
+</html>

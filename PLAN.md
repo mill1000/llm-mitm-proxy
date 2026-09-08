@@ -32,13 +32,14 @@
 |---|---|---|
 | Language / runtime | **Python 3.12, async (`asyncio`)** | User's home language. Traffic is I/O-bound (LLM latency dominates), so async Python adds negligible overhead while keeping iteration fast. Avoids the dev-speed cost of Rust/Go for a tool where raw CPU is not the bottleneck. |
 | HTTP framework | **FastAPI + Uvicorn** (Starlette core) | Async-native, serves the proxy API, UI static files, REST, and WebSocket from one process/port. `uvloop` optional. |
-| Upstream client | **`httpx` (async, connection-pooled, HTTP/1.1 + keep-alive, streaming)** | First-class async streaming (`aiter_*`), connection reuse, clean timeout control. |
+| Upstream client | **`httpx2` (async, connection-pooled, HTTP/1.1 + keep-alive, streaming)** | First-class async streaming (`aiter_*`), connection reuse, clean timeout control. |
 | Live UI transport | **WebSocket** (`/ws`) | One persistent, low-overhead channel for live token/exchange events. Better than polling; simpler than SSE for bidirectional (replay, selection) control. |
 | Frontend | **No-build single-page app** (vanilla JS, optional Preact) served as static files | Keeps the Docker image **single-stage & small** (no Node build), trivially maintainable. (Q6 decided — see §13.1.) |
 | Client identity | **Source IP (primary) + optional API key as a secondary tag**; no key required by default | Trusted LAN; IP is stable and zero-config. An optional key lets two apps behind one IP/NAT get separate tabs. See §5.1 + the Docker source-IP note. |
 | Streaming | **Tap-and-forward SSE** | Forward upstream SSE bytes to the client in real time (no full buffering) while tapping deltas to the UI. This is the core of both performance and the live view. |
 | I/O model | **Adapter/Plugin protocol + Normalized IR** | Independent in/out formats; v1 ships OpenAI↔OpenAI passthrough. |
 | Storage | **In-memory ring buffers** (+ optional on-disk JSON persistence) | Live tool first; persistence is opt-in. |
+| Testing | **`python -m unittest`** (stdlib) — one framework, no runner deps | Zero extra dependencies, consistent with the lean/low-overhead ethos. The suite is small (a handful of e2e + unit tests) and unittest is sufficient; `python -m unittest discover` needs no runner config. Migrate to pytest only if the suite grows and needs fixtures/parametrize. |
 
 ---
 
@@ -286,7 +287,7 @@ Proposed JSON schema (versioned). Design goals: self-describing, replayable, and
   "version": 1,
   "exported_at": "2026-09-04T12:00:00Z",
   "proxy": {
-    "version": "0.1.0",
+    "version": "2026.09.04",
     "in_adapter": "openai",
     "out_adapter": "openai",
     "upstream": { "name": "llama.cpp", "base_url": "http://llamacpp:8080", "model": "local-model" }
@@ -387,7 +388,7 @@ Implementation: static `index.html` + `app.js` + `styles.css` (vanilla or Preact
 The overhead target is **near-zero added latency**, dominated by the model, not the proxy.
 
 1. **Tap-and-forward streaming** — forward each upstream SSE chunk to the client as soon as it's read; never buffer the whole response before the client sees tokens. The UI tap is a side channel (async, non-blocking) and never blocks the client path.
-2. **Single async event loop** (`asyncio` + `uvicorn`), **connection pooling + keep-alive** to upstream (`httpx.AsyncClient` with a pool). No per-request process/socket churn.
+2. **Single async event loop** (`asyncio` + `uvicorn`), **connection pooling + keep-alive** to upstream (`httpx2.AsyncClient` with a pool). No per-request process/socket churn.
 3. **Lightweight per-chunk work** — the hot path only does: read chunk → write chunk → cheap SSE line parse (split on `\n`, prefix match `data:`). No heavy JSON parsing on every delta.
 4. **Parse-once, reuse** — full JSON parse of request/response happens once (for IR/UI), not per token.
 5. **Bounded memory** — ring buffers cap retention; raw SSE chunks are dropped from memory after reassembly (unless persistence is on).
@@ -425,17 +426,19 @@ FROM python:3.12-slim AS runtime
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PIP_NO_CACHE_DIR=1
+    PIP_NO_CACHE_DIR=1 \
+    UI_DIR=/app/ui
 
 WORKDIR /app
 
-# Install deps first for layer caching.
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
-# App + static UI.
+# Install the package (and its dependencies); pyproject.toml is the single
+# source of truth for requirements.
+COPY pyproject.toml README.md ./
 COPY src ./src
-COPY ui  ./ui
+RUN pip install --no-cache-dir .
+
+# Static UI (served from UI_DIR).
+COPY ui ./ui
 
 # Non-root user.
 RUN useradd -m appuser && chown -R appuser:appuser /app
@@ -506,7 +509,7 @@ services:
 | Language | Python 3.12 |
 | Async | `asyncio` (+ optional `uvloop`) |
 | Web framework | FastAPI + Uvicorn |
-| HTTP client | `httpx` (async, pooled, streaming) |
+| HTTP client | `httpx2` (async, pooled, streaming) |
 | Live UI | Native `WebSocket` + vanilla JS/TS (optional Preact) |
 | SSE parsing | small hand-rolled line parser (no heavy dep) |
 | Config | env vars (`pydantic-settings`) |
@@ -544,7 +547,7 @@ services:
 
 **M0 — Skeleton (foundation)**
 - Project layout, `pyproject.toml`, config (env), FastAPI app + `/health`.
-- Proxy passthrough for `POST /v1/chat/completions` (non-streaming) → upstream, with `httpx` pooling.
+- Proxy passthrough for `POST /v1/chat/completions` (non-streaming) → upstream, with `httpx2` pooling.
 - Minimal capture: record request/response into an in-memory store.
 - Dockerfile + compose that run it. *Exit: a client can call through the proxy; a dump endpoint returns the captured exchange.*
 
@@ -589,7 +592,6 @@ llm-proxy/
 ├── PLAN.md
 ├── README.md
 ├── pyproject.toml
-├── requirements.txt
 ├── Dockerfile
 ├── docker-compose.yml
 ├── .dockerignore

@@ -1,0 +1,35 @@
+services:
+  llm-proxy:
+    build: .
+    image: llm-proxy:latest
+    # Standard port publishing. On Linux this goes through iptables DNAT,
+    # which preserves the real client source IP — so IP-based client
+    # identification works out of the box (see PLAN.md section 5.1 note).
+    ports:
+      - "9090:9090"      # clients -> proxy API; Web UI at http://<host>:9090/
+    environment:
+      LISTEN_HOST: "0.0.0.0"
+      LISTEN_PORT: "9090"        # kept off 8080 so it doesn't clash with llama.cpp
+      # llama.cpp runs on the Docker host (its default port is 8080); reach it
+      # via host-gateway (mapped below). Use the host's LAN IP if you prefer.
+      UPSTREAM_BASE_URL: "http://host.docker.internal:8080"
+      UPSTREAM_API_KEY: "${UPSTREAM_API_KEY:-}"   # optional fallback, used only if a client sends no key
+      IN_ADAPTER: "openai"
+      OUT_ADAPTER: "openai"
+      # CLIENT_ID_HEADER: "X-Client-Id"          # optional explicit-identity fallback
+      # SPLIT_CONVERSATIONS: "history"           # optional no-key auto-split (off by default)
+      RETENTION_MAX_EXCHANGES: "500"
+      RETENTION_MAX_AGE_HOURS: "24"
+      INCLUDE_RAW_CHUNKS: "false"
+      LOG_LEVEL: "info"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"   # lets the proxy (on the bridge) reach the host
+    restart: unless-stopped
+
+  # Optional: run llama.cpp in compose too. On the same compose network the
+  # proxy can reach it by service name -> set UPSTREAM_BASE_URL=http://llama.cpp:8080
+  # (and drop the host.docker.internal mapping above).
+  # llama.cpp:
+  #   image: <your-llama.cpp-server-image>
+  #   # volumes: models, etc.
+  #   # command: --port 8080 ...
