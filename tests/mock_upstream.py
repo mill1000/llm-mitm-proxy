@@ -14,10 +14,30 @@ from fastapi.responses import JSONResponse, StreamingResponse
 
 mock = FastAPI()
 
+# llama.cpp embeds generation timings in the final stream chunk / non-stream body;
+# 3 tokens in 30ms -> 100 tok/s. Lets tests assert the proxy surfaces them.
+TIMINGS = {"prompt_n": 45, "prompt_ms": 1150.0, "predicted_n": 3, "predicted_ms": 30.0}
+
 
 @mock.get("/v1/models")
 async def models() -> dict:
     return {"object": "list", "data": [{"id": "local-model", "object": "model"}]}
+
+
+def _sse_line(
+    model: str, delta: dict, finish: str | None = None, usage: dict | None = None, timings: dict | None = None
+) -> str:
+    obj: dict = {
+        "id": "c1",
+        "object": "chat.completion.chunk",
+        "model": model,
+        "choices": [{"index": 0, "delta": delta, "finish_reason": finish}],
+    }
+    if usage:
+        obj["usage"] = usage
+    if timings:
+        obj["timings"] = timings
+    return f"data: {json.dumps(obj)}\n\n"
 
 
 @mock.post("/v1/chat/completions")
@@ -27,6 +47,28 @@ async def chat(request: Request):
     model = body.get("model", "local-model")
     if model == "boom":
         return JSONResponse({"error": {"message": "model not found"}}, status_code=404)
+
+    # "thinker" mirrors real reasoning models (e.g. llama.cpp --reasoning-preserve):
+    # thinking streams first in delta.reasoning_content, content afterwards.
+    if stream and model == "thinker":
+
+        async def gen_think():
+            for piece in ["Let", " me", " think", "..."]:
+                yield _sse_line(model, {"reasoning_content": piece})
+                await asyncio.sleep(0.005)
+            for piece in ["Hi", "!"]:
+                yield _sse_line(model, {"content": piece})
+                await asyncio.sleep(0.005)
+            yield _sse_line(
+                model,
+                {},
+                finish="stop",
+                usage={"prompt_tokens": 4, "completion_tokens": 2, "total_tokens": 6},
+                timings={"prompt_n": 4, "prompt_ms": 100.0, "predicted_n": 2, "predicted_ms": 10.0},
+            )
+            yield "data: [DONE]\n\n"
+
+        return StreamingResponse(gen_think(), media_type="text/event-stream")
 
     async def gen():
         for piece in ["Hello", ", ", "world", "!"]:
@@ -44,6 +86,7 @@ async def chat(request: Request):
             "model": model,
             "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}],
             "usage": {"prompt_tokens": 5, "completion_tokens": 3, "total_tokens": 8},
+            "timings": TIMINGS,
         }
         yield f"data: {json.dumps(final)}\n\n"
         yield "data: [DONE]\n\n"
@@ -63,6 +106,7 @@ async def chat(request: Request):
                 }
             ],
             "usage": {"prompt_tokens": 5, "completion_tokens": 3, "total_tokens": 8},
+            "timings": TIMINGS,
         }
     )
 

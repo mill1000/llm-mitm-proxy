@@ -1,0 +1,12 @@
+{
+  "name": "llm-proxy",
+  "image": "mcr.microsoft.com/devcontainers/python:3.14",
+  "features": {
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "lts"
+    },
+    "ghcr.io/devcontainers/features/git:1": {}
+  },
+  "forwardPorts": [9090],
+  "postCreateCommand": "pip install -e '.[dev]' && npm install"
+}

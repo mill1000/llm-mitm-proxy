@@ -5,6 +5,9 @@ __pycache__/
 .venv/
 venv/
 
+# Node (dev tooling)
+node_modules/
+
 # Env / secrets
 .env
 

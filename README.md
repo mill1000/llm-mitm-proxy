@@ -12,11 +12,18 @@ right), live tokens, timestamps + deltas, and expandable full wire calls.
 
 ## Status
 
-**M0 — foundation** (this tree). The proxy forwards `/v1/*` to the upstream
-(pooled, streaming tap-and-forward), captures every exchange into an in-memory
-ring buffer, and exposes a small REST API + JSON export.
+**M1 — live streaming UI** (this tree). The proxy forwards `/v1/*` to the
+upstream (pooled, streaming tap-and-forward), captures every exchange into an
+in-memory ring buffer, and serves a live **conversation WebUI** over a single
+WebSocket (`/ws`): client request on the left, server response on the right,
+tokens rendered live, timestamps + timing deltas (TTFT / total / tok/s), and
+expandable full wire calls. Reasoning models (e.g. llama.cpp
+`--reasoning-preserve`) stream their thinking live into a muted "thinking"
+block; tok/s comes from the generation timings llama.cpp embeds in its
+responses when available.
 
-- M1 — live streaming UI (WebSocket) + conversation view
+- M0 — foundation (proxy, capture, REST, export) — done
+- M1 — live streaming UI (WebSocket fan-out) + conversation view — done
 - M2 — replay + full JSON export
 - M3 — adapter registry / cross-format seams + hardening
 
@@ -57,7 +64,7 @@ curl http://localhost:9090/api/conversations/127.0.0.1/export
 
 ## Tests
 
-Install the package, then run the M0 end-to-end suite (it spins up a mock
+Install the package, then run the end-to-end suite (M0 + M1; it spins up a mock
 llama.cpp upstream on `127.0.0.1:8082`):
 
 ```bash
@@ -67,13 +74,40 @@ python -m unittest discover -v
 
 ## Development (style)
 
-Formatting is enforced with **isort + black** (configured in `pyproject.toml`):
+Python is formatted with **isort + black** (configured in `pyproject.toml`):
 
 ```bash
 pip install -e ".[dev]"
 isort src tests
 black src tests
 ```
+
+JS is verified with **`node --check` + ESLint** (flat config in `eslint.config.mjs`;
+the UI itself has no build step — plain JS served from `ui/`):
+
+```bash
+npm install
+npm run verify:js
+```
+
+## Dev container
+
+The repo includes a [devcontainer](./.devcontainer/devcontainer.json) (Python 3.12 +
+Node LTS). In VS Code: **Dev Containers: Reopen in Container**. On startup it
+installs the package (`.[dev]`) into the image's system Python (no
+`.venv` is created) and runs `npm install`.
+
+Inside the container:
+
+```bash
+python -m unittest discover -v      # Python test suite (M0 + M1)
+npm run verify:js                   # node --check + ESLint over ui/
+UPSTREAM_BASE_URL=http://localhost:8080 python -m uvicorn llm_proxy.app:app --port 9090
+```
+
+The WebUI needs a real browser: open the auto-forwarded `http://localhost:9090`
+and point a client at `http://localhost:9090/v1/chat/completions` to see the
+conversation view live.
 
 ## Configuration (env vars)
 
@@ -95,14 +129,15 @@ black src tests
 
 ```
 src/llm_proxy/
-  app.py               # FastAPI app factory (proxy + UI REST + static UI, one process)
+  app.py               # FastAPI app factory (proxy + UI REST + /ws + static UI)
   config.py            # env-based settings
+  hub.py               # WebSocket fan-out hub (non-blocking live UI delivery)
   proxy/               # /v1/* router, pipeline (tap-and-forward), SSE parser
   adapters/            # in/out adapter protocols + registry + openai adapter
   model/               # normalized IR + conversation objects (ring buffer)
   store/               # in-memory store + retention
   api/                 # /api/* UI endpoints
   dump.py              # JSON export
-ui/                    # static single-page UI (no build step)
+ui/                    # static single-page UI (index.html, app.js, styles.css; no build)
 Dockerfile, docker-compose.yml
 ```

@@ -18,6 +18,14 @@ class MemoryStore:
     def _conv_id(client_id: str, tag: str) -> str:
         return f"{client_id}" if not tag else f"{client_id}::{tag}"
 
+    @staticmethod
+    def conversation_id(client_id: str, tag: str) -> str:
+        """Public accessor so the pipeline can scope WS events to a conversation."""
+        return MemoryStore._conv_id(client_id, tag)
+
+    def has_client(self, client_id: str) -> bool:
+        return client_id in self._clients
+
     def get_or_create_conversation(self, client_id: str, tag: str = "") -> tuple[Client, Conversation]:
         cid = self._conv_id(client_id, tag)
         conv = self._conversations.get(cid)

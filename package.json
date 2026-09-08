@@ -1,0 +1,15 @@
+{
+  "name": "llm-proxy-dev",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Dev-only tooling for JS verification. The UI itself has no build step (plain JS served from ui/).",
+  "scripts": {
+    "check": "node --check ui/app.js",
+    "lint": "eslint ui",
+    "verify:js": "npm run check && npm run lint"
+  },
+  "devDependencies": {
+    "eslint": "^9",
+    "globals": "^16"
+  }
+}

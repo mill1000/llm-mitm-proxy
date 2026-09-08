@@ -6,6 +6,7 @@ Run with: ``uvicorn llm_proxy.app:app --host 0.0.0.0 --port 9090 --workers 1``
 
 from __future__ import annotations
 
+import json
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -13,11 +14,13 @@ import httpx2
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import Response
 from fastapi.staticfiles import StaticFiles
+from starlette.websockets import WebSocket, WebSocketDisconnect
 
 from . import __version__
 from .adapters.base import AdapterRegistry
 from .api.ui import router as ui_router
 from .config import Settings, get_settings
+from .hub import Hub
 from .proxy.pipeline import Pipeline
 from .proxy.router import router as proxy_router
 from .store.memory import MemoryStore
@@ -40,7 +43,7 @@ async def lifespan(app: FastAPI):
     app.state.http = httpx2.AsyncClient(base_url=settings.upstream_base_url, limits=limits, timeout=timeout)
     app.state.settings = settings
     app.state.store = MemoryStore(settings.retention_max_exchanges, settings.retention_max_age_hours)
-    app.state.pipeline = Pipeline(app.state.http, settings, AdapterRegistry(), app.state.store)
+    app.state.pipeline = Pipeline(app.state.http, settings, AdapterRegistry(), app.state.store, app.state.hub)
     try:
         yield
     finally:
@@ -49,6 +52,7 @@ async def lifespan(app: FastAPI):
 
 def create_app() -> FastAPI:
     app = FastAPI(title="LLM Proxy", version=__version__, lifespan=lifespan)
+    app.state.hub = Hub()
 
     # Proxy API + UI REST API first so they take precedence over the static mount.
     app.include_router(proxy_router)
@@ -57,6 +61,27 @@ def create_app() -> FastAPI:
     @app.get("/health")
     async def health() -> dict:
         return {"status": "ok"}
+
+    @app.websocket("/ws")
+    async def ws_endpoint(ws: WebSocket):
+        hub = app.state.hub
+        await hub.connect(ws)
+        try:
+            while True:
+                raw = await ws.receive_text()
+                try:
+                    msg = json.loads(raw)
+                except json.JSONDecodeError:
+                    continue
+                mtype = msg.get("type")
+                if mtype == "subscribe":
+                    hub.set_focus(ws, msg.get("conversation_id"))
+                elif mtype == "unsub":
+                    hub.set_focus(ws, None)
+        except WebSocketDisconnect:
+            pass
+        finally:
+            hub.disconnect(ws)
 
     # Static UI (served last, so /v1/*, /api/*, /health win).
     ui_dir = _ui_dir(get_settings())

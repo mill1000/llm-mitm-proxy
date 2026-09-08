@@ -152,14 +152,18 @@ Exchange
   is_replay
   client_request:   { timestamp, method, path, headers, body_json, size_bytes }
   server_response:  { timestamp, status, headers, body_json | {stream:true, chunks:[], reassembled}, size_bytes }
-  timings:          { t_request_in, t_response_first_byte(TTFT), t_response_end,
-                      total_ms, ttft_ms, per_token_ms(≈), tokens, tokens_per_sec }
+  timings:          { t_request_in, t_upstream_send, t_first_byte, t_first_content,
+                      t_last_content, t_end, ttft_ms, total_ms, gen_tok_per_sec }
+                      # gen_tok_per_sec: from upstream-reported timings (llama.cpp
+                      # embeds predicted_n/predicted_ms); null when not available
   usage:            { prompt_tokens, completion_tokens, total_tokens }   (if upstream provides)
   error:            { type, message } | null
 
 Event (WS payload)
   { type: exchange_started | delta | exchange_completed | replay | error | client_seen,
-    conversation_id, exchange_id, payload }
+    conversation_id, exchange_id, ... }
+  # delta events carry `delta` (content text) and `reasoning_delta` (thinking text
+  # for reasoning models, e.g. llama.cpp --reasoning-preserve); either may be ""
 ```
 
 **Splitting multiple conversations from one machine (no API key needed).** By default a client IP maps to a single conversation tab. If one machine runs more than one logical chat, conversations can be auto-split **without any key or client config** by detecting boundaries from the request's `messages` history (OpenAI chat is stateless — the client re-sends the full history each turn):

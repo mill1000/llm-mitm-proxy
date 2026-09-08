@@ -1,8 +1,9 @@
 """Minimal SSE line parser + reassembler.
 
 Deliberately tiny: split on newlines, prefix-match ``data:``, parse JSON payloads,
-and accumulate ``choices[].delta.content`` into a reassembled message. No heavy
-dependency, no full-JSON parse per token (parse-once happens on the reassembled body).
+and accumulate ``choices[].delta`` (``content`` and, for reasoning models,
+``reasoning_content``) into a reassembled message. No heavy dependency, no
+full-JSON parse per token (parse-once happens on the reassembled body).
 """
 
 from __future__ import annotations
@@ -15,10 +16,12 @@ class SSEStream:
         self._buf = ""
         self.chunks: list[dict] = []
         self._content_parts: list[str] = []
+        self._reasoning_parts: list[str] = []
         self._id = ""
         self._model = ""
         self._finish_reason: str | None = None
         self.usage: dict | None = None
+        self.timings: dict | None = None
         self.finished = False
 
     def feed(self, chunk: bytes) -> list[dict]:
@@ -50,27 +53,32 @@ class SSEStream:
         self._model = obj.get("model", self._model)
         if obj.get("usage"):
             self.usage = obj.get("usage")
+        if obj.get("timings"):
+            self.timings = obj.get("timings")
         for c in obj.get("choices", []) or []:
             delta = c.get("delta") or {}
             piece = delta.get("content")
             if piece:
                 self._content_parts.append(piece)
+            rpiece = delta.get("reasoning_content")
+            if rpiece:
+                self._reasoning_parts.append(rpiece)
             if c.get("finish_reason"):
                 self._finish_reason = c.get("finish_reason")
 
     def reassembled(self) -> dict:
         """A reconstructed ``chat.completion`` object from the streamed deltas."""
-        return {
+        message: dict = {"role": "assistant", "content": "".join(self._content_parts)}
+        if self._reasoning_parts:
+            message["reasoning_content"] = "".join(self._reasoning_parts)
+        out: dict = {
             "id": self._id,
             "object": "chat.completion",
             "model": self._model,
             "stream": True,
-            "choices": [
-                {
-                    "index": 0,
-                    "message": {"role": "assistant", "content": "".join(self._content_parts)},
-                    "finish_reason": self._finish_reason,
-                }
-            ],
+            "choices": [{"index": 0, "message": message, "finish_reason": self._finish_reason}],
             "usage": self.usage,
         }
+        if self.timings is not None:
+            out["timings"] = self.timings
+        return out
