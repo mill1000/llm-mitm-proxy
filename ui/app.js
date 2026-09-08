@@ -17,6 +17,9 @@
     focusCid: null,
     ws: null,
     wsRetry: null,
+    wsAttempts: 0, // reconnect attempts since page load (diagnostics)
+    wsOpenedAt: null, // ms; age of the current socket at close (diagnostics)
+    wsLastMsgAt: null, // ms; last WS message received (stale detection)
     exById: new Map(), // exchange_id -> exchange object (focused conversation)
     live: new Map(), // exchange_id -> accumulated streamed text
     lastSeq: 0,
@@ -236,6 +239,34 @@
     if (cur.parentNode !== host) host.appendChild(cur);
   }
 
+  // ---------- replay / per-exchange export ----------
+  async function replayExchange(cid, seq) {
+    // Re-send the captured request unchanged. (The endpoint also accepts a
+    // JSON body of overrides, e.g. {"model": "..."}, for API-driven replays.)
+    try {
+      const r = await fetch(`/api/conversations/${encodeURIComponent(cid)}/exchanges/${seq}/replay`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: "{}",
+      });
+      if (!r.ok) {
+        const err = await r.text();
+        alert(`replay failed: ${r.status} ${err}`);
+      }
+    } catch (e) {
+      alert(`replay failed: ${e.message}`);
+    }
+  }
+
+  function exportExchange(cid, seq) {
+    const a = document.createElement("a");
+    a.href = `/api/conversations/${encodeURIComponent(cid)}/exchanges/${seq}/export`;
+    a.download = `${cid}-ex${seq}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  }
+
   function exchangeCard(ex, live) {
     const isLive = live != null;
     const text = isLive ? live.content : respText(ex);
@@ -254,10 +285,16 @@
         <span class="ex-time">${fmtTime(ex.client_request && ex.client_request.timestamp)}</span>
         <span class="ex-timings"></span>
         ${badges.join("")}
+        <span class="ex-actions">
+          <button class="btn btn-sm" data-action="replay" title="Re-send this request to the server">replay</button>
+          <button class="btn btn-sm" data-action="export" title="Download this exchange as JSON">export</button>
+        </span>
       </div>
       <div class="ex-body">${clientSideHtml(ex)}${serverSideHtml(ex, reasoning)}</div>`;
 
     el.querySelector(".ex-timings").textContent = timingsText(ex);
+    el.querySelector('[data-action="replay"]').addEventListener("click", () => replayExchange(state.focusCid, ex.sequence));
+    el.querySelector('[data-action="export"]').addEventListener("click", () => exportExchange(state.focusCid, ex.sequence));
     const pv = el.querySelector(".preview");
     if (pv) pv.textContent = previewOf(ex);
     el.querySelector(".req-pre").textContent = fullRequest(ex);
@@ -320,7 +357,7 @@
           upsertExchange({
             id: ev.exchange_id,
             sequence: state.lastSeq + 1,
-            is_replay: false,
+            is_replay: !!ev.is_replay,
             client_request: ev.client_request,
             server_response: { status: "…", streaming: ev.streaming },
             timings: {},
@@ -350,33 +387,52 @@
     p.classList.toggle("ws-off", !on);
   }
 
+  function wslog(level, ...args) {
+    console[level](`[ws] ${new Date().toISOString().slice(11, 23)}`, ...args);
+  }
+
   function connectWs() {
     if (state.wsRetry) {
       clearTimeout(state.wsRetry);
       state.wsRetry = null;
     }
     const proto = location.protocol === "https:" ? "wss" : "ws";
-    const ws = new WebSocket(`${proto}://${location.host}/ws`);
+    const url = `${proto}://${location.host}/ws`;
+    const attempt = ++state.wsAttempts;
+    state.wsOpenedAt = null; // a close before open must not report the old socket's age
+    wslog("log", `connect #${attempt} -> ${url}`);
+    const ws = new WebSocket(url);
     state.ws = ws;
     ws.onopen = () => {
       setWs(true);
+      state.wsOpenedAt = Date.now();
+      wslog("log", `open (attempt #${attempt})${state.focusCid ? `, resubscribing ${state.focusCid}` : ""}`);
       if (state.focusCid) ws.send(JSON.stringify({ type: "subscribe", conversation_id: state.focusCid }));
+      // Any (re)connect means we may have missed broadcast events (client_seen)
+      // while the socket was down; re-sync the dock. Cheap: one small GET.
+      refreshClients();
     };
     ws.onmessage = (m) => {
+      state.wsLastMsgAt = Date.now();
       try {
-        onWsMessage(JSON.parse(m.data));
+        const ev = JSON.parse(m.data);
+        wslog("debug", `event: ${ev.type}`);
+        onWsMessage(ev);
       } catch (e) {
-        console.error("ws message handling failed", e, m.data);
+        wslog("error", "message handling failed", e, m.data);
       }
     };
     ws.onclose = (ev) => {
       if (state.ws !== ws) return; // superseded by a newer connection
       setWs(false);
-      console.error(`ws closed (code=${ev.code} reason=${esc(ev.reason || "-")})`);
+      const lived = state.wsOpenedAt ? ` lived=${Math.round((Date.now() - state.wsOpenedAt) / 1000)}s` : "";
+      if (ev.code === 1000) wslog("log", `closed code=1000 (clean)${lived}`);
+      else wslog("error", `closed code=${ev.code} reason=${esc(ev.reason || "-")}${lived}`);
       state.wsRetry = setTimeout(connectWs, 2000);
+      wslog("log", "reconnect in 2s");
     };
     ws.onerror = (ev) => {
-      console.error("ws error", ev);
+      wslog("error", "socket error", ev);
       try {
         ws.close();
       } catch {
@@ -385,15 +441,30 @@
     };
   }
 
+  function checkWsStale() {
+    // A socket can be open but half-dead (observed in Firefox: pill says
+    // ws:on, nothing flows). Only warn once we have seen traffic, so an idle
+    // proxy (no proxied requests) stays quiet.
+    if (state.ws && state.ws.readyState === 1 && state.wsLastMsgAt) {
+      const silent = Math.round((Date.now() - state.wsLastMsgAt) / 1000);
+      if (silent > 60) wslog("warn", `open but no message for ${silent}s`);
+    }
+  }
+
   // ---------- misc ----------
   async function checkUpstream() {
+    let ok = false;
+    let label = "upstream: error";
     try {
       const h = await api("/health");
-      $("stat-upstream").textContent = `upstream: ${h.status}`;
-      $("stat-upstream").classList.add("ok");
+      ok = h.upstream === "ok";
+      label = `upstream: ${h.upstream}`;
     } catch {
-      $("stat-upstream").textContent = "upstream: error";
+      /* proxy unreachable */
     }
+    $("stat-upstream").textContent = label;
+    $("stat-upstream").classList.toggle("ok", ok);
+    $("stat-upstream").classList.toggle("ws-off", !ok);
   }
 
   function wireButtons() {
@@ -424,6 +495,10 @@
   async function init() {
     wireButtons();
     checkUpstream();
+    setInterval(() => {
+      checkUpstream(); // keep the upstream pill honest (recovers when it comes back)
+      checkWsStale();
+    }, 30000);
     await refreshClients();
     connectWs();
   }

@@ -1,7 +1,8 @@
-"""UI REST API. Serves conversation data, replay (M2), and export to the web UI.
+"""UI REST API. Serves conversation data, replay, and export to the web UI.
 
-M0 provides: list clients, read a conversation, read one exchange, export, clear.
-Replay lands in M2 (it needs the captured client request re-sent to the upstream).
+Endpoints: list clients, read a conversation, read one exchange, replay an
+exchange (re-send its captured client request upstream), export a conversation
+or a single exchange, and clear a conversation.
 """
 
 from __future__ import annotations
@@ -11,7 +12,7 @@ import json
 from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import Response
 
-from ..dump import conversation_to_dump
+from ..dump import conversation_to_dump, exchange_to_dump
 
 router = APIRouter()
 
@@ -68,6 +69,30 @@ async def get_exchange(cid: str, seq: int, request: Request):
     raise HTTPException(status_code=404, detail="exchange not found")
 
 
+@router.post("/conversations/{cid}/exchanges/{seq}/replay")
+async def replay_exchange(cid: str, seq: int, request: Request):
+    """Re-send the captured client request of exchange ``seq`` upstream.
+
+    The optional JSON body is a set of top-level overrides (e.g. ``{"model": "x"}``)
+    applied to the original request body before it is re-sent. The replay is
+    captured into the same conversation and flagged ``is_replay``.
+    """
+    store = _store(request)
+    conv = store.get_conversation(cid)
+    if conv is None:
+        raise HTTPException(status_code=404, detail="conversation not found")
+    source = next((ex for ex in conv.exchanges if ex.sequence == seq), None)
+    if source is None:
+        raise HTTPException(status_code=404, detail="exchange not found")
+    try:
+        overrides = await request.json()
+    except Exception:  # noqa: BLE001
+        overrides = None
+    if not isinstance(overrides, dict):
+        overrides = None
+    return await request.app.state.pipeline.replay(conv, source, overrides)
+
+
 @router.get("/conversations/{cid}/export")
 async def export_conversation(cid: str, request: Request, format: str = Query("json")):
     if format != "json":
@@ -83,6 +108,26 @@ async def export_conversation(cid: str, request: Request, format: str = Query("j
         content=body,
         media_type="application/json",
         headers={"content-disposition": f'attachment; filename="{cid}.json"'},
+    )
+
+
+@router.get("/conversations/{cid}/exchanges/{seq}/export")
+async def export_exchange(cid: str, seq: int, request: Request, format: str = Query("json")):
+    if format != "json":
+        raise HTTPException(status_code=400, detail=f"unsupported format: {format}")
+    store = _store(request)
+    conv = store.get_conversation(cid)
+    if conv is None:
+        raise HTTPException(status_code=404, detail="conversation not found")
+    ex = next((e for e in conv.exchanges if e.sequence == seq), None)
+    if ex is None:
+        raise HTTPException(status_code=404, detail="exchange not found")
+    payload = exchange_to_dump(ex, request.app.state.settings)
+    body = json.dumps(payload, indent=2).encode()
+    return Response(
+        content=body,
+        media_type="application/json",
+        headers={"content-disposition": f'attachment; filename="{cid}-ex{seq}.json"'},
     )
 
 

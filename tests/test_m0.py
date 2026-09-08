@@ -52,7 +52,32 @@ class TestProxy(unittest.TestCase):
     def test_health(self):
         r = self.client.get("/health")
         self.assertEqual(r.status_code, 200)
-        self.assertEqual(r.json().get("status"), "ok")
+        body = r.json()
+        self.assertEqual(body["status"], "ok")
+        self.assertEqual(body["upstream"], "ok")
+
+    def test_health_reports_upstream_error_when_unreachable(self):
+        # /health must report the *link* state, not just the proxy process: a
+        # dead upstream shows up as upstream=error (the UI pill turns red).
+        s = socket.socket()
+        s.bind(("127.0.0.1", 0))
+        dead_port = s.getsockname()[1]
+        s.close()
+
+        old = os.environ.get("UPSTREAM_BASE_URL")
+        os.environ["UPSTREAM_BASE_URL"] = f"http://127.0.0.1:{dead_port}"
+        get_settings.cache_clear()
+        try:
+            with TestClient(create_app()) as c:
+                body = c.get("/health").json()
+                self.assertEqual(body["status"], "ok")
+                self.assertEqual(body["upstream"], "error")
+        finally:
+            if old is None:
+                os.environ.pop("UPSTREAM_BASE_URL", None)
+            else:
+                os.environ["UPSTREAM_BASE_URL"] = old
+            get_settings.cache_clear()
 
     def test_non_streaming_passthrough(self):
         r = self.client.post(CHAT, json=_payload(stream=False))

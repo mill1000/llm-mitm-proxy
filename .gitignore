@@ -1,15 +1,10 @@
-# Python
 __pycache__/
 *.py[cod]
 *.egg-info/
 .venv/
 venv/
-
-# Node (dev tooling)
 node_modules/
-
-# Env / secrets
 .env
-
-# OS
 .DS_Store
+devcontainer-lock.json
+package-lock.json

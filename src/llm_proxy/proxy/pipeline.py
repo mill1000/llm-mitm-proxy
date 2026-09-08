@@ -17,7 +17,7 @@ from fastapi.responses import Response, StreamingResponse
 
 from ..adapters.base import AdapterRegistry
 from ..hub import Hub
-from ..model.conversation import Exchange
+from ..model.conversation import Conversation, Exchange
 from ..model.ir import WireRequest, WireResponse
 from ..store.memory import MemoryStore
 from .sse import SSEStream
@@ -132,6 +132,12 @@ class Pipeline:
             out["authorization"] = f"Bearer {self.settings.upstream_api_key}"
         return out
 
+    def _replay_headers(self, headers: dict) -> dict:
+        # Captured headers are redacted, so any secret values are unusable masks;
+        # drop them and let _upstream_headers() re-apply the UPSTREAM_API_KEY fallback.
+        out = {k: v for k, v in headers.items() if k.lower() not in _SECRET_HEADERS}
+        return self._upstream_headers(out)
+
     @staticmethod
     def _resp_headers(headers: dict) -> dict:
         return {k: v for k, v in headers.items() if k.lower() not in _STRIP_RESP}
@@ -157,16 +163,30 @@ class Pipeline:
         except Exception:
             norm_req = None
 
-        is_stream = bool(wire_req.body_json and wire_req.body_json.get("stream"))
         cid = self.store.conversation_id(client_id, tag)
         exchange_id = str(uuid.uuid4())
 
         if not self.store.has_client(client_id):
+            # Register the client BEFORE broadcasting: client_seen triggers an
+            # immediate /api/clients re-fetch in the UI, which must never run
+            # ahead of the store or it returns an empty dock. handle() runs
+            # synchronously up to its first await, so anything registered here
+            # is visible before the re-fetch can be processed (no race window).
+            self.store.get_or_create_conversation(client_id, tag)
             self.hub.emit(
                 cid,
                 {"type": "client_seen", "conversation_id": cid, "client_id": client_id, "ts": t0},
                 broadcast=True,
             )
+        return await self._forward(
+            wire_req, norm_req, client_id, tag, cid, exchange_id, headers, t0, is_replay=False
+        )
+
+    # ---- forward to upstream (shared by live requests and replay) ----
+    async def _forward(
+        self, wire_req, norm_req, client_id, tag, cid, exchange_id, headers, t0, *, is_replay: bool
+    ) -> Response:
+        is_stream = bool(wire_req.body_json and wire_req.body_json.get("stream"))
         self.hub.emit(
             cid,
             {
@@ -174,6 +194,7 @@ class Pipeline:
                 "conversation_id": cid,
                 "exchange_id": exchange_id,
                 "streaming": is_stream,
+                "is_replay": is_replay,
                 "ts": t0,
                 "client_request": {
                     "timestamp": t0,
@@ -188,12 +209,44 @@ class Pipeline:
         )
 
         if is_stream:
-            return await self._stream(wire_req, norm_req, client_id, tag, cid, exchange_id, headers, t0)
-        return await self._non_stream(wire_req, norm_req, client_id, tag, cid, exchange_id, headers, t0)
+            return await self._stream(
+                wire_req, norm_req, client_id, tag, cid, exchange_id, headers, t0, is_replay=is_replay
+            )
+        return await self._non_stream(
+            wire_req, norm_req, client_id, tag, cid, exchange_id, headers, t0, is_replay=is_replay
+        )
+
+    # ---- replay (re-send a captured client request to the upstream) ----
+    async def replay(self, conv: Conversation, source: Exchange, overrides: dict | None) -> Response:
+        cr = source.client_request or {}
+        body_json = dict(cr.get("body_json") or {})
+        if overrides:
+            body_json.update(overrides)
+        body = json.dumps(body_json).encode()
+        wire_req = WireRequest(
+            method=cr.get("method", "POST"),
+            path=cr.get("path", "/v1/chat/completions"),
+            headers=dict(cr.get("headers") or {}),
+            body=body,
+            body_json=body_json,
+        )
+        client_id = conv.client_id
+        tag = conv.tag
+        cid = conv.id
+        headers = self._replay_headers(cr.get("headers") or {})
+        try:
+            norm_req = self.in_adapter.parse_request(wire_req)
+        except Exception:  # noqa: BLE001
+            norm_req = None
+        t0 = time.time()
+        exchange_id = str(uuid.uuid4())
+        return await self._forward(
+            wire_req, norm_req, client_id, tag, cid, exchange_id, headers, t0, is_replay=True
+        )
 
     # ---- non-streaming ----
     async def _non_stream(
-        self, wire_req, norm_req, client_id, tag, cid, exchange_id, headers, t0
+        self, wire_req, norm_req, client_id, tag, cid, exchange_id, headers, t0, *, is_replay: bool = False
     ) -> Response:
         t_send = time.time()
         try:
@@ -217,6 +270,7 @@ class Pipeline:
                 t_send=t_send,
                 t_first=None,
                 t_end=t_end,
+                is_replay=is_replay,
             )
             self.hub.emit(
                 cid,
@@ -263,6 +317,7 @@ class Pipeline:
             t_send=t_send,
             t_first=t_end,
             t_end=t_end,
+            is_replay=is_replay,
         )
         self.hub.emit(
             cid,
@@ -283,7 +338,9 @@ class Pipeline:
         )
 
     # ---- streaming: tap-and-forward with live UI fan-out ----
-    async def _stream(self, wire_req, norm_req, client_id, tag, cid, exchange_id, headers, t0):
+    async def _stream(
+        self, wire_req, norm_req, client_id, tag, cid, exchange_id, headers, t0, *, is_replay: bool = False
+    ):
         # Open the upstream stream *before* responding, so the client receives the
         # upstream's real status/headers (a clean 502 if it is unreachable) rather
         # than a premature 200 that is then aborted mid-body.
@@ -311,6 +368,7 @@ class Pipeline:
                 t_send=t_send,
                 t_first=None,
                 t_end=t_end,
+                is_replay=is_replay,
             )
             self.hub.emit(
                 cid,
@@ -387,6 +445,7 @@ class Pipeline:
                         t_end=state["end"],
                         t_first_content=state["first_content"],
                         t_last_content=state["last_content"],
+                        is_replay=is_replay,
                     )
                     self.hub.emit(
                         cid,
@@ -431,6 +490,7 @@ class Pipeline:
             t_send=t_send,
             t_first=state["first"],
             t_end=state["end"],
+            is_replay=is_replay,
         )
         self.hub.emit(
             cid,
@@ -473,6 +533,7 @@ class Pipeline:
         t_end,
         t_first_content=None,
         t_last_content=None,
+        is_replay: bool = False,
     ) -> Exchange:
         body_bytes = body if body is not None else wire_req.body
         # Upstream-reported generation rate: llama.cpp embeds a ``timings`` object
@@ -534,7 +595,7 @@ class Pipeline:
         exchange = Exchange(
             id=exchange_id,
             sequence=0,
-            is_replay=False,
+            is_replay=is_replay,
             client_request={
                 "timestamp": t0,
                 "method": wire_req.method,

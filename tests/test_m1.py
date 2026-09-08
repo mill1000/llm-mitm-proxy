@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import time
 import unittest
@@ -150,6 +151,9 @@ class TestLiveFanOut(unittest.TestCase):
             r = self.client.get(asset)
             self.assertEqual(r.status_code, 200, asset)
             self.assertTrue(len(r.content) > 0, asset)
+            # UI assets must not be heuristically cached by browsers, or a proxy
+            # restart can leave a tab running stale JS against the new process.
+            self.assertEqual(r.headers.get("cache-control"), "no-cache", asset)
 
     def test_focus_switch_routes_events(self):
         with self.client.websocket_connect("/ws") as ws:
@@ -204,3 +208,97 @@ class TestLiveFanOut(unittest.TestCase):
             non_ex = _read_until_completed(ws)[-1]["exchange"]
         self.assertEqual(non_ex["timings"]["gen_tok_per_sec"], 100.0)
         self.assertIsNone(non_ex["timings"]["t_first_content"])
+
+    def test_client_seen_emit_is_logged_at_info(self):
+        """Regression: the client_seen broadcast fan-out must be visible at INFO.
+
+        "Empty dock despite a live WS" was undiagnosable until this line existed:
+        "-> N full" proves delivery to the UI's queue; "dropped" (WARNING) proves
+        the UI was not connected when the client appeared.
+        """
+        logger = logging.getLogger("llm_proxy.ws")
+        records: list[logging.LogRecord] = []
+
+        class _Capture(logging.Handler):
+            def emit(self, record: logging.LogRecord) -> None:
+                records.append(record)
+
+        capture = _Capture()
+        old_level = logger.level
+        logger.addHandler(capture)
+        logger.setLevel(logging.INFO)  # the production default
+        try:
+            with self.client.websocket_connect("/ws") as ws:
+                self.client.post(CHAT, json=_payload(stream=False))
+                ev = ws.receive_json()
+                self.assertEqual(ev["type"], "client_seen")
+        finally:
+            logger.removeHandler(capture)
+            logger.setLevel(old_level)
+
+        text = "\n".join(r.getMessage() for r in records)
+        self.assertIn("emit client_seen -> 1 full", text)
+
+    def test_client_registered_before_client_seen_broadcast(self):
+        """Regression: by the time client_seen is broadcast, the client must
+        already be in the store.
+
+        The UI re-fetches /api/clients the instant it sees client_seen. If the
+        store does not yet contain the client (it used to be registered later,
+        inside _capture after the upstream round-trip), that re-fetch returns an
+        empty dock - and client_seen only fires once, so the dock stays empty
+        until a manual refresh. Registering before the emit closes the window.
+        """
+        store = self.client.app.state.store
+        hub = self.client.app.state.hub
+        real_emit = hub.emit
+        violations: list[str] = []
+
+        def spy_emit(conversation_id, event, **kwargs):
+            if event.get("type") == "client_seen" and not store.has_client(event["client_id"]):
+                violations.append(event["client_id"])
+            real_emit(conversation_id, event, **kwargs)
+
+        hub.emit = spy_emit
+        try:
+            with self.client.websocket_connect("/ws") as ws:
+                ws.send_json({"type": "subscribe", "conversation_id": CID})
+                self.client.post(CHAT, json=_payload(stream=False))
+                _read_until_completed(ws)
+        finally:
+            hub.emit = real_emit
+
+        self.assertEqual(violations, [])
+
+    def test_ws_lifecycle_is_logged(self):
+        """Regression: WS connect/focus/disconnect must be visible in the server log.
+
+        The UI's "ws:on but no client in the dock" failure mode is undiagnosable
+        without a connection trace, so capture the llm_proxy.ws logger output and
+        assert the lifecycle lines appear.
+        """
+        logger = logging.getLogger("llm_proxy.ws")
+        records: list[logging.LogRecord] = []
+
+        class _Capture(logging.Handler):
+            def emit(self, record: logging.LogRecord) -> None:
+                records.append(record)
+
+        capture = _Capture()
+        old_level = logger.level
+        logger.addHandler(capture)
+        logger.setLevel(logging.DEBUG)
+        try:
+            with self.client.websocket_connect("/ws") as ws:
+                ws.send_json({"type": "subscribe", "conversation_id": CID})
+                time.sleep(0.05)  # let the app loop process the focus change
+            time.sleep(0.05)  # TestClient close -> server-side disconnect is racy
+        finally:
+            logger.removeHandler(capture)
+            logger.setLevel(old_level)
+
+        text = "\n".join(r.getMessage() for r in records)
+        self.assertIn("ws connected", text)
+        self.assertIn("ws focus", text)
+        self.assertIn(CID, text)  # focus was set to the test client's conversation
+        self.assertIn("ws disconnected", text)

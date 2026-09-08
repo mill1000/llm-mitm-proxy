@@ -18,6 +18,10 @@ mock = FastAPI()
 # 3 tokens in 30ms -> 100 tok/s. Lets tests assert the proxy surfaces them.
 TIMINGS = {"prompt_n": 45, "prompt_ms": 1150.0, "predicted_n": 3, "predicted_ms": 30.0}
 
+# Bodies of every chat request received, in order. Lets tests assert replay
+# re-sends the captured request (and any overrides) verbatim to the upstream.
+REQUESTS: list[dict] = []
+
 
 @mock.get("/v1/models")
 async def models() -> dict:
@@ -43,6 +47,7 @@ def _sse_line(
 @mock.post("/v1/chat/completions")
 async def chat(request: Request):
     body = await request.json()
+    REQUESTS.append(body)
     stream = bool(body.get("stream", False))
     model = body.get("model", "local-model")
     if model == "boom":

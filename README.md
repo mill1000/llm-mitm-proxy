@@ -12,19 +12,22 @@ right), live tokens, timestamps + deltas, and expandable full wire calls.
 
 ## Status
 
-**M1 — live streaming UI** (this tree). The proxy forwards `/v1/*` to the
+**M2 — replay + export** (this tree). The proxy forwards `/v1/*` to the
 upstream (pooled, streaming tap-and-forward), captures every exchange into an
 in-memory ring buffer, and serves a live **conversation WebUI** over a single
 WebSocket (`/ws`): client request on the left, server response on the right,
 tokens rendered live, timestamps + timing deltas (TTFT / total / tok/s), and
-expandable full wire calls. Reasoning models (e.g. llama.cpp
+expandable full wire calls. Any captured exchange can be **replayed** to the
+upstream (per-card button; re-sends the captured client request and is flagged
+with a `replay` badge), and can be **exported** as JSON (single exchange or the
+whole conversation; secrets redacted). Reasoning models (e.g. llama.cpp
 `--reasoning-preserve`) stream their thinking live into a muted "thinking"
 block; tok/s comes from the generation timings llama.cpp embeds in its
 responses when available.
 
 - M0 — foundation (proxy, capture, REST, export) — done
 - M1 — live streaming UI (WebSocket fan-out) + conversation view — done
-- M2 — replay + full JSON export
+- M2 — replay + full JSON export — done
 - M3 — adapter registry / cross-format seams + hardening
 
 ## Quick start (Docker)
@@ -60,12 +63,17 @@ curl http://localhost:9090/v1/chat/completions \
 
 curl http://localhost:9090/api/clients
 curl http://localhost:9090/api/conversations/127.0.0.1/export
+
+# Replay the first captured exchange as captured (JSON body = optional
+# request-body overrides, e.g. {"model":"other-model"})
+curl -X POST http://localhost:9090/api/conversations/127.0.0.1/exchanges/0/replay \
+  -H 'content-type: application/json' -d '{}'
 ```
 
 ## Tests
 
-Install the package, then run the end-to-end suite (M0 + M1; it spins up a mock
-llama.cpp upstream on `127.0.0.1:8082`):
+Install the package, then run the end-to-end suite (M0 + M1 + M2; it spins up a
+mock llama.cpp upstream on `127.0.0.1:8082`):
 
 ```bash
 pip install -e ".[dev]"
@@ -100,7 +108,7 @@ installs the package (`.[dev]`) into the image's system Python (no
 Inside the container:
 
 ```bash
-python -m unittest discover -v      # Python test suite (M0 + M1)
+python -m unittest discover -v      # Python test suite (M0 + M1 + M2)
 npm run verify:js                   # node --check + ESLint over ui/
 UPSTREAM_BASE_URL=http://localhost:8080 python -m uvicorn llm_proxy.app:app --port 9090
 ```
@@ -123,7 +131,7 @@ conversation view live.
 | `RETENTION_MAX_AGE_HOURS` | `24` | Age cap for captured exchanges |
 | `INCLUDE_RAW_CHUNKS` | `false` | Keep raw SSE chunks in the store (memory-heavy) |
 | `UI_DIR` | *(package-relative `ui/`)* | Override the static UI directory (set in the Docker image) |
-| `LOG_LEVEL` | `info` | |
+| `LOG_LEVEL` | `info` | App loggers, incl. the `llm_proxy.ws` connection trace (`debug` = per-event fan-out) |
 
 ## Layout
 

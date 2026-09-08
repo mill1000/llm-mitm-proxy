@@ -157,6 +157,13 @@ body {
 .ex-seq { color: var(--accent); font-weight: 600; }
 .ex-time { font-variant-numeric: tabular-nums; }
 .ex-timings { margin-left: auto; font-variant-numeric: tabular-nums; }
+.ex-actions { display: flex; gap: 0.35rem; }
+.btn-sm {
+  padding: 0.05rem 0.45rem;
+  font-size: 0.68rem;
+  border-radius: 5px;
+  line-height: 1.4;
+}
 .badge {
   font-size: 0.68rem;
   padding: 0.05rem 0.45rem;

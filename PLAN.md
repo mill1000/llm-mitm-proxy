@@ -379,7 +379,7 @@ Features:
 - **Live:** streaming responses render token-by-token as they arrive over `/ws`; timing deltas update live (TTFT, running total, tok/s).
 - **Expand:** each side expands to the **full wire call** — method, path, headers, raw body, status, raw SSE/JSON, size, usage.
 - **Timestamps & deltas:** per-exchange absolute timestamp + TTFT, total, and per-token metrics.
-- **Replay (on the client/request side):** a button on the **client request** re-sends that captured request (the prompt) to the upstream. The fresh result is appended as a **new exchange** flagged `is_replay` (so the original response is preserved for comparison), optionally with an edited body or a different model.
+- **Replay (on the client/request side):** a button on the **client request** re-sends that captured request (the prompt) to the upstream **as-is** (no body/model-edit dialog in the UI; body overrides, e.g. `model`, are available on the replay API endpoint, §5.2). The fresh result is appended as a **new exchange** flagged `is_replay` (so the original response is preserved for comparison).
 - **Export:** per-conversation (and per-exchange) JSON download per §7.
 - **Auto-follow:** a "stick to bottom" toggle for live conversations.
 
@@ -562,7 +562,7 @@ services:
 - *Exit: watch a streaming conversation render live, side-by-side, with correct TTFT/total/tok-s.*
 
 **M2 — Replay + Export**
-- Replay endpoint + UI button (incl. edited body / different model), flagged as replay.
+- Replay endpoint (optional body/model override via the API body) + UI button that replays as-is (no edit dialog), flagged as replay.
 - JSON dump (§7) for conversation and single exchange; secret redaction.
 - *Exit: replay a captured prompt and download a full, replayable JSON dump.*
 
