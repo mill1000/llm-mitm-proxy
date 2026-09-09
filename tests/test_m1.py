@@ -3,25 +3,23 @@
 from __future__ import annotations
 
 import logging
-import os
+import threading
 import time
 import unittest
 
-# Point the proxy at the local mock BEFORE settings are read.
-os.environ["UPSTREAM_BASE_URL"] = "http://127.0.0.1:8082"
-os.environ["LISTEN_PORT"] = "9090"
-os.environ["LOG_LEVEL"] = (
-    "critical"  # keep the suite quiet; tests that assert on logs capture their own handler
-)
-
-from fastapi.testclient import TestClient  # noqa: E402
+from fastapi.testclient import TestClient
 
 try:  # package form (unittest discover)
     from .mock_upstream import start_mock, stop_mock
 except ImportError:  # direct execution fallback
-    from mock_upstream import start_mock, stop_mock  # type: ignore  # noqa: E402
+    from mock_upstream import start_mock, stop_mock  # type: ignore
 
-from llm_proxy.app import create_app  # noqa: E402
+from llm_proxy.app import create_app
+from llm_proxy.config import Settings
+
+# Settings for the app under test: the local mock upstream, quiet logs (tests
+# that assert on logs capture their own handler).
+BASE = Settings(upstream_base_url="http://127.0.0.1:8082", log_level="critical")
 
 MOCK_PORT = 8082
 CHAT = "/v1/chat/completions"
@@ -32,14 +30,40 @@ def _payload(stream: bool) -> dict:
     return {"model": "local-model", "stream": stream, "messages": [{"role": "user", "content": "hi"}]}
 
 
-def _read_until_completed(ws) -> list[dict]:
+def _receive_json(ws, timeout: float = 3.0) -> dict:
+    """Bounded WS receive. A starlette TestClient read blocks forever when the
+    expected event never arrives, which would hang the whole suite on a bug."""
+    outcome: dict = {}
+
+    def _read() -> None:
+        try:
+            outcome["ev"] = ws.receive_json()
+        except BaseException as exc:  # noqa: BLE001 - re-raised on the test thread
+            outcome["exc"] = exc
+
+    worker = threading.Thread(target=_read, daemon=True)
+    worker.start()
+    worker.join(timeout)
+    if worker.is_alive():
+        raise AssertionError(f"no WS event within {timeout:.0f}s")
+    if "exc" in outcome:
+        raise outcome["exc"]
+    return outcome["ev"]
+
+
+def _read_until_completed(ws, timeout: float = 5.0) -> list[dict]:
     events = []
+    deadline = time.monotonic() + timeout
     while True:
-        ev = ws.receive_json()
+        try:
+            ev = _receive_json(ws, max(0.1, deadline - time.monotonic()))
+        except AssertionError:
+            raise AssertionError(
+                f"exchange_completed not seen within {timeout:.0f}s; got {[e['type'] for e in events]}"
+            ) from None
         events.append(ev)
         if ev["type"] == "exchange_completed":
-            break
-    return events
+            return events
 
 
 class TestLiveFanOut(unittest.TestCase):
@@ -57,7 +81,9 @@ class TestLiveFanOut(unittest.TestCase):
             pass
 
     def setUp(self):
-        self.client = TestClient(create_app())
+        # httpx2 sends a default User-Agent, which the proxy folds into the
+        # client/conversation id; suppress it so the id stays "testclient".
+        self.client = TestClient(create_app(BASE), headers={"User-Agent": ""})
         self.client.__enter__()
 
     def tearDown(self):
@@ -119,7 +145,7 @@ class TestLiveFanOut(unittest.TestCase):
             # broadcast, then lightweight activity pings for exchange_started and
             # exchange_completed (deltas are focus-only). TestClient buffers all of
             # these by the time post() returns, so read the known complete set.
-            seen = [ws.receive_json() for _ in range(3)]
+            seen = [_receive_json(ws) for _ in range(3)]
 
         # A dock observer receives global broadcasts (client_seen) + lightweight
         # activity pings, but never full per-exchange events.
@@ -140,7 +166,7 @@ class TestLiveFanOut(unittest.TestCase):
         with self.client.websocket_connect("/ws") as ws:
             # No subscribe -> dock-only observer.
             self.client.post(CHAT, json=_payload(stream=True))
-            ev = ws.receive_json()
+            ev = _receive_json(ws)
             self.assertEqual(ev["type"], "client_seen")
             self.assertEqual(ev["conversation_id"], CID)
 
@@ -233,7 +259,7 @@ class TestLiveFanOut(unittest.TestCase):
         try:
             with self.client.websocket_connect("/ws") as ws:
                 self.client.post(CHAT, json=_payload(stream=False))
-                ev = ws.receive_json()
+                ev = _receive_json(ws)
                 self.assertEqual(ev["type"], "client_seen")
         finally:
             logger.removeHandler(capture)
@@ -266,6 +292,7 @@ class TestLiveFanOut(unittest.TestCase):
         try:
             with self.client.websocket_connect("/ws") as ws:
                 ws.send_json({"type": "subscribe", "conversation_id": CID})
+                time.sleep(0.05)  # let the app loop process the focus change before emitting
                 self.client.post(CHAT, json=_payload(stream=False))
                 _read_until_completed(ws)
         finally:

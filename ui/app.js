@@ -24,6 +24,7 @@
     live: new Map(), // exchange_id -> accumulated streamed text
     lastSeq: 0,
     stick: true,
+    replaySeq: null, // sequence loaded into the replay dock
   };
 
   // ---------- formatting ----------
@@ -70,12 +71,19 @@
     li.className = "dock-row";
     li.dataset.cid = cid;
     li.innerHTML = `
-      <div class="dr-top"><span class="dr-name"></span><span class="dr-time"></span></div>
+      <div class="dr-top">
+        <span class="dr-name"></span><span class="dr-time"></span>
+        <button class="dr-remove" title="Remove client" aria-label="Remove client">×</button>
+      </div>
       <div class="dr-sub"></div>`;
     li.querySelector(".dr-name").textContent = c.name;
     li.querySelector(".dr-sub").textContent = c.id;
     li.querySelector(".dr-time").textContent = fmtClock(c.last_seen);
     li.addEventListener("click", () => selectConversation(cid, c.name));
+    li.querySelector(".dr-remove").addEventListener("click", (e) => {
+      e.stopPropagation();
+      removeClient(c);
+    });
     return li;
   }
 
@@ -88,8 +96,8 @@
       list.appendChild(dockRow(c));
     }
     $("dock-empty").style.display = state.clients.length ? "none" : "block";
+    $("empty-msg").textContent = state.clients.length ? "Select a conversation on the left." : "No traffic yet.";
     markFocus();
-    $("stat-clients").textContent = `clients: ${state.clients.length}`;
   }
 
   function markFocus() {
@@ -120,6 +128,29 @@
     }
   }
 
+  async function removeClient(c) {
+    try {
+      await api(`/api/clients/${encodeURIComponent(c.id)}`, { method: "DELETE" });
+    } catch {
+      return;
+    }
+    // If the focused conversation belonged to this client, reset the main pane
+    // and drop the server-side focus.
+    const cids = new Set(c.conversation_ids || []);
+    cids.add(c.id);
+    if (state.focusCid && cids.has(state.focusCid)) {
+      state.focusCid = null;
+      state.exById.clear();
+      state.live.clear();
+      state.lastSeq = 0;
+      closeReplayDock();
+      $("conv").hidden = true;
+      $("empty").hidden = false;
+      if (state.ws && state.ws.readyState === 1) state.ws.send(JSON.stringify({ type: "unsub" }));
+    }
+    await refreshClients();
+  }
+
   // ---------- conversation ----------
   async function selectConversation(cid, name) {
     if (!cid) return;
@@ -127,6 +158,7 @@
     state.exById.clear();
     state.live.clear();
     state.lastSeq = 0;
+    closeReplayDock();
     markFocus();
     if (state.ws && state.ws.readyState === 1) state.ws.send(JSON.stringify({ type: "subscribe", conversation_id: cid }));
     $("empty").hidden = true;
@@ -136,7 +168,16 @@
     list.innerHTML = "";
     try {
       const conv = await api(`/api/conversations/${encodeURIComponent(cid)}`);
-      for (const ex of conv.exchanges) upsertExchange(ex);
+      for (const ex of conv.exchanges) {
+        if (ex.in_flight) {
+          // Pending card for a still-running exchange; WS deltas/completion
+          // (we are now focused) update it in place.
+          upsertExchange({ ...ex, server_response: { status: "…", streaming: !!ex.streaming } });
+          if (state.live.has(ex.id)) updateLive(ex.id);
+        } else {
+          upsertExchange(ex);
+        }
+      }
     } catch (e) {
       list.innerHTML = `<div class="err">failed to load: ${esc(e.message)}</div>`;
     }
@@ -194,6 +235,27 @@
     if (tps) parts.push(`${tps} tok/s`);
     return parts.join(" · ");
   }
+  function thinkSummary(text) {
+    const t = String(text || "").trim();
+    if (!t) return "thinking";
+    const n = t.split(/\s+/).length;
+    return `thinking · ${n} ${n === 1 ? "word" : "words"}`;
+  }
+  function wireThink(think) {
+    // The thinking block follows streaming text by default. A manual scroll up
+    // unsticks it for the life of the block; collapsing and reopening resticks.
+    think._stick = true;
+    const tt = think.querySelector(".think-text");
+    tt.addEventListener("scroll", () => {
+      if (tt.scrollHeight - tt.scrollTop - tt.clientHeight > 16) think._stick = false;
+    });
+    think.addEventListener("toggle", () => {
+      if (think.open) {
+        think._stick = true;
+        tt.scrollTop = tt.scrollHeight;
+      }
+    });
+  }
 
   function clientSideHtml(ex) {
     const cr = ex.client_request || {};
@@ -212,11 +274,14 @@
   function serverSideHtml(ex, reasoning) {
     const sr = ex.server_response || {};
     const status = sr.status != null ? sr.status : "…";
+    const think = reasoning
+      ? '<details class="think"><summary class="think-summary"></summary><pre class="think-text"></pre></details>'
+      : "";
     return `
       <div class="side server">
         <div class="side-label">SERVER</div>
         <div class="line">${status}${sr.streaming ? " · stream" : ""}</div>
-        ${reasoning ? '<div class="resp-reasoning"></div>' : ""}
+        ${think}
         <div class="resp-text"></div>
         ${ex.error ? `<div class="err">${esc(ex.error.message)}</div>` : ""}
         <details class="full"><summary>full response</summary><pre class="resp-pre"></pre></details>
@@ -224,12 +289,12 @@
   }
 
   function placeCursor(el, st) {
-    // One live cursor: on the content block once it has text, else on reasoning.
+    // One live cursor: on the content block once it has text, else on the thinking block.
     const rt = el.querySelector(".resp-text");
-    const rr = el.querySelector(".resp-reasoning");
+    const tt = el.querySelector(".think-text");
     let host = null;
     if (st.content) host = rt;
-    else if (rr) host = rr;
+    else if (tt) host = tt;
     if (!host) return;
     let cur = el.querySelector(".cursor");
     if (!cur) {
@@ -239,22 +304,126 @@
     if (cur.parentNode !== host) host.appendChild(cur);
   }
 
-  // ---------- replay / per-exchange export ----------
-  async function replayExchange(cid, seq) {
-    // Re-send the captured request unchanged. (The endpoint also accepts a
-    // JSON body of overrides, e.g. {"model": "..."}, for API-driven replays.)
+  // ---------- replay (dock) / per-exchange export ----------
+  async function postReplay(cid, seq, body) {
+    // Re-send a captured request, replacing its body with the full edited body
+    // (an empty body replays as-is). The replay streams in like any other
+    // exchange and is flagged is_replay.
+    const r = await fetch(`/api/conversations/${encodeURIComponent(cid)}/exchanges/${seq}/replay`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body || {}),
+    });
+    if (!r.ok) {
+      const err = await r.text();
+      throw new Error(`${r.status} ${err}`);
+    }
+  }
+
+  // Replay editor dock: the raw JSON body is the source of truth; the quick
+  // fields mirror it for the common single-value edits and are disabled when the
+  // body is not valid JSON.
+  const RD_FIELDS = [
+    { id: "rd-model", key: "model", type: "text" },
+    { id: "rd-temperature", key: "temperature", type: "number" },
+    { id: "rd-top_p", key: "top_p", type: "number" },
+    { id: "rd-max_tokens", key: "max_tokens", type: "number" },
+    { id: "rd-stream", key: "stream", type: "boolean" },
+  ];
+
+  function rdParse() {
     try {
-      const r = await fetch(`/api/conversations/${encodeURIComponent(cid)}/exchanges/${seq}/replay`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: "{}",
-      });
-      if (!r.ok) {
-        const err = await r.text();
-        alert(`replay failed: ${r.status} ${err}`);
+      const o = JSON.parse($("rd-body").value);
+      return o && typeof o === "object" && !Array.isArray(o) ? o : null;
+    } catch {
+      return null;
+    }
+  }
+  function rdSetBody(obj) {
+    $("rd-body").value = JSON.stringify(obj, null, 2);
+  }
+  function rdSyncFields() {
+    const o = rdParse();
+    for (const f of RD_FIELDS) {
+      const el = $(f.id);
+      el.disabled = o == null;
+      if (o == null) {
+        if (f.type === "boolean") el.checked = false;
+        else el.value = "";
+      } else if (f.type === "boolean") {
+        el.checked = !!o[f.key];
+      } else {
+        el.value = o[f.key] == null ? "" : String(o[f.key]);
       }
+    }
+  }
+  function rdPatch(key, value) {
+    const o = rdParse();
+    if (o == null) return;
+    o[key] = value;
+    rdSetBody(o);
+  }
+  function rdUnset(key) {
+    const o = rdParse();
+    if (o == null) return;
+    delete o[key];
+    rdSetBody(o);
+  }
+  function rdSetStatus(msg, isErr) {
+    const el = $("rd-status");
+    el.textContent = msg;
+    el.classList.toggle("err", !!isErr);
+  }
+  function openReplayDock(ex) {
+    if (!state.focusCid) return;
+    state.replaySeq = ex.sequence;
+    const body = (ex.client_request || {}).body_json;
+    if (body && typeof body === "object") {
+      rdSetBody(body);
+      rdSetStatus("The body below is re-sent in place of the captured request. Cancel to discard.");
+    } else {
+      rdSetBody({});
+      rdSetStatus("No editable JSON body was captured for this exchange.", true);
+    }
+    rdSyncFields();
+    const model = ((ex.client_request || {}).body_json || {}).model;
+    $("rd-sub").textContent = `#${ex.sequence}${model ? ` · ${model}` : ""}`;
+    $("replay-dock").hidden = false;
+    $("rd-body").focus();
+  }
+  function closeReplayDock() {
+    state.replaySeq = null;
+    $("replay-dock").hidden = true;
+  }
+  async function sendReplay() {
+    const seq = state.replaySeq;
+    if (seq == null || !state.focusCid) return;
+    const o = rdParse();
+    if (o == null) {
+      rdSetStatus("Body is not valid JSON.", true);
+      return;
+    }
+    $("rd-send").disabled = true;
+    rdSetStatus("Sending…");
+    try {
+      await postReplay(state.focusCid, seq, o);
+      closeReplayDock();
     } catch (e) {
-      alert(`replay failed: ${e.message}`);
+      rdSetStatus(`replay failed: ${e.message}`, true);
+    } finally {
+      $("rd-send").disabled = false;
+    }
+  }
+  function wireReplayDock() {
+    $("rd-cancel").addEventListener("click", closeReplayDock);
+    $("rd-send").addEventListener("click", sendReplay);
+    $("rd-body").addEventListener("input", rdSyncFields);
+    for (const f of RD_FIELDS) {
+      $(f.id).addEventListener("input", (e) => {
+        if (f.type === "boolean") rdPatch(f.key, e.target.checked);
+        else if (e.target.value === "") rdUnset(f.key);
+        else rdPatch(f.key, f.type === "number" ? Number(e.target.value) : e.target.value);
+      });
     }
   }
 
@@ -286,14 +455,14 @@
         <span class="ex-timings"></span>
         ${badges.join("")}
         <span class="ex-actions">
-          <button class="btn btn-sm" data-action="replay" title="Re-send this request to the server">replay</button>
+          <button class="btn btn-sm" data-action="replay" title="Edit and re-send this request">replay</button>
           <button class="btn btn-sm" data-action="export" title="Download this exchange as JSON">export</button>
         </span>
       </div>
       <div class="ex-body">${clientSideHtml(ex)}${serverSideHtml(ex, reasoning)}</div>`;
 
     el.querySelector(".ex-timings").textContent = timingsText(ex);
-    el.querySelector('[data-action="replay"]').addEventListener("click", () => replayExchange(state.focusCid, ex.sequence));
+    el.querySelector('[data-action="replay"]').addEventListener("click", () => openReplayDock(ex));
     el.querySelector('[data-action="export"]').addEventListener("click", () => exportExchange(state.focusCid, ex.sequence));
     const pv = el.querySelector(".preview");
     if (pv) pv.textContent = previewOf(ex);
@@ -301,8 +470,12 @@
     el.querySelector(".resp-pre").textContent = fullResponse(ex);
     const rt = el.querySelector(".resp-text");
     rt.textContent = text;
-    const rr = el.querySelector(".resp-reasoning");
-    if (rr) rr.textContent = reasoning;
+    const think = el.querySelector(".think");
+    if (think) {
+      wireThink(think);
+      think.querySelector(".think-text").textContent = reasoning;
+      think.querySelector(".think-summary").textContent = thinkSummary(reasoning);
+    }
     if (isLive) placeCursor(el, { content: text, reasoning });
     return el;
   }
@@ -314,7 +487,9 @@
     if (existing) existing.replaceWith(card);
     else list.appendChild(card);
     state.exById.set(ex.id, ex);
-    state.live.delete(ex.id);
+    // A completed exchange drops its live buffer (cursor); an in-flight one keeps
+    // it, so deltas that raced ahead of the REST render are not lost.
+    if (!ex.in_flight) state.live.delete(ex.id);
     if (typeof ex.sequence === "number" && ex.sequence > state.lastSeq) state.lastSeq = ex.sequence;
     maybeScroll();
   }
@@ -325,14 +500,27 @@
     const st = state.live.get(exid) || { content: "", reasoning: "" };
     const rt = el.querySelector(".resp-text");
     if (rt) rt.textContent = st.content;
-    let rr = el.querySelector(".resp-reasoning");
-    if (st.reasoning && !rr) {
-      // Reasoning started streaming after the card was built without one.
-      rr = document.createElement("div");
-      rr.className = "resp-reasoning";
-      if (rt) rt.before(rr);
+    let think = el.querySelector(".think");
+    if (st.reasoning && !think) {
+      // Reasoning started streaming after the card was built without one: add an
+      // expanded thinking block (it auto-collapses when the exchange completes).
+      think = document.createElement("details");
+      think.className = "think";
+      think.open = true;
+      const summary = document.createElement("summary");
+      summary.className = "think-summary";
+      const text = document.createElement("pre");
+      text.className = "think-text";
+      think.append(summary, text);
+      wireThink(think);
+      if (rt) rt.before(think);
     }
-    if (rr) rr.textContent = st.reasoning;
+    if (think) {
+      const tt = think.querySelector(".think-text");
+      tt.textContent = st.reasoning;
+      think.querySelector(".think-summary").textContent = thinkSummary(st.reasoning);
+      if (think._stick) tt.scrollTop = tt.scrollHeight;
+    }
     placeCursor(el, st);
     maybeScroll();
   }
@@ -366,6 +554,7 @@
             server_response: { status: "…", streaming: ev.streaming },
             timings: {},
             usage: null,
+            in_flight: true,
           });
         }
         break;
@@ -488,6 +677,7 @@
       state.exById.clear();
       state.live.clear();
       state.lastSeq = 0;
+      closeReplayDock();
     });
     $("stick").addEventListener("change", (e) => {
       state.stick = e.target.checked;
@@ -498,6 +688,7 @@
 
   async function init() {
     wireButtons();
+    wireReplayDock();
     checkUpstream();
     setInterval(() => {
       checkUpstream(); // keep the upstream pill honest (recovers when it comes back)

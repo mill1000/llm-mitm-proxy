@@ -3,91 +3,55 @@
 from __future__ import annotations
 
 import json
-import os
 import time
 import unittest
 
-# Point the proxy at the local mock BEFORE settings are read (no M3 test makes an
-# upstream call, but the app factory reads the value at startup).
-os.environ["UPSTREAM_BASE_URL"] = "http://127.0.0.1:8082"
-os.environ["LISTEN_PORT"] = "9090"
-os.environ["LOG_LEVEL"] = (
-    "critical"  # keep the suite quiet; tests that assert on logs capture their own handler
-)
+from fastapi.testclient import TestClient
 
-from fastapi.testclient import TestClient  # noqa: E402
+from llm_proxy.app import create_app
+from llm_proxy.config import Settings
 
-from llm_proxy.app import create_app  # noqa: E402
-from llm_proxy.config import get_settings  # noqa: E402
+# Settings for the app under test: the local mock upstream (no M3 test makes an
+# upstream call, but the app factory reads the value at startup), quiet logs.
+BASE = Settings(upstream_base_url="http://127.0.0.1:8082", log_level="critical")
 
 
-def _set_env(pairs: dict[str, str]) -> dict[str, str | None]:
-    """Apply env overrides; return the previous values for restoration."""
-    saved = {k: os.environ.pop(k, None) for k in pairs}
-    os.environ.update(pairs)
-    return saved
-
-
-def _restore_env(saved: dict[str, str | None]) -> None:
-    """Undo _set_env: re-set previous values, or remove keys that did not exist."""
-    for key, value in saved.items():
-        if value is None:
-            os.environ.pop(key, None)
-        else:
-            os.environ[key] = value
-
-
-def _fresh_client() -> TestClient:
-    """A TestClient with a fresh app (entered). get_settings() is lru_cached, so
-    the env must already reflect the settings under test before this is called."""
-    get_settings.cache_clear()
-    client = TestClient(create_app())
+def _fresh_client(**overrides) -> TestClient:
+    """A TestClient with a fresh app (entered); ``overrides`` are Settings fields."""
+    client = TestClient(create_app(BASE.model_copy(update=overrides)))
     client.__enter__()
     return client
 
 
 def _close_client(client: TestClient) -> None:
     client.__exit__(None, None, None)
-    get_settings.cache_clear()
 
 
 class TestAdapterFailFast(unittest.TestCase):
     def test_unknown_in_adapter_fails_startup(self):
-        """A bogus IN_ADAPTER must fail loudly at startup and list the available
+        """A bogus in_adapter must fail loudly at startup and list the available
         adapters - not on the first proxied request."""
-        saved = _set_env({"IN_ADAPTER": "does-not-exist"})
-        try:
-            with self.assertRaises(KeyError) as ctx:
-                _fresh_client()
-            self.assertIn("does-not-exist", str(ctx.exception))
-            self.assertIn("openai", str(ctx.exception))
-        finally:
-            _restore_env(saved)
-            get_settings.cache_clear()
+        with self.assertRaises(KeyError) as ctx:
+            _fresh_client(in_adapter="does-not-exist")
+        self.assertIn("does-not-exist", str(ctx.exception))
+        self.assertIn("openai", str(ctx.exception))
 
 
 class TestUpstreamTimeouts(unittest.TestCase):
     def test_upstream_timeouts_reach_the_client(self):
-        """UPSTREAM_*_TIMEOUT must reach the pooled httpx2 client as connect/read/pool."""
-        saved = _set_env(
-            {
-                "UPSTREAM_CONNECT_TIMEOUT": "1.5",
-                "UPSTREAM_READ_TIMEOUT": "7.5",
-                "UPSTREAM_POOL_TIMEOUT": "2.5",
-            }
+        """The timeout settings must reach the pooled httpx2 client as connect/read/pool."""
+        client = _fresh_client(
+            upstream_connect_timeout=1.5,
+            upstream_read_timeout=7.5,
+            upstream_pool_timeout=2.5,
         )
         try:
-            client = _fresh_client()
-            try:
-                t = client.app.state.http.timeout
-                self.assertEqual(t.connect, 1.5)
-                self.assertEqual(t.read, 7.5)
-                self.assertEqual(t.pool, 2.5)
-            finally:
-                _close_client(client)
+            t = client.app.state.http.timeout
+            self.assertEqual(t.connect, 1.5)
+            self.assertEqual(t.read, 7.5)
+            self.assertEqual(t.pool, 2.5)
         finally:
-            _restore_env(saved)
-            get_settings.cache_clear()
+            _close_client(client)
 
 
 class TestWsLiveness(unittest.TestCase):
@@ -100,12 +64,10 @@ class TestWsLiveness(unittest.TestCase):
     """
 
     def setUp(self):
-        self._saved = _set_env({"WS_PING_INTERVAL": "0.3", "WS_PING_TIMEOUT": "0.3"})
-        self.client = _fresh_client()
+        self.client = _fresh_client(ws_ping_interval=0.3, ws_ping_timeout=0.3)
 
     def tearDown(self):
         _close_client(self.client)
-        _restore_env(self._saved)
 
     def _receive_ping(self, ws) -> dict:
         """Block for the next frame and assert it is a liveness ping, not a close.

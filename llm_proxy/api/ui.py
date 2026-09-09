@@ -1,8 +1,8 @@
 """UI REST API. Serves conversation data, replay, and export to the web UI.
 
-Endpoints: list clients, read a conversation, read one exchange, replay an
-exchange (re-send its captured client request upstream), export a conversation
-or a single exchange, and clear a conversation.
+Endpoints: list clients, remove a client, read a conversation, read one
+exchange, replay an exchange (re-send its captured client request upstream),
+export a conversation or a single exchange, and clear a conversation.
 """
 
 from __future__ import annotations
@@ -40,6 +40,15 @@ async def list_clients(request: Request):
     return out
 
 
+@router.delete("/clients/{client_id}")
+async def remove_client(client_id: str, request: Request):
+    """Drop a client and all of its conversations; it re-registers on the next request."""
+    store = _store(request)
+    if not store.remove_client(client_id):
+        raise HTTPException(status_code=404, detail="client not found")
+    return {"ok": True}
+
+
 @router.get("/conversations/{cid}")
 async def get_conversation(cid: str, request: Request, limit: int = Query(200, ge=1, le=5000)):
     store = _store(request)
@@ -73,9 +82,9 @@ async def get_exchange(cid: str, seq: int, request: Request):
 async def replay_exchange(cid: str, seq: int, request: Request):
     """Re-send the captured client request of exchange ``seq`` upstream.
 
-    The optional JSON body is a set of top-level overrides (e.g. ``{"model": "x"}``)
-    applied to the original request body before it is re-sent. The replay is
-    captured into the same conversation and flagged ``is_replay``.
+    The JSON body, if given and non-empty, is the full request body to send in
+    place of the captured one; otherwise the captured request is re-sent as-is.
+    The replay is captured into the same conversation and flagged ``is_replay``.
     """
     store = _store(request)
     conv = store.get_conversation(cid)
@@ -85,12 +94,12 @@ async def replay_exchange(cid: str, seq: int, request: Request):
     if source is None:
         raise HTTPException(status_code=404, detail="exchange not found")
     try:
-        overrides = await request.json()
+        body = await request.json()
     except Exception:  # noqa: BLE001
-        overrides = None
-    if not isinstance(overrides, dict):
-        overrides = None
-    return await request.app.state.pipeline.replay(conv, source, overrides)
+        body = None
+    if not isinstance(body, dict):
+        body = None
+    return await request.app.state.pipeline.replay(conv, source, body)
 
 
 @router.get("/conversations/{cid}/export")

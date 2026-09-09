@@ -13,6 +13,8 @@ class MemoryStore:
         self._max_age_hours = max_age_hours
         self._clients: dict[str, Client] = {}
         self._conversations: dict[str, Conversation] = {}
+        self._inflight: dict[str, Exchange] = {}
+        self._inflight_cids: dict[str, str] = {}
 
     @staticmethod
     def _conv_id(client_id: str, tag: str) -> str:
@@ -40,9 +42,29 @@ class MemoryStore:
             client.last_seen = time.time()
         return client, conv
 
-    def add_exchange(self, client_id: str, tag: str, exchange: Exchange) -> tuple[Client, Conversation]:
+    def begin_exchange(self, client_id: str, tag: str, exchange: Exchange) -> None:
+        """Register an in-flight exchange so REST shows it before it completes."""
         client, conv = self.get_or_create_conversation(client_id, tag)
         conv.append(exchange)
+        client.last_seen = time.time()
+        self._inflight[exchange.id] = exchange
+        self._inflight_cids[exchange.id] = conv.id
+
+    def add_exchange(self, client_id: str, tag: str, exchange: Exchange) -> tuple[Client, Conversation]:
+        client, conv = self.get_or_create_conversation(client_id, tag)
+        pending = self._inflight.pop(exchange.id, None)
+        if pending is not None:
+            # Finalize the placeholder in place: its sequence (assigned at
+            # begin_exchange) and position in the ring buffer stay stable.
+            pending.client_request = exchange.client_request
+            pending.server_response = exchange.server_response
+            pending.timings = exchange.timings
+            pending.usage = exchange.usage
+            pending.error = exchange.error
+            pending.in_flight = False
+            self._inflight_cids.pop(exchange.id, None)
+        else:
+            conv.append(exchange)
         client.last_seen = time.time()
         return client, conv
 
@@ -56,4 +78,16 @@ class MemoryStore:
         return self._conversations.get(cid)
 
     def clear_conversation(self, cid: str) -> bool:
+        for ex_id in [e for e, c in self._inflight_cids.items() if c == cid]:
+            self._inflight.pop(ex_id, None)
+            self._inflight_cids.pop(ex_id, None)
         return self._conversations.pop(cid, None) is not None
+
+    def remove_client(self, client_id: str) -> bool:
+        """Drop a client and all of its conversations. It re-registers on the next request."""
+        if client_id not in self._clients:
+            return False
+        del self._clients[client_id]
+        for cid in [cid for cid, cv in self._conversations.items() if cv.client_id == client_id]:
+            self.clear_conversation(cid)
+        return True

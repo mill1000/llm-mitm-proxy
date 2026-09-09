@@ -158,6 +158,8 @@ Exchange
                       # embeds predicted_n/predicted_ms); null when not available
   usage:            { prompt_tokens, completion_tokens, total_tokens }   (if upstream provides)
   error:            { type, message } | null
+  in_flight:        bool   (true while the upstream call is still running)
+  streaming:        bool   (request wanted a stream; shown on the pending card)
 
 Event (WS payload)
   { type: exchange_started | delta | exchange_completed | replay | error | client_seen,
@@ -165,6 +167,8 @@ Event (WS payload)
   # delta events carry `delta` (content text) and `reasoning_delta` (thinking text
   # for reasoning models, e.g. llama.cpp --reasoning-preserve); either may be ""
 ```
+
+**In-flight visibility:** when a request starts, an `in_flight` placeholder (client_request only) is registered in the ring buffer and finalized in place on completion, so REST always shows the conversation *while* requests run. This is load-bearing: `exchange_started` is focus-scoped and is lost to a UI that only now focuses the conversation, so without it a client's first long-running request would show an empty conversation until it completes.
 
 **Splitting multiple conversations from one machine (no API key needed).** By default a client IP maps to a single conversation tab. If one machine runs more than one logical chat, conversations can be auto-split **without any key or client config** by detecting boundaries from the request's `messages` history (OpenAI chat is stateless — the client re-sends the full history each turn):
 - A request **continues** the current conversation when its `messages` starts with the same first message **and** its length is ≥ the previous request's (history is being echoed back / grown).
@@ -198,7 +202,7 @@ This is opt-in via `SPLIT_CONVERSATIONS=history` (**off by default** = one tab p
 - `GET  /api/clients` — list clients/conversations (for the dock).
 - `GET  /api/conversations/{id}` — full conversation (paginated).
 - `GET  /api/conversations/{id}/exchanges/{seq}` — one exchange (full debug).
-- `POST /api/conversations/{id}/exchanges/{seq}/replay` — re-send the captured **client request** for exchange `{seq}` to the upstream (body: optional overrides, e.g. `model`, edited body). Returns/creates a new exchange flagged `is_replay`.
+- `POST /api/conversations/{id}/exchanges/{seq}/replay` — re-send the captured **client request** for exchange `{seq}` to the upstream (body: the full edited request body to send in place of the captured one; empty/absent = replay as-is). Returns/creates a new exchange flagged `is_replay`.
 - `GET  /api/conversations/{id}/export?format=json` — download dump (§7).
 - `DELETE /api/conversations/{id}` — clear a conversation.
 
@@ -386,7 +390,7 @@ Features:
 - **Thinking text:** the server card shows the model's reasoning block inline (v1); in **M4** it is collapsible to a one-line summary (see mockup).
 - **Expand:** each side expands to the **full wire call** — method, path, headers, raw body, status, raw SSE/JSON, size, usage.
 - **Timestamps & deltas:** per-exchange absolute timestamp + TTFT, total, and per-token metrics.
-- **Replay (on the client/request side):** a button on the **client request** re-sends that captured request (the prompt) to the upstream **as-is** (v1: no body/model-edit dialog in the UI; body overrides, e.g. `model`, are available on the replay API endpoint, §5.2). The fresh result is appended as a **new exchange** flagged `is_replay` (so the original response is preserved for comparison). In **M4** the button opens the **bottom-dock editor** (structured fields + raw JSON) for full customization before re-sending — see the dock in the mockup above.
+- **Replay (on the client/request side):** a button on the captured request re-sends it to the upstream. The fresh result is appended as a **new exchange** flagged `is_replay` (so the original response is preserved for comparison). The button opens the **bottom-dock editor** (structured fields + raw JSON) pre-populated with that exchange's request; the dock re-sends the **full edited body** in place of the captured one (empty body = as-is) — see the dock in the mockup above.
 - **Export:** per-conversation (and per-exchange) JSON download per §7.
 - **Auto-follow:** a "stick to bottom" toggle for live conversations.
 
@@ -484,12 +488,6 @@ services:
       # via host-gateway (mapped below). Use the host's LAN IP if you prefer.
       UPSTREAM_BASE_URL: "http://host.docker.internal:8080"
       UPSTREAM_API_KEY: "${UPSTREAM_API_KEY:-}"   # optional fallback, used only if a client sends no key
-      IN_ADAPTER: "openai"
-      OUT_ADAPTER: "openai"
-      # CLIENT_ID_HEADER: "X-Client-Id"          # optional explicit-identity fallback
-      RETENTION_MAX_EXCHANGES: "500"
-      RETENTION_MAX_AGE_HOURS: "24"
-      INCLUDE_RAW_CHUNKS: "false"
       LOG_LEVEL: "info"
     extra_hosts:
       - "host.docker.internal:host-gateway"   # lets the proxy (on the bridge) reach the host
@@ -507,7 +505,7 @@ services:
 #   llm-proxy-data:
 ```
 
-**Config (env vars):** `LISTEN_HOST`, `LISTEN_PORT`, `UPSTREAM_BASE_URL`, `UPSTREAM_API_KEY` (optional), `IN_ADAPTER`, `OUT_ADAPTER`, `CLIENT_ID_HEADER` (optional), `SPLIT_CONVERSATIONS` (optional), `RETENTION_MAX_EXCHANGES`, `RETENTION_MAX_AGE_HOURS`, `INCLUDE_RAW_CHUNKS`, `PROXY_DATA_DIR` (future persistence), `LOG_LEVEL`, `USE_UVLOOP`.
+**Config:** the package reads **no env vars**. `llm-proxy` takes CLI options (positional upstream, `--host`, `--port`, `--upstream-api-key`, `--log-level`, `--ui-dir`) over defaults, and the image `CMD` maps the container env vars (`UPSTREAM_BASE_URL`, `UPSTREAM_API_KEY`, `LISTEN_HOST`, `LISTEN_PORT`, `LOG_LEVEL`) onto them. Settings not on the CLI (adapters, upstream timeouts, retention, capture, WS liveness, uvloop) are defaults-only — add a CLI option if one needs to be tunable.
 
 **Build:** `docker compose build` / `docker build -t llm-proxy .` — optionally `docker buildx` for `amd64`/`arm64`. **`[OPEN]`** Q11: target arch.
 
@@ -517,15 +515,15 @@ services:
 
 | Layer | Choice |
 |---|---|
-| Language | Python 3.12 |
+| Language | Python 3.11–3.14 (3.14 in the image/devcontainer) |
 | Async | `asyncio` (+ optional `uvloop`) |
 | Web framework | FastAPI + Uvicorn |
 | HTTP client | `httpx2` (async, pooled, streaming) |
 | Live UI | Native `WebSocket` + vanilla JS/TS (optional Preact) |
 | SSE parsing | small hand-rolled line parser (no heavy dep) |
-| Config | env vars (`pydantic-settings`) |
+| Config | pydantic `Settings` (CLI args; container env vars mapped by the image `CMD`) |
 | Packaging | `pyproject.toml` + `pip` (PEP 621) |
-| Container | `python:3.12-slim`, non-root, healthcheck |
+| Container | `python:3.14-alpine` build stage → `alpine` runtime (pipx, non-root, tini, healthcheck) |
 
 ---
 
@@ -569,7 +567,7 @@ services:
 - *Exit: watch a streaming conversation render live, side-by-side, with correct TTFT/total/tok-s.*
 
 **M2 — Replay + Export**
-- Replay endpoint (optional body/model override via the API body) + UI button that replays as-is (no edit dialog), flagged as replay.
+- Replay endpoint (full edited request body via the API body; empty = as-is) + UI button, flagged as replay.
 - JSON dump (§7) for conversation and single exchange; secret redaction.
 - *Exit: replay a captured prompt and download a full, replayable JSON dump.*
 
@@ -581,9 +579,9 @@ services:
 - *Exit: clean plugin surface; stable under concurrent streaming clients; non-root, multi-arch image.*
 
 **M4 — Polish**
-- Fully customizable replay message in the WebUI: edit the captured request (model, params, messages) before re-sending. Builds on the §5.2 override endpoint — v1's UI button replays as-is; M4 adds the full edit UI.
-  - *Design: replay editor lives in a **collapsible dock at the bottom of the conversation pane** (right column only — does not span the left dock). The Replay button on a captured request opens the dock pre-populated with that exchange's wire request (model, params, messages); the dock holds the **Re-send** (and **Cancel**) actions. The conversation list stays above the dock; the dock only occupies space while open.*
-  - *Editor granularity: **structured fields** (model, params, message list) with a **raw JSON body** fallback view, mirroring the expand view.*
+- Fully customizable replay message in the WebUI: edit the captured request (model, params, messages) before re-sending, via the §5.2 replay endpoint (full edited body replaces the captured one; empty = as-is).
+  - *Design: replay editor lives in a **collapsible dock at the bottom of the conversation pane** (right column only — does not span the left dock). The Replay button on a captured request opens the dock pre-populated with that exchange's wire request (model, params, messages); the dock holds the **Send** (and **Cancel**) actions. The conversation list stays above the dock; the dock only occupies space while open.*
+  - *Editor granularity: **structured fields** (model, params) mirroring a **raw JSON body** that is the source of truth; clearing a field removes the key from the body.*
 - **Collapsible thinking text:** the server card's reasoning/thinking block is collapsible to a one-line summary (e.g. `▸ thinking… 123 tok · 2.1s`); click to expand the full text. Live updates continue while collapsed. Suggested default: expanded while streaming, auto-collapse once thinking completes.
 - (Additional polish items to be added as requested.)
 - *Exit: a captured request can be fully customized and re-sent from the UI, with the result appended as a replay.*
@@ -618,7 +616,7 @@ llm-proxy/
 ├── Dockerfile
 ├── docker-compose.yml
 ├── .dockerignore
-├── src/llm_proxy/
+├── llm_proxy/
 │   ├── __init__.py
 │   ├── app.py                 # FastAPI app factory, routing, WS hub wiring
 │   ├── config.py              # env-based settings

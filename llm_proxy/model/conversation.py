@@ -30,6 +30,13 @@ class Exchange:
     usage: dict | None = None
     error: dict | None = None
     created_at: float = field(default_factory=time.time)
+    # True while the upstream call is still in flight: the exchange is a
+    # placeholder (client_request only) finalized in place on completion. The
+    # store keeps in-flight exchanges in the ring buffer so REST shows the
+    # pending exchange immediately - the exchange_started WS event is
+    # focus-scoped and is lost to a UI that only now focuses the conversation.
+    in_flight: bool = False
+    streaming: bool = False
 
     def to_dict(self) -> dict:
         return {
@@ -41,6 +48,8 @@ class Exchange:
             "timings": self.timings,
             "usage": self.usage,
             "error": self.error,
+            "in_flight": self.in_flight,
+            "streaming": self.streaming,
         }
 
 

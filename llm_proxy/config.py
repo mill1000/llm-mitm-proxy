@@ -1,23 +1,17 @@
-"""Environment-based configuration (pydantic-settings).
+"""Application settings: defaults + explicit overrides.
 
-Every field maps to an env var of the same name (case-insensitive), e.g.
-``UPSTREAM_BASE_URL`` -> ``upstream_base_url``.
+The package reads **no environment variables**. Configuration is explicit:
+``llm-proxy`` passes command-line values in, and the Docker image's ``CMD``
+maps container env vars onto those CLI arguments (env vars are a Docker
+concern only).
 """
 
 from __future__ import annotations
 
-from functools import lru_cache
-
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import BaseModel
 
 
-class Settings(BaseSettings):
-    model_config = SettingsConfigDict(
-        env_file=".env",
-        env_file_encoding="utf-8",
-        extra="ignore",
-    )
-
+class Settings(BaseModel):
     # --- listen ---
     listen_host: str = "0.0.0.0"
     listen_port: int = 9090
@@ -63,9 +57,3 @@ class Settings(BaseSettings):
     ui_dir: str | None = None
     log_level: str = "info"
     use_uvloop: bool = False
-
-
-@lru_cache
-def get_settings() -> Settings:
-    """Return the process-wide settings (cached; read once)."""
-    return Settings()

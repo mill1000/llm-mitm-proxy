@@ -11,7 +11,6 @@
     <header class="topbar">
       <div class="brand">LLM Proxy</div>
       <div class="top-status">
-        <span id="stat-clients" class="pill">clients: 0</span>
         <span id="stat-upstream" class="pill">upstream: …</span>
         <span id="stat-ws" class="pill ws-off">ws: off</span>
       </div>
@@ -28,23 +27,37 @@
       </aside>
 
       <main class="main">
-        <div id="empty" class="empty">
-          <p>Select a conversation on the left.</p>
-          <p class="muted">Send an OpenAI-compatible request through the proxy to see it appear live.</p>
-        </div>
+        <div id="empty" class="empty"><p id="empty-msg">Select a conversation on the left.</p></div>
 
         <div id="conv" class="conv" hidden>
           <div class="conv-head">
             <span id="conv-title" class="conv-title"></span>
             <div class="conv-actions">
-              <label class="stick"
-                ><input type="checkbox" id="stick" checked /> stick to bottom</label
-              >
+              <label class="stick"><input type="checkbox" id="stick" checked /> auto-scroll</label>
               <button id="btn-export" class="btn">Export</button>
               <button id="btn-clear" class="btn danger">Clear</button>
             </div>
           </div>
           <div id="ex-list" class="ex-list"></div>
+
+          <div id="replay-dock" class="replay-dock" hidden>
+            <div class="rd-head">
+              <span class="rd-title">Replay</span>
+              <span id="rd-sub" class="rd-sub"></span>
+              <span class="rd-spacer"></span>
+              <button id="rd-cancel" class="btn btn-sm">Cancel</button>
+              <button id="rd-send" class="btn btn-sm accent">Send</button>
+            </div>
+            <div class="rd-fields">
+              <label class="rd-f"><span>model</span><input id="rd-model" type="text" autocomplete="off" /></label>
+              <label class="rd-f"><span>temperature</span><input id="rd-temperature" type="number" step="0.1" autocomplete="off" /></label>
+              <label class="rd-f"><span>top_p</span><input id="rd-top_p" type="number" step="0.01" min="0" max="1" autocomplete="off" /></label>
+              <label class="rd-f"><span>max_tokens</span><input id="rd-max_tokens" type="number" autocomplete="off" /></label>
+              <label class="rd-f rd-check"><input id="rd-stream" type="checkbox" /><span>stream</span></label>
+            </div>
+            <textarea id="rd-body" class="rd-body" spellcheck="false" aria-label="request body (JSON)"></textarea>
+            <div id="rd-status" class="rd-status"></div>
+          </div>
         </div>
       </main>
     </div>

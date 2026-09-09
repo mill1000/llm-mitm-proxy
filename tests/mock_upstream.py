@@ -19,7 +19,7 @@ mock = FastAPI()
 TIMINGS = {"prompt_n": 45, "prompt_ms": 1150.0, "predicted_n": 3, "predicted_ms": 30.0}
 
 # Bodies of every chat request received, in order. Lets tests assert replay
-# re-sends the captured request (and any overrides) verbatim to the upstream.
+# re-sends the captured request (or the replacing body) verbatim to the upstream.
 REQUESTS: list[dict] = []
 
 
@@ -74,6 +74,10 @@ async def chat(request: Request):
             yield "data: [DONE]\n\n"
 
         return StreamingResponse(gen_think(), media_type="text/event-stream")
+
+    if model == "slow":
+        # Holds the request open so tests can observe the in-flight exchange in REST.
+        await asyncio.sleep(0.8)
 
     async def gen():
         for piece in ["Hello", ", ", "world", "!"]:

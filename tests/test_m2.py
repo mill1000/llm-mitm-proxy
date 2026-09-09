@@ -2,26 +2,22 @@
 
 from __future__ import annotations
 
-import os
 import unittest
 
-# Point the proxy at the local mock BEFORE settings are read.
-os.environ["UPSTREAM_BASE_URL"] = "http://127.0.0.1:8082"
-os.environ["LISTEN_PORT"] = "9090"
-os.environ["LOG_LEVEL"] = (
-    "critical"  # keep the suite quiet; tests that assert on logs capture their own handler
-)
-
-from fastapi.testclient import TestClient  # noqa: E402
+from fastapi.testclient import TestClient
 
 try:  # package form (unittest discover)
     from . import mock_upstream
     from .mock_upstream import start_mock, stop_mock
 except ImportError:  # direct execution fallback
-    import mock_upstream  # type: ignore  # noqa: E402
-    from mock_upstream import start_mock, stop_mock  # type: ignore  # noqa: E402
+    import mock_upstream  # type: ignore
+    from mock_upstream import start_mock, stop_mock  # type: ignore
 
-from llm_proxy.app import create_app  # noqa: E402
+from llm_proxy.app import create_app
+from llm_proxy.config import Settings
+
+# Settings for the app under test: the local mock upstream, quiet logs.
+BASE = Settings(upstream_base_url="http://127.0.0.1:8082", log_level="critical")
 
 MOCK_PORT = 8082
 CHAT = "/v1/chat/completions"
@@ -51,7 +47,9 @@ class TestReplayAndExport(unittest.TestCase):
             pass
 
     def setUp(self):
-        self.client = TestClient(create_app())
+        # httpx2 sends a default User-Agent, which the proxy folds into the
+        # client/conversation id; suppress it so the id stays "testclient".
+        self.client = TestClient(create_app(BASE), headers={"User-Agent": ""})
         self.client.__enter__()
 
     def tearDown(self):
@@ -75,16 +73,16 @@ class TestReplayAndExport(unittest.TestCase):
         self.assertEqual(replayed["sequence"], 1)
         self.assertEqual(replayed["client_request"]["body_json"], original)
 
-    def test_replay_with_model_override(self):
+    def test_replay_replaces_body(self):
         self.client.post(CHAT, json=_payload(stream=False))
-        original = mock_upstream.REQUESTS[-1]
 
-        r = self.client.post(_replay_path(CID, 0), json={"model": "thinker"})
+        edited = {**_payload(stream=False), "model": "thinker", "temperature": 0.2}
+        r = self.client.post(_replay_path(CID, 0), json=edited)
         self.assertEqual(r.status_code, 200)
 
-        resent = mock_upstream.REQUESTS[-1]
-        self.assertEqual(resent["model"], "thinker")
-        self.assertEqual(resent["messages"], original["messages"])
+        # The upstream received exactly the edited body: the model and the new
+        # parameter are present, nothing was merged over the captured request.
+        self.assertEqual(mock_upstream.REQUESTS[-1], edited)
 
         conv = self.client.get(f"/api/conversations/{CID}").json()
         replayed = conv["exchanges"][-1]

@@ -7,7 +7,9 @@ side parse accumulates the exchange for the store. The tap never blocks the clie
 
 from __future__ import annotations
 
+import asyncio
 import json
+import re
 import time
 import uuid
 
@@ -40,6 +42,11 @@ _HOP_BY_HOP = {
 _STRIP_RESP = {"content-length", "content-encoding", "transfer-encoding", "connection", "date", "server"}
 # Headers masked in captured exchanges/dumps.
 _SECRET_HEADERS = {"authorization", "proxy-authorization", "x-api-key"}
+
+
+# Client ids are embedded in REST paths (/api/conversations/{cid}), so they are
+# restricted to a single-segment character set (no "/" or ":").
+_ID_UNSAFE = re.compile(r"[^A-Za-z0-9._-]+")
 
 
 def _safe_json(data) -> dict | None:
@@ -116,14 +123,27 @@ class Pipeline:
             return auth[7:].strip() or None
         return None
 
+    @staticmethod
+    def _id_part(value: str) -> str | None:
+        return _ID_UNSAFE.sub("_", value.strip())[:64] or None
+
     def client_id(self, request: Request) -> str:
+        """Source IP, + user agent, + API key. The user agent splits clients that
+        share a source IP (e.g. curl and an editor client on the same machine).
+        """
+        headers = dict(request.headers)
         if self.settings.client_id_header:
-            override = request.headers.get(self.settings.client_id_header.lower())
+            override = self._id_part(headers.get(self.settings.client_id_header.lower(), ""))
             if override:
                 return override
-        host = request.client.host if request.client else "unknown"
-        key = self._extract_key(dict(request.headers))
-        return f"{host}::{key}" if key else host
+        parts = [self._id_part(request.client.host if request.client else "unknown")]
+        ua = self._id_part(headers.get("user-agent", ""))
+        if ua:
+            parts.append(ua)
+        key = self._id_part(self._extract_key(headers) or "")
+        if key:
+            parts.append(key)
+        return "::".join(parts)
 
     # ---- upstream request shaping (transparent passthrough + key fallback) ----
     def _upstream_headers(self, headers: dict) -> dict:
@@ -187,6 +207,33 @@ class Pipeline:
         self, wire_req, norm_req, client_id, tag, cid, exchange_id, headers, t0, *, is_replay: bool
     ) -> Response:
         is_stream = bool(wire_req.body_json and wire_req.body_json.get("stream"))
+        # Full captured request shape (headers/body redacted), plus model/preview
+        # for the card header. Shared by the in-flight placeholder and the
+        # exchange_started event so the pending card's debug views are complete.
+        client_request = {
+            "timestamp": t0,
+            "method": wire_req.method,
+            "path": wire_req.path,
+            "headers": _redact(wire_req.headers),
+            "body_json": wire_req.body_json,
+            "size_bytes": len(wire_req.body) if wire_req.body else 0,
+            "model": (wire_req.body_json or {}).get("model"),
+            "preview": self._last_user_preview(wire_req.body_json),
+        }
+        # Register in-flight before responding: the exchange_started event is
+        # focus-scoped and a UI that only now focuses this conversation misses
+        # it, so REST must already show the pending exchange.
+        self.store.begin_exchange(
+            client_id,
+            tag,
+            Exchange(
+                id=exchange_id,
+                is_replay=is_replay,
+                client_request=client_request,
+                in_flight=True,
+                streaming=is_stream,
+            ),
+        )
         self.hub.emit(
             cid,
             {
@@ -196,38 +243,66 @@ class Pipeline:
                 "streaming": is_stream,
                 "is_replay": is_replay,
                 "ts": t0,
-                "client_request": {
-                    "timestamp": t0,
-                    "method": wire_req.method,
-                    "path": wire_req.path,
-                    "model": (wire_req.body_json or {}).get("model"),
-                    "preview": self._last_user_preview(wire_req.body_json),
-                    "size_bytes": len(wire_req.body) if wire_req.body else 0,
-                },
+                "client_request": client_request,
             },
             dock=True,
         )
 
-        if is_stream:
-            return await self._stream(
+        try:
+            if is_stream:
+                return await self._stream(
+                    wire_req, norm_req, client_id, tag, cid, exchange_id, headers, t0, is_replay=is_replay
+                )
+            return await self._non_stream(
                 wire_req, norm_req, client_id, tag, cid, exchange_id, headers, t0, is_replay=is_replay
             )
-        return await self._non_stream(
-            wire_req, norm_req, client_id, tag, cid, exchange_id, headers, t0, is_replay=is_replay
-        )
+        except asyncio.CancelledError:
+            # The client went away before the upstream responded (e.g. gave up on
+            # a slow request). Capture and emit so the in-flight placeholder
+            # resolves instead of lingering as a stuck "pending" card.
+            t_end = time.time()
+            ex = self._capture(
+                client_id,
+                tag,
+                wire_req,
+                norm_req,
+                exchange_id=exchange_id,
+                status=499,
+                resp_headers={},
+                streaming=False,
+                body=b"",
+                error={"type": "CancelledError", "message": "client disconnected before upstream responded"},
+                t0=t0,
+                t_send=t0,
+                t_first=None,
+                t_end=t_end,
+                is_replay=is_replay,
+            )
+            self.hub.emit(
+                cid,
+                {
+                    "type": "exchange_completed",
+                    "conversation_id": cid,
+                    "exchange_id": exchange_id,
+                    "ts": t_end,
+                    "exchange": ex.to_dict(),
+                },
+                dock=True,
+            )
+            raise
 
     # ---- replay (re-send a captured client request to the upstream) ----
-    async def replay(self, conv: Conversation, source: Exchange, overrides: dict | None) -> Response:
+    async def replay(self, conv: Conversation, source: Exchange, body: dict | None) -> Response:
         cr = source.client_request or {}
-        body_json = dict(cr.get("body_json") or {})
-        if overrides:
-            body_json.update(overrides)
-        body = json.dumps(body_json).encode()
+        # The UI sends the full edited request body; an empty/missing body means
+        # replay as captured (e.g. GETs, or an unedited dock).
+        body_json = dict(body) if isinstance(body, dict) and body else dict(cr.get("body_json") or {})
+        body_bytes = json.dumps(body_json).encode()
         wire_req = WireRequest(
             method=cr.get("method", "POST"),
             path=cr.get("path", "/v1/chat/completions"),
             headers=dict(cr.get("headers") or {}),
-            body=body,
+            body=body_bytes,
             body_json=body_json,
         )
         client_id = conv.client_id

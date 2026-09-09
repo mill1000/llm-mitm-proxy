@@ -2,27 +2,26 @@
 
 from __future__ import annotations
 
+import contextlib
 import importlib
-import os
+import io
 import socket
 import unittest
+from urllib.parse import quote
 
-# Point the proxy at the local mock BEFORE settings are read.
-os.environ["UPSTREAM_BASE_URL"] = "http://127.0.0.1:8082"
-os.environ["LISTEN_PORT"] = "9090"
-os.environ["LOG_LEVEL"] = (
-    "critical"  # keep the suite quiet; tests that assert on logs capture their own handler
-)
-
-from fastapi.testclient import TestClient  # noqa: E402
+from fastapi.testclient import TestClient
 
 try:  # package form (unittest discover)
     from .mock_upstream import start_mock, stop_mock
 except ImportError:  # direct execution fallback
-    from mock_upstream import start_mock, stop_mock  # type: ignore  # noqa: E402
+    from mock_upstream import start_mock, stop_mock  # type: ignore
 
-from llm_proxy.app import create_app  # noqa: E402
-from llm_proxy.config import get_settings  # noqa: E402
+from llm_proxy.app import cli_overrides, create_app
+from llm_proxy.config import Settings
+
+# Settings for the app under test: the local mock upstream, quiet logs (tests
+# that assert on logs capture their own handler).
+BASE = Settings(upstream_base_url="http://127.0.0.1:8082", log_level="critical")
 
 MOCK_PORT = 8082
 CHAT = "/v1/chat/completions"
@@ -53,6 +52,25 @@ class TestPackaging(unittest.TestCase):
         self.assertTrue(callable(getattr(module, attr)))
 
 
+class TestCli(unittest.TestCase):
+    """cli_overrides() maps command-line args onto Settings field names."""
+
+    def test_no_args_no_overrides(self):
+        self.assertEqual(cli_overrides([]), {})
+
+    def test_positional_upstream_and_flags(self):
+        self.assertEqual(
+            cli_overrides(["http://127.0.0.1:8080", "--host", "0.0.0.0", "--port", "9091"]),
+            {"upstream_base_url": "http://127.0.0.1:8080", "listen_host": "0.0.0.0", "listen_port": 9091},
+        )
+
+    def test_help_exits_zero(self):
+        with contextlib.redirect_stdout(io.StringIO()):
+            with self.assertRaises(SystemExit) as cm:
+                cli_overrides(["--help"])
+        self.assertEqual(cm.exception.code, 0)
+
+
 class TestProxy(unittest.TestCase):
     """Each test uses a fresh proxy app (isolated in-memory store) against the shared mock."""
 
@@ -68,7 +86,7 @@ class TestProxy(unittest.TestCase):
             pass
 
     def setUp(self):
-        self.client = TestClient(create_app())
+        self.client = TestClient(create_app(BASE))
         self.client.__enter__()
 
     def tearDown(self):
@@ -89,20 +107,11 @@ class TestProxy(unittest.TestCase):
         dead_port = s.getsockname()[1]
         s.close()
 
-        old = os.environ.get("UPSTREAM_BASE_URL")
-        os.environ["UPSTREAM_BASE_URL"] = f"http://127.0.0.1:{dead_port}"
-        get_settings.cache_clear()
-        try:
-            with TestClient(create_app()) as c:
-                body = c.get("/health").json()
-                self.assertEqual(body["status"], "ok")
-                self.assertEqual(body["upstream"], "error")
-        finally:
-            if old is None:
-                os.environ.pop("UPSTREAM_BASE_URL", None)
-            else:
-                os.environ["UPSTREAM_BASE_URL"] = old
-            get_settings.cache_clear()
+        dead = BASE.model_copy(update={"upstream_base_url": f"http://127.0.0.1:{dead_port}"})
+        with TestClient(create_app(dead)) as c:
+            body = c.get("/health").json()
+            self.assertEqual(body["status"], "ok")
+            self.assertEqual(body["upstream"], "error")
 
     def test_non_streaming_passthrough(self):
         r = self.client.post(CHAT, json=_payload(stream=False))
@@ -134,20 +143,11 @@ class TestProxy(unittest.TestCase):
         dead_port = s.getsockname()[1]
         s.close()
 
-        old = os.environ.get("UPSTREAM_BASE_URL")
-        os.environ["UPSTREAM_BASE_URL"] = f"http://127.0.0.1:{dead_port}"
-        get_settings.cache_clear()
-        try:
-            with TestClient(create_app()) as c:
-                r = c.post(CHAT, json=_payload(stream=True))
-                self.assertEqual(r.status_code, 502)
-                self.assertIn("upstream error", r.json()["error"]["message"])
-        finally:
-            if old is None:
-                os.environ.pop("UPSTREAM_BASE_URL", None)
-            else:
-                os.environ["UPSTREAM_BASE_URL"] = old
-            get_settings.cache_clear()
+        dead = BASE.model_copy(update={"upstream_base_url": f"http://127.0.0.1:{dead_port}"})
+        with TestClient(create_app(dead)) as c:
+            r = c.post(CHAT, json=_payload(stream=True))
+            self.assertEqual(r.status_code, 502)
+            self.assertIn("upstream error", r.json()["error"]["message"])
 
     def test_capture_and_export(self):
         self.client.post(CHAT, json=_payload(stream=False))
@@ -197,6 +197,37 @@ class TestProxy(unittest.TestCase):
         self.assertIsNotNone(auth)
         self.assertIn("***", auth)
         self.assertNotIn("sk-secret-test-key-123", auth)
+
+    def test_user_agent_splits_clients_on_shared_ip(self):
+        # Same source IP, different user agents -> separate conversations;
+        # repeated agent -> same conversation. The UA's "/" is sanitized out of
+        # the id (ids are REST path segments). The TestClient's host is
+        # "testclient", so clients are matched by id suffix, not full value.
+        for ua in ("curl/8.5.0", "zed/1.0.0", "curl/8.5.0"):
+            self.client.post(CHAT, json=_payload(stream=False), headers={"User-Agent": ua})
+
+        clients = self.client.get("/api/clients").json()
+        by_ua = {c["id"].rsplit("::", 1)[-1]: c for c in clients}
+        self.assertEqual(set(by_ua), {"curl_8.5.0", "zed_1.0.0"})
+
+        conv_curl = self.client.get(
+            "/api/conversations/" + quote(by_ua["curl_8.5.0"]["conversation_ids"][0])
+        ).json()
+        self.assertEqual(conv_curl["exchange_count"], 2)
+        conv_zed = self.client.get(
+            "/api/conversations/" + quote(by_ua["zed_1.0.0"]["conversation_ids"][0])
+        ).json()
+        self.assertEqual(conv_zed["exchange_count"], 1)
+
+    def test_user_agent_and_key_combined_id(self):
+        self.client.post(
+            CHAT,
+            json=_payload(stream=False),
+            headers={"User-Agent": "curl/8.5.0", "Authorization": "Bearer sk-test"},
+        )
+        clients = self.client.get("/api/clients").json()
+        self.assertEqual(len(clients), 1)
+        self.assertTrue(clients[0]["id"].endswith("::curl_8.5.0::sk-test"))
 
 
 if __name__ == "__main__":
