@@ -12,11 +12,13 @@ from urllib.parse import quote
 from fastapi.testclient import TestClient
 
 try:  # package form (unittest discover)
+    from .helpers import clients, close
     from .mock_upstream import start_mock, stop_mock
 except ImportError:  # direct execution fallback
+    from helpers import clients, close  # type: ignore
     from mock_upstream import start_mock, stop_mock  # type: ignore
 
-from llm_proxy.app import cli_overrides, create_app
+from llm_proxy.app import Context, cli_overrides, create_llm_app, create_ui_app
 from llm_proxy.config import Settings
 
 # Settings for the app under test: the local mock upstream, quiet logs (tests
@@ -60,8 +62,8 @@ class TestCli(unittest.TestCase):
 
     def test_positional_upstream_and_flags(self):
         self.assertEqual(
-            cli_overrides(["http://127.0.0.1:8080", "--host", "0.0.0.0", "--port", "9091"]),
-            {"upstream_base_url": "http://127.0.0.1:8080", "listen_host": "0.0.0.0", "listen_port": 9091},
+            cli_overrides(["http://127.0.0.1:8080", "--host", "0.0.0.0", "--ui-port", "9091"]),
+            {"upstream_base_url": "http://127.0.0.1:8080", "listen_host": "0.0.0.0", "ui_port": 9091},
         )
 
     def test_help_exits_zero(self):
@@ -72,7 +74,7 @@ class TestCli(unittest.TestCase):
 
 
 class TestProxy(unittest.TestCase):
-    """Each test uses a fresh proxy app (isolated in-memory store) against the shared mock."""
+    """Each test uses a fresh shared Context (isolated store) against the shared mock."""
 
     @classmethod
     def setUpClass(cls):
@@ -86,14 +88,13 @@ class TestProxy(unittest.TestCase):
             pass
 
     def setUp(self):
-        self.client = TestClient(create_app(BASE))
-        self.client.__enter__()
+        self.ctx, self.llm, self.ui = clients(BASE)
 
     def tearDown(self):
-        self.client.__exit__(None, None, None)
+        close(self.llm, self.ui)
 
     def test_health(self):
-        r = self.client.get("/health")
+        r = self.ui.get("/health")
         self.assertEqual(r.status_code, 200)
         body = r.json()
         self.assertEqual(body["status"], "ok")
@@ -108,20 +109,20 @@ class TestProxy(unittest.TestCase):
         s.close()
 
         dead = BASE.model_copy(update={"upstream_base_url": f"http://127.0.0.1:{dead_port}"})
-        with TestClient(create_app(dead)) as c:
+        with TestClient(create_ui_app(Context(dead))) as c:
             body = c.get("/health").json()
             self.assertEqual(body["status"], "ok")
             self.assertEqual(body["upstream"], "error")
 
     def test_non_streaming_passthrough(self):
-        r = self.client.post(CHAT, json=_payload(stream=False))
+        r = self.llm.post(CHAT, json=_payload(stream=False))
         self.assertEqual(r.status_code, 200)
         body = r.json()
         self.assertEqual(body["choices"][0]["message"]["content"], "Hello, world!")
         self.assertEqual(body["usage"]["total_tokens"], 8)
 
     def test_streaming_tap_and_forward(self):
-        r = self.client.post(CHAT, json=_payload(stream=True))
+        r = self.llm.post(CHAT, json=_payload(stream=True))
         self.assertEqual(r.status_code, 200)
         self.assertIn("text/event-stream", r.headers.get("content-type", ""))
         self.assertIn("[DONE]", r.text)
@@ -130,7 +131,7 @@ class TestProxy(unittest.TestCase):
     def test_streaming_upstream_error_status_passthrough(self):
         # Upstream returns a JSON error (not SSE) for a stream request; the proxy
         # must surface the upstream's status, not a premature 200.
-        r = self.client.post(
+        r = self.llm.post(
             CHAT, json={"model": "boom", "stream": True, "messages": [{"role": "user", "content": "hi"}]}
         )
         self.assertEqual(r.status_code, 404)
@@ -144,20 +145,20 @@ class TestProxy(unittest.TestCase):
         s.close()
 
         dead = BASE.model_copy(update={"upstream_base_url": f"http://127.0.0.1:{dead_port}"})
-        with TestClient(create_app(dead)) as c:
+        with TestClient(create_llm_app(Context(dead))) as c:
             r = c.post(CHAT, json=_payload(stream=True))
             self.assertEqual(r.status_code, 502)
             self.assertIn("upstream error", r.json()["error"]["message"])
 
     def test_capture_and_export(self):
-        self.client.post(CHAT, json=_payload(stream=False))
-        self.client.post(CHAT, json=_payload(stream=True))
+        self.llm.post(CHAT, json=_payload(stream=False))
+        self.llm.post(CHAT, json=_payload(stream=True))
 
-        clients = self.client.get("/api/clients").json()
-        self.assertTrue(clients)
-        cid = clients[0]["conversation_ids"][0]
+        clients_body = self.ui.get("/api/clients").json()
+        self.assertTrue(clients_body)
+        cid = clients_body[0]["conversation_ids"][0]
 
-        conv = self.client.get(f"/api/conversations/{cid}").json()
+        conv = self.ui.get(f"/api/conversations/{cid}").json()
         self.assertGreaterEqual(conv["exchange_count"], 2)
 
         stream_ex = [ex for ex in conv["exchanges"] if ex["server_response"]["streaming"]]
@@ -166,7 +167,7 @@ class TestProxy(unittest.TestCase):
         self.assertEqual(content, "Hello, world!")
         self.assertEqual(stream_ex[0]["usage"]["total_tokens"], 8)
 
-        exp = self.client.get(f"/api/conversations/{cid}/export").json()
+        exp = self.ui.get(f"/api/conversations/{cid}/export").json()
         self.assertEqual(exp["format"], "llm-proxy/conversation")
         self.assertEqual(exp["version"], 1)
         self.assertGreaterEqual(len(exp["exchanges"]), 2)
@@ -175,24 +176,24 @@ class TestProxy(unittest.TestCase):
     def test_serves_ui_and_favicon(self):
         # The status page is served from the ui/ dir and must not contain
         # placeholder conversation links (literal <id> hrefs -> junk 404s).
-        r = self.client.get("/")
+        r = self.ui.get("/")
         self.assertEqual(r.status_code, 200)
         self.assertIn('href="/favicon.svg"', r.text)
         self.assertNotIn('href="/api/conversations', r.text)
 
         # Browsers probe /favicon.ico even with an SVG icon link; serve the SVG.
-        r = self.client.get("/favicon.ico")
+        r = self.ui.get("/favicon.ico")
         self.assertEqual(r.status_code, 200)
         self.assertEqual(r.headers["content-type"], "image/svg+xml")
         self.assertIn("<svg", r.text)
 
     def test_secret_redaction(self):
-        self.client.post(
+        self.llm.post(
             CHAT, json=_payload(stream=False), headers={"Authorization": "Bearer sk-secret-test-key-123"}
         )
-        clients = self.client.get("/api/clients").json()
-        cid = clients[0]["conversation_ids"][0]
-        conv = self.client.get(f"/api/conversations/{cid}").json()
+        clients_body = self.ui.get("/api/clients").json()
+        cid = clients_body[0]["conversation_ids"][0]
+        conv = self.ui.get(f"/api/conversations/{cid}").json()
         auth = conv["exchanges"][0]["client_request"]["headers"].get("authorization")
         self.assertIsNotNone(auth)
         self.assertIn("***", auth)
@@ -204,30 +205,30 @@ class TestProxy(unittest.TestCase):
         # the id (ids are REST path segments). The TestClient's host is
         # "testclient", so clients are matched by id suffix, not full value.
         for ua in ("curl/8.5.0", "zed/1.0.0", "curl/8.5.0"):
-            self.client.post(CHAT, json=_payload(stream=False), headers={"User-Agent": ua})
+            self.llm.post(CHAT, json=_payload(stream=False), headers={"User-Agent": ua})
 
-        clients = self.client.get("/api/clients").json()
-        by_ua = {c["id"].rsplit("::", 1)[-1]: c for c in clients}
+        clients_body = self.ui.get("/api/clients").json()
+        by_ua = {c["id"].rsplit("::", 1)[-1]: c for c in clients_body}
         self.assertEqual(set(by_ua), {"curl_8.5.0", "zed_1.0.0"})
 
-        conv_curl = self.client.get(
+        conv_curl = self.ui.get(
             "/api/conversations/" + quote(by_ua["curl_8.5.0"]["conversation_ids"][0])
         ).json()
         self.assertEqual(conv_curl["exchange_count"], 2)
-        conv_zed = self.client.get(
+        conv_zed = self.ui.get(
             "/api/conversations/" + quote(by_ua["zed_1.0.0"]["conversation_ids"][0])
         ).json()
         self.assertEqual(conv_zed["exchange_count"], 1)
 
     def test_user_agent_and_key_combined_id(self):
-        self.client.post(
+        self.llm.post(
             CHAT,
             json=_payload(stream=False),
             headers={"User-Agent": "curl/8.5.0", "Authorization": "Bearer sk-test"},
         )
-        clients = self.client.get("/api/clients").json()
-        self.assertEqual(len(clients), 1)
-        self.assertTrue(clients[0]["id"].endswith("::curl_8.5.0::sk-test"))
+        clients_body = self.ui.get("/api/clients").json()
+        self.assertEqual(len(clients_body), 1)
+        self.assertTrue(clients_body[0]["id"].endswith("::curl_8.5.0::sk-test"))
 
 
 if __name__ == "__main__":

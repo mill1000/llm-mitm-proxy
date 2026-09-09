@@ -4,16 +4,15 @@ from __future__ import annotations
 
 import unittest
 
-from fastapi.testclient import TestClient
-
 try:  # package form (unittest discover)
     from . import mock_upstream
+    from .helpers import clients, close
     from .mock_upstream import start_mock, stop_mock
 except ImportError:  # direct execution fallback
     import mock_upstream  # type: ignore
+    from helpers import clients, close  # type: ignore
     from mock_upstream import start_mock, stop_mock  # type: ignore
 
-from llm_proxy.app import create_app
 from llm_proxy.config import Settings
 
 # Settings for the app under test: the local mock upstream, quiet logs.
@@ -33,7 +32,7 @@ def _replay_path(cid: str, seq: int) -> str:
 
 
 class TestReplayAndExport(unittest.TestCase):
-    """Each test uses a fresh proxy app (isolated store) against the shared mock."""
+    """Each test uses a fresh shared Context (isolated store) against the shared mock."""
 
     @classmethod
     def setUpClass(cls):
@@ -47,26 +46,23 @@ class TestReplayAndExport(unittest.TestCase):
             pass
 
     def setUp(self):
-        # httpx2 sends a default User-Agent, which the proxy folds into the
-        # client/conversation id; suppress it so the id stays "testclient".
-        self.client = TestClient(create_app(BASE), headers={"User-Agent": ""})
-        self.client.__enter__()
+        self.ctx, self.llm, self.ui = clients(BASE)
 
     def tearDown(self):
-        self.client.__exit__(None, None, None)
+        close(self.llm, self.ui)
 
     def test_replay_as_is(self):
-        self.client.post(CHAT, json=_payload(stream=False))
+        self.llm.post(CHAT, json=_payload(stream=False))
         original = mock_upstream.REQUESTS[-1]
 
-        r = self.client.post(_replay_path(CID, 0), json={})
+        r = self.ui.post(_replay_path(CID, 0), json={})
         self.assertEqual(r.status_code, 200)
         self.assertEqual(r.json()["choices"][0]["message"]["content"], "Hello, world!")
 
         # The upstream received the captured body again, verbatim.
         self.assertEqual(mock_upstream.REQUESTS[-1], original)
 
-        conv = self.client.get(f"/api/conversations/{CID}").json()
+        conv = self.ui.get(f"/api/conversations/{CID}").json()
         self.assertEqual(conv["exchange_count"], 2)
         replayed = conv["exchanges"][-1]
         self.assertTrue(replayed["is_replay"])
@@ -74,36 +70,36 @@ class TestReplayAndExport(unittest.TestCase):
         self.assertEqual(replayed["client_request"]["body_json"], original)
 
     def test_replay_replaces_body(self):
-        self.client.post(CHAT, json=_payload(stream=False))
+        self.llm.post(CHAT, json=_payload(stream=False))
 
         edited = {**_payload(stream=False), "model": "thinker", "temperature": 0.2}
-        r = self.client.post(_replay_path(CID, 0), json=edited)
+        r = self.ui.post(_replay_path(CID, 0), json=edited)
         self.assertEqual(r.status_code, 200)
 
         # The upstream received exactly the edited body: the model and the new
         # parameter are present, nothing was merged over the captured request.
         self.assertEqual(mock_upstream.REQUESTS[-1], edited)
 
-        conv = self.client.get(f"/api/conversations/{CID}").json()
+        conv = self.ui.get(f"/api/conversations/{CID}").json()
         replayed = conv["exchanges"][-1]
         self.assertTrue(replayed["is_replay"])
         self.assertEqual(replayed["client_request"]["body_json"]["model"], "thinker")
 
         # The replayed exchange is exportable and carries the replay flag.
-        exp = self.client.get(f"/api/conversations/{CID}/exchanges/{replayed['sequence']}/export").json()
+        exp = self.ui.get(f"/api/conversations/{CID}/exchanges/{replayed['sequence']}/export").json()
         self.assertEqual(exp["format"], "llm-proxy/exchange")
         self.assertTrue(exp["exchange"]["is_replay"])
 
     def test_replay_streaming(self):
-        self.client.post(CHAT, json=_payload(stream=True))
+        self.llm.post(CHAT, json=_payload(stream=True))
 
-        r = self.client.post(_replay_path(CID, 0), json={})
+        r = self.ui.post(_replay_path(CID, 0), json={})
         self.assertEqual(r.status_code, 200)
         self.assertIn("text/event-stream", r.headers.get("content-type", ""))
         self.assertIn("[DONE]", r.text)
         self.assertIn('"Hello"', r.text)  # the answer streams in pieces
 
-        conv = self.client.get(f"/api/conversations/{CID}").json()
+        conv = self.ui.get(f"/api/conversations/{CID}").json()
         replayed = conv["exchanges"][-1]
         self.assertTrue(replayed["is_replay"])
         self.assertTrue(replayed["server_response"]["streaming"])
@@ -112,16 +108,16 @@ class TestReplayAndExport(unittest.TestCase):
         )
 
     def test_replay_unknown_seq_and_conversation_404(self):
-        self.client.post(CHAT, json=_payload(stream=False))
-        self.assertEqual(self.client.post(_replay_path(CID, 99), json={}).status_code, 404)
-        self.assertEqual(self.client.post(_replay_path("nope", 0), json={}).status_code, 404)
-        self.assertEqual(self.client.get("/api/conversations/nope/exchanges/0/export").status_code, 404)
-        self.assertEqual(self.client.get(f"/api/conversations/{CID}/exchanges/99/export").status_code, 404)
+        self.llm.post(CHAT, json=_payload(stream=False))
+        self.assertEqual(self.ui.post(_replay_path(CID, 99), json={}).status_code, 404)
+        self.assertEqual(self.ui.post(_replay_path("nope", 0), json={}).status_code, 404)
+        self.assertEqual(self.ui.get("/api/conversations/nope/exchanges/0/export").status_code, 404)
+        self.assertEqual(self.ui.get(f"/api/conversations/{CID}/exchanges/99/export").status_code, 404)
 
     def test_single_exchange_export(self):
-        self.client.post(CHAT, json=_payload(stream=False))
+        self.llm.post(CHAT, json=_payload(stream=False))
 
-        r = self.client.get(f"/api/conversations/{CID}/exchanges/0/export")
+        r = self.ui.get(f"/api/conversations/{CID}/exchanges/0/export")
         self.assertEqual(r.status_code, 200)
         self.assertEqual(r.headers.get("content-disposition"), f'attachment; filename="{CID}-ex0.json"')
         exp = r.json()
@@ -135,13 +131,13 @@ class TestReplayAndExport(unittest.TestCase):
         )
 
     def test_conversation_export_redacts_secrets(self):
-        self.client.post(
+        self.llm.post(
             CHAT, json=_payload(stream=False), headers={"Authorization": "Bearer sk-export-secret-123"}
         )
-        clients = self.client.get("/api/clients").json()
-        cid = clients[0]["conversation_ids"][0]
+        clients_body = self.ui.get("/api/clients").json()
+        cid = clients_body[0]["conversation_ids"][0]
 
-        r = self.client.get(f"/api/conversations/{cid}/export")
+        r = self.ui.get(f"/api/conversations/{cid}/export")
         self.assertEqual(r.status_code, 200)
         exp = r.json()
         self.assertEqual(exp["format"], "llm-proxy/conversation")

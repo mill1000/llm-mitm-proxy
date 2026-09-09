@@ -10,7 +10,7 @@ import urllib.request
 
 import uvicorn
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import JSONResponse, PlainTextResponse, StreamingResponse
 
 mock = FastAPI()
 
@@ -26,6 +26,30 @@ REQUESTS: list[dict] = []
 @mock.get("/v1/models")
 async def models() -> dict:
     return {"object": "list", "data": [{"id": "local-model", "object": "model"}]}
+
+
+@mock.get("/props")
+async def props(request: Request) -> dict:
+    """llama.cpp server-properties probe (a non-OpenAI path the proxy must pass through)."""
+    return {"n_ctx": 4096, "model": request.query_params.get("model", "")}
+
+
+@mock.get("/plain")
+async def plain() -> PlainTextResponse:
+    """A non-JSON response body (exercises the raw-text capture path)."""
+    return PlainTextResponse("hello")
+
+
+@mock.get("/sse")
+async def sse() -> StreamingResponse:
+    """A non-OpenAI SSE stream (exercises the undecoded-SSE raw capture path)."""
+
+    async def gen():
+        for i in range(3):
+            yield f"data: {json.dumps({'event': 'tick', 'i': i})}\n\n"
+        yield "data: [DONE]\n\n"
+
+    return StreamingResponse(gen(), media_type="text/event-stream")
 
 
 def _sse_line(

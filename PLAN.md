@@ -2,7 +2,7 @@
 
 > A lightweight, low-overhead, **transparent MITM proxy for LLM APIs** with a live "conversation" Web UI for inspecting, replaying, and exporting client↔server traffic.
 >
-> Status: **M0–M4 implemented** (committed); M5+ proposed in §14. All questions resolved — see §13.
+> Status: **M0–M5 implemented** (M5 awaiting commit); M6+ proposed in §14. All questions resolved — see §13.
 
 ---
 

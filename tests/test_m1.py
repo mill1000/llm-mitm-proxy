@@ -10,11 +10,12 @@ import unittest
 from fastapi.testclient import TestClient
 
 try:  # package form (unittest discover)
+    from .helpers import clients, close
     from .mock_upstream import start_mock, stop_mock
 except ImportError:  # direct execution fallback
+    from helpers import clients, close  # type: ignore
     from mock_upstream import start_mock, stop_mock  # type: ignore
 
-from llm_proxy.app import create_app
 from llm_proxy.config import Settings
 
 # Settings for the app under test: the local mock upstream, quiet logs (tests
@@ -67,7 +68,7 @@ def _read_until_completed(ws, timeout: float = 5.0) -> list[dict]:
 
 
 class TestLiveFanOut(unittest.TestCase):
-    """Each test uses a fresh proxy app (isolated store + hub) against the shared mock."""
+    """Each test uses a fresh shared Context (isolated store + hub) against the shared mock."""
 
     @classmethod
     def setUpClass(cls):
@@ -81,18 +82,15 @@ class TestLiveFanOut(unittest.TestCase):
             pass
 
     def setUp(self):
-        # httpx2 sends a default User-Agent, which the proxy folds into the
-        # client/conversation id; suppress it so the id stays "testclient".
-        self.client = TestClient(create_app(BASE), headers={"User-Agent": ""})
-        self.client.__enter__()
+        self.ctx, self.llm, self.ui = clients(BASE)
 
     def tearDown(self):
-        self.client.__exit__(None, None, None)
+        close(self.llm, self.ui)
 
     def test_streaming_fan_out_is_live(self):
-        with self.client.websocket_connect("/ws") as ws:
+        with self.ui.websocket_connect("/ws") as ws:
             ws.send_json({"type": "subscribe", "conversation_id": CID})
-            self.client.post(CHAT, json=_payload(stream=True))
+            self.llm.post(CHAT, json=_payload(stream=True))
             events = _read_until_completed(ws)
 
         types = [e["type"] for e in events]
@@ -122,9 +120,9 @@ class TestLiveFanOut(unittest.TestCase):
         self.assertTrue(comp["server_response"]["streaming"])
 
     def test_non_streaming_fan_out_has_no_deltas(self):
-        with self.client.websocket_connect("/ws") as ws:
+        with self.ui.websocket_connect("/ws") as ws:
             ws.send_json({"type": "subscribe", "conversation_id": CID})
-            self.client.post(CHAT, json=_payload(stream=False))
+            self.llm.post(CHAT, json=_payload(stream=False))
             events = _read_until_completed(ws)
 
         types = [e["type"] for e in events]
@@ -137,10 +135,72 @@ class TestLiveFanOut(unittest.TestCase):
             comp["server_response"]["body_json"]["choices"][0]["message"]["content"], "Hello, world!"
         )
 
+    def test_exchange_started_carries_server_sequence(self):
+        """Regression: exchange_started must carry the server-assigned sequence.
+
+                The UI used to guess the pending card's sequence (lastSeq + 1), which
+        desyncs from the real sequence once a slow in-flight request sits behind
+        completed ones. A replay from such a pending card then re-sends to the wrong
+        exchange's endpoint. The server assigns the sequence at begin_exchange, so
+        forwarding it in the event makes the pending card (and any replay from it)
+        target the right exchange.
+        """
+        slow_payload = {
+            "model": "slow",
+            "stream": False,
+            "messages": [{"role": "user", "content": "hi"}],
+        }
+        with self.ui.websocket_connect("/ws") as ws:
+            ws.send_json({"type": "subscribe", "conversation_id": CID})
+            # A fast request completes first (real sequence 0).
+            self.llm.get("/v1/models")
+            # A slow request stays in flight long enough to observe its placeholder.
+            slow = threading.Thread(
+                target=self.llm.post, kwargs={"url": CHAT, "json": slow_payload}, daemon=True
+            )
+            slow.start()
+            time.sleep(0.3)  # let the fast exchange complete and the slow one go in flight
+            exchanges = self.ui.get(f"/api/conversations/{CID}").json()["exchanges"]
+            in_flight = next(e for e in exchanges if e["in_flight"])
+            stored_seq, slow_id = in_flight["sequence"], in_flight["id"]
+            for _ in range(20):
+                ev = _receive_json(ws, 3.0)
+                if ev["type"] == "exchange_started" and ev["exchange_id"] == slow_id:
+                    break
+            else:
+                self.fail("exchange_started for the in-flight exchange never arrived")
+            self.assertEqual(ev["sequence"], stored_seq)
+            slow.join(timeout=5)
+
+    def test_completed_sequence_matches_stored_order(self):
+        """Regression: exchange_completed must carry each request's real sequence.
+
+        _capture used to build the completed exchange with sequence=0, so every
+        completed card showed "#0" and a replay from it resolved to sequence 0 (the
+        first request). The store finalizes the in-flight placeholder in place and
+        returns it; the pipeline must emit that copy so the sequence stays the one
+        assigned at begin_exchange. Models the exact repro: models, chat, models.
+        """
+        with self.ui.websocket_connect("/ws") as ws:
+            ws.send_json({"type": "subscribe", "conversation_id": CID})
+            self.llm.get("/v1/models")  # sequence 0
+            self.llm.post(CHAT, json=_payload(stream=False))  # sequence 1
+            self.llm.get("/v1/models")  # sequence 2
+            completed = []
+            while len(completed) < 3:
+                ev = _receive_json(ws)
+                if ev["type"] == "exchange_completed":
+                    completed.append(ev["exchange"])
+        self.assertEqual([e["sequence"] for e in completed], [0, 1, 2])
+        self.assertEqual(
+            [(e["client_request"] or {}).get("path") for e in completed],
+            ["/v1/models", CHAT, "/v1/models"],
+        )
+
     def test_unfocused_client_gets_dock_activity_only(self):
-        with self.client.websocket_connect("/ws") as ws:
+        with self.ui.websocket_connect("/ws") as ws:
             # No subscribe -> this socket is a dock-only observer.
-            self.client.post(CHAT, json=_payload(stream=True))
+            self.llm.post(CHAT, json=_payload(stream=True))
             # The observer receives exactly three events: the global client_seen
             # broadcast, then lightweight activity pings for exchange_started and
             # exchange_completed (deltas are focus-only). TestClient buffers all of
@@ -163,21 +223,21 @@ class TestLiveFanOut(unittest.TestCase):
         # Regression: a brand-new client must appear in the dock live. client_seen
         # is global, so an unfocused (dock-only) socket receives it even though it
         # is not focused on the new conversation (previously it was dropped).
-        with self.client.websocket_connect("/ws") as ws:
+        with self.ui.websocket_connect("/ws") as ws:
             # No subscribe -> dock-only observer.
-            self.client.post(CHAT, json=_payload(stream=True))
+            self.llm.post(CHAT, json=_payload(stream=True))
             ev = _receive_json(ws)
             self.assertEqual(ev["type"], "client_seen")
             self.assertEqual(ev["conversation_id"], CID)
 
     def test_ui_assets_served(self):
-        # The M1 SPA is served from the same static mount as the index.
-        r = self.client.get("/")
+        # The M1 SPA is served from the UI listener's static mount.
+        r = self.ui.get("/")
         self.assertEqual(r.status_code, 200)
         self.assertIn('src="/app.js"', r.text)
         self.assertIn('href="/styles.css"', r.text)
         for asset in ("/app.js", "/styles.css"):
-            r = self.client.get(asset)
+            r = self.ui.get(asset)
             self.assertEqual(r.status_code, 200, asset)
             self.assertTrue(len(r.content) > 0, asset)
             # UI assets must not be heuristically cached by browsers, or a proxy
@@ -185,14 +245,14 @@ class TestLiveFanOut(unittest.TestCase):
             self.assertEqual(r.headers.get("cache-control"), "no-cache", asset)
 
     def test_focus_switch_routes_events(self):
-        with self.client.websocket_connect("/ws") as ws:
+        with self.ui.websocket_connect("/ws") as ws:
             # Focus a conversation we will not use -> must receive no full events for CID.
             ws.send_json({"type": "subscribe", "conversation_id": "somebody-else"})
-            self.client.post(CHAT, json=_payload(stream=False))
+            self.llm.post(CHAT, json=_payload(stream=False))
             # Then switch focus and confirm live events arrive for CID.
             ws.send_json({"type": "subscribe", "conversation_id": CID})
             time.sleep(0.05)  # let the app loop process the focus change before emitting
-            self.client.post(CHAT, json=_payload(stream=True))
+            self.llm.post(CHAT, json=_payload(stream=True))
             events = _read_until_completed(ws)
 
         # After the focus switch we should get the CID exchange's full events.
@@ -200,10 +260,10 @@ class TestLiveFanOut(unittest.TestCase):
         self.assertEqual(events[-1]["type"], "exchange_completed")
 
     def test_reasoning_streams_before_content(self):
-        with self.client.websocket_connect("/ws") as ws:
+        with self.ui.websocket_connect("/ws") as ws:
             ws.send_json({"type": "subscribe", "conversation_id": CID})
             payload = {"model": "thinker", "stream": True, "messages": [{"role": "user", "content": "hi"}]}
-            self.client.post(CHAT, json=payload)
+            self.llm.post(CHAT, json=payload)
             events = _read_until_completed(ws)
 
         deltas = [e for e in events if e["type"] == "delta"]
@@ -223,17 +283,17 @@ class TestLiveFanOut(unittest.TestCase):
 
     def test_upstream_gen_rate_captured_stream_and_non_stream(self):
         # Stream: upstream timings arrive in the final SSE chunk.
-        with self.client.websocket_connect("/ws") as ws:
+        with self.ui.websocket_connect("/ws") as ws:
             ws.send_json({"type": "subscribe", "conversation_id": CID})
-            self.client.post(CHAT, json=_payload(stream=True))
+            self.llm.post(CHAT, json=_payload(stream=True))
             stream_ex = _read_until_completed(ws)[-1]["exchange"]
         self.assertEqual(stream_ex["timings"]["gen_tok_per_sec"], 100.0)
 
         # Non-stream: upstream timings arrive in the JSON body (the byte-level
         # window is useless here, so this is the only sane tok/s source).
-        with self.client.websocket_connect("/ws") as ws:
+        with self.ui.websocket_connect("/ws") as ws:
             ws.send_json({"type": "subscribe", "conversation_id": CID})
-            self.client.post(CHAT, json=_payload(stream=False))
+            self.llm.post(CHAT, json=_payload(stream=False))
             non_ex = _read_until_completed(ws)[-1]["exchange"]
         self.assertEqual(non_ex["timings"]["gen_tok_per_sec"], 100.0)
         self.assertIsNone(non_ex["timings"]["t_first_content"])
@@ -257,8 +317,8 @@ class TestLiveFanOut(unittest.TestCase):
         logger.addHandler(capture)
         logger.setLevel(logging.INFO)  # the production default
         try:
-            with self.client.websocket_connect("/ws") as ws:
-                self.client.post(CHAT, json=_payload(stream=False))
+            with self.ui.websocket_connect("/ws") as ws:
+                self.llm.post(CHAT, json=_payload(stream=False))
                 ev = _receive_json(ws)
                 self.assertEqual(ev["type"], "client_seen")
         finally:
@@ -278,8 +338,8 @@ class TestLiveFanOut(unittest.TestCase):
         empty dock - and client_seen only fires once, so the dock stays empty
         until a manual refresh. Registering before the emit closes the window.
         """
-        store = self.client.app.state.store
-        hub = self.client.app.state.hub
+        store = self.ui.app.state.store
+        hub = self.ui.app.state.hub
         real_emit = hub.emit
         violations: list[str] = []
 
@@ -290,10 +350,10 @@ class TestLiveFanOut(unittest.TestCase):
 
         hub.emit = spy_emit
         try:
-            with self.client.websocket_connect("/ws") as ws:
+            with self.ui.websocket_connect("/ws") as ws:
                 ws.send_json({"type": "subscribe", "conversation_id": CID})
                 time.sleep(0.05)  # let the app loop process the focus change before emitting
-                self.client.post(CHAT, json=_payload(stream=False))
+                self.llm.post(CHAT, json=_payload(stream=False))
                 _read_until_completed(ws)
         finally:
             hub.emit = real_emit
@@ -319,7 +379,7 @@ class TestLiveFanOut(unittest.TestCase):
         logger.addHandler(capture)
         logger.setLevel(logging.DEBUG)
         try:
-            with self.client.websocket_connect("/ws") as ws:
+            with self.ui.websocket_connect("/ws") as ws:
                 ws.send_json({"type": "subscribe", "conversation_id": CID})
                 time.sleep(0.05)  # let the app loop process the focus change
             time.sleep(0.05)  # TestClient close -> server-side disconnect is racy
@@ -332,3 +392,7 @@ class TestLiveFanOut(unittest.TestCase):
         self.assertIn("ws focus", text)
         self.assertIn(CID, text)  # focus was set to the test client's conversation
         self.assertIn("ws disconnected", text)
+
+
+if __name__ == "__main__":
+    unittest.main()

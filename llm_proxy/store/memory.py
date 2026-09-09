@@ -50,12 +50,20 @@ class MemoryStore:
         self._inflight[exchange.id] = exchange
         self._inflight_cids[exchange.id] = conv.id
 
-    def add_exchange(self, client_id: str, tag: str, exchange: Exchange) -> tuple[Client, Conversation]:
+    def add_exchange(
+        self, client_id: str, tag: str, exchange: Exchange
+    ) -> tuple[Client, Conversation, Exchange]:
+        """Finalize an in-flight exchange (or append a new one) and return the stored copy.
+
+        The returned exchange is the one living in the ring buffer. For an in-flight
+        placeholder that is the placeholder itself, whose sequence was assigned at
+        begin_exchange - so callers must emit/store this, not the freshly-built one,
+        or the completed event carries the default sequence (0) instead of the real one.
+        """
         client, conv = self.get_or_create_conversation(client_id, tag)
         pending = self._inflight.pop(exchange.id, None)
         if pending is not None:
-            # Finalize the placeholder in place: its sequence (assigned at
-            # begin_exchange) and position in the ring buffer stay stable.
+            # Finalize the placeholder in place: its sequence and ring position stay stable.
             pending.client_request = exchange.client_request
             pending.server_response = exchange.server_response
             pending.timings = exchange.timings
@@ -63,10 +71,12 @@ class MemoryStore:
             pending.error = exchange.error
             pending.in_flight = False
             self._inflight_cids.pop(exchange.id, None)
+            stored = pending
         else:
             conv.append(exchange)
+            stored = exchange
         client.last_seen = time.time()
-        return client, conv
+        return client, conv, stored
 
     def list_clients(self) -> list[Client]:
         return list(self._clients.values())

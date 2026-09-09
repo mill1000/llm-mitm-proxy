@@ -4,7 +4,8 @@ services:
     image: llm-proxy:latest
     restart: unless-stopped
     ports:
-      - "9090:9090"
+      - "8080:8080" # LLM API proxy (clients point here)
+      - "9090:9090" # WebUI + proxy API
     environment:
       UPSTREAM_BASE_URL: "http://host.docker.internal:8080"
     extra_hosts:

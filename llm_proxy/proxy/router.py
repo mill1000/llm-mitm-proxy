@@ -1,7 +1,9 @@
-"""FastAPI router for the proxy API (client -> proxy -> upstream).
+"""LLM listener router: a transparent catch-all.
 
-Everything under ``/v1/*`` is proxied. Non-matching paths fall through to the
-static UI mount (registered later in the app).
+Every request - any method, any path - is forwarded to the upstream verbatim
+and tapped into the store. This listener has **no reserved routes** (the WebUI
+and proxy API live on the UI port), so the proxy never 404s a client request;
+at worst the upstream's own 404 is returned.
 """
 
 from __future__ import annotations
@@ -12,7 +14,7 @@ from fastapi.responses import Response
 router = APIRouter()
 
 
-@router.api_route("/v1/{path:path}", methods=["GET", "POST"])
-async def proxy_v1(request: Request, path: str) -> Response:
+@router.api_route("/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"])
+async def proxy_all(request: Request) -> Response:
     pipeline = request.app.state.pipeline
     return await pipeline.handle(request)

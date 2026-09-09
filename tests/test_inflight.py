@@ -13,15 +13,14 @@ import threading
 import time
 import unittest
 
-from fastapi.testclient import TestClient
-
-from llm_proxy.app import create_app
-from llm_proxy.config import Settings
-
 try:  # package form (unittest discover)
+    from .helpers import clients, close
     from .mock_upstream import start_mock, stop_mock
 except ImportError:  # direct execution fallback
+    from helpers import clients, close  # type: ignore
     from mock_upstream import start_mock, stop_mock  # type: ignore
+
+from llm_proxy.config import Settings
 
 BASE = Settings(upstream_base_url="http://127.0.0.1:8082", log_level="critical")
 
@@ -45,17 +44,14 @@ class TestInFlight(unittest.TestCase):
             pass
 
     def setUp(self):
-        # httpx2 sends a default User-Agent, which the proxy folds into the
-        # client/conversation id; suppress it so the id stays "testclient".
-        self.client = TestClient(create_app(BASE), headers={"User-Agent": ""})
-        self.client.__enter__()
+        self.ctx, self.llm, self.ui = clients(BASE)
 
     def tearDown(self):
-        self.client.__exit__(None, None, None)
+        close(self.llm, self.ui)
 
     def _slow_post(self, stream: bool) -> threading.Thread:
         t = threading.Thread(
-            target=lambda: self.client.post(
+            target=lambda: self.llm.post(
                 CHAT,
                 json={"model": "slow", "stream": stream, "messages": [{"role": "user", "content": "hi"}]},
             ),
@@ -65,7 +61,7 @@ class TestInFlight(unittest.TestCase):
         return t
 
     def _exchanges(self) -> list[dict]:
-        return self.client.get(f"/api/conversations/{CID}").json()["exchanges"]
+        return self.ui.get(f"/api/conversations/{CID}").json()["exchanges"]
 
     def test_in_flight_visible_in_rest_then_finalized(self):
         """A slow non-stream request is visible as in_flight in REST, and completes

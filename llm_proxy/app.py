@@ -1,15 +1,24 @@
-"""FastAPI app factory. One process serves: proxy API, UI REST API, and the static UI.
+"""FastAPI app factory: one process, two listeners.
 
-Run with: ``llm-proxy`` (console script; command-line settings, see --help) or
-``uvicorn llm_proxy.app:app`` for ad-hoc runs with default settings. The live
-WebSocket hub + in-memory store live in this single process.
+* **LLM listener** (``llm_port``, default 8080): a transparent catch-all proxy
+  to the upstream. Every method/path is forwarded verbatim and tapped.
+* **UI listener** (``ui_port``, default 9090): the WebUI, ``/api/*`` REST, the
+  ``/ws`` WebSocket, and ``/health``. It serves no proxy routes.
+
+Run with ``llm-proxy`` (console script; both listeners, command-line settings,
+see --help) or ``uvicorn llm_proxy.app:app`` for an ad-hoc **UI-only** run with
+default settings. The store and WebSocket hub live in this single process and are
+shared by both listeners; each listener builds its own upstream http client +
+pipeline in its lifespan (one connection pool per listener).
 """
 
 from __future__ import annotations
 
 import argparse
+import asyncio
 import json
 import logging
+import signal
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -28,12 +37,12 @@ from .config import Settings
 from .hub import Hub
 from .logconf import configure_logging
 from .proxy.pipeline import Pipeline
-from .proxy.router import router as proxy_router
+from .proxy.router import router as llm_router
 from .store.memory import MemoryStore
 
 
 def _ui_dir(settings: Settings) -> Path:
-    """Resolve the static UI directory (``UI_DIR`` override, else repo-relative ``ui/``)."""
+    """Resolve the static UI directory (``ui_dir`` override, else repo-relative ``ui/``)."""
     if settings.ui_dir:
         return Path(settings.ui_dir)
     return Path(__file__).resolve().parents[1] / "ui"
@@ -54,45 +63,101 @@ class _NoCacheStaticFiles(StaticFiles):
         return response
 
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    settings = app.state.settings
+class Context:
+    """Shared, loop-agnostic process state: settings, store, and WebSocket hub.
 
-    # Wire the LOG_LEVEL setting to the app loggers. uvicorn's
-    # dictConfig leaves the root logger without a handler, so without this our
-    # INFO logs (e.g. the llm_proxy.ws connection trace) would be silently dropped.
-    configure_logging(settings)
+    Both listeners run in one process and must share the store (captured
+    exchanges) and the hub (live fan-out) - that is the point of a single
+    process. Each listener separately builds its own upstream http client +
+    pipeline (see :meth:`build_pipeline`) so it runs in its own event-loop
+    context; in production both listeners share one loop, so this costs a second
+    (small) connection pool only.
+    """
 
-    # Pooled, keep-alive async client to the single upstream. The read timeout is
-    # the max gap between upstream bytes: long enough for slow generation, short
-    # enough to trip on a dead link. See UPSTREAM_*_TIMEOUT.
-    limits = httpx2.Limits(max_connections=200, max_keepalive_connections=50)
-    timeout = httpx2.Timeout(
-        settings.upstream_read_timeout,
-        connect=settings.upstream_connect_timeout,
-        pool=settings.upstream_pool_timeout,
+    def __init__(self, settings: Settings):
+        self.settings = settings
+        # Wire the log level to the root logger (idempotent). uvicorn's
+        # dictConfig leaves root without a handler, so without this the app's
+        # INFO logs (e.g. the llm_proxy.ws trace) would be silently dropped.
+        configure_logging(settings)
+        self.store = MemoryStore(settings.retention_max_exchanges, settings.retention_max_age_hours)
+        self.hub = Hub(
+            ping_interval=settings.ws_ping_interval,
+            ping_timeout=settings.ws_ping_timeout,
+        )
+
+    def build_pipeline(self) -> tuple[httpx2.AsyncClient, Pipeline]:
+        """A fresh (upstream http client, pipeline) pair for one listener.
+
+        Pooled, keep-alive client to the single upstream. The read timeout is the
+        max gap between upstream bytes: long enough for slow generation, short
+        enough to trip on a dead link.
+        """
+        limits = httpx2.Limits(max_connections=200, max_keepalive_connections=50)
+        timeout = httpx2.Timeout(
+            self.settings.upstream_read_timeout,
+            connect=self.settings.upstream_connect_timeout,
+            pool=self.settings.upstream_pool_timeout,
+        )
+        http = httpx2.AsyncClient(base_url=self.settings.upstream_base_url, limits=limits, timeout=timeout)
+        pipeline = Pipeline(http, self.settings, AdapterRegistry(), self.store, self.hub)
+        return http, pipeline
+
+
+def _attach(ctx: Context, app: FastAPI) -> None:
+    """Expose the shared Context (settings/store/hub) on ``app.state``.
+
+    ``http`` and ``pipeline`` are added later, by the listener's lifespan, once
+    its event loop is running.
+    """
+    app.state.ctx = ctx
+    app.state.settings = ctx.settings
+    app.state.hub = ctx.hub
+    app.state.store = ctx.store
+
+
+def _lifespan(ctx: Context):
+    """Build this listener's http client + pipeline on startup, close on shutdown."""
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        http, pipeline = ctx.build_pipeline()
+        app.state.http = http
+        app.state.pipeline = pipeline
+        try:
+            yield
+        finally:
+            await http.aclose()
+
+    return lifespan
+
+
+def create_llm_app(ctx: Context) -> FastAPI:
+    """LLM listener: a transparent catch-all proxy (no reserved routes)."""
+    app = FastAPI(
+        title="LLM Proxy",
+        version=__version__,
+        docs_url=None,
+        redoc_url=None,
+        openapi_url=None,
+        lifespan=_lifespan(ctx),
     )
-    app.state.http = httpx2.AsyncClient(base_url=settings.upstream_base_url, limits=limits, timeout=timeout)
-    app.state.store = MemoryStore(settings.retention_max_exchanges, settings.retention_max_age_hours)
-    app.state.pipeline = Pipeline(app.state.http, settings, AdapterRegistry(), app.state.store, app.state.hub)
-    try:
-        yield
-    finally:
-        await app.state.http.aclose()
+    _attach(ctx, app)
+    app.include_router(llm_router)
+    return app
 
 
-def create_app(settings: Settings | None = None) -> FastAPI:
-    """Build the app (default settings when none are given)."""
-    settings = settings or Settings()
-    app = FastAPI(title="LLM Proxy", version=__version__, lifespan=lifespan)
-    app.state.settings = settings
-    app.state.hub = Hub(
-        ping_interval=settings.ws_ping_interval,
-        ping_timeout=settings.ws_ping_timeout,
+def create_ui_app(ctx: Context) -> FastAPI:
+    """UI listener: WebUI + ``/api/*`` + ``/ws`` + ``/health`` (no proxy routes)."""
+    app = FastAPI(
+        title="LLM Proxy UI",
+        version=__version__,
+        docs_url=None,
+        redoc_url=None,
+        openapi_url=None,
+        lifespan=_lifespan(ctx),
     )
-
-    # Proxy API + UI REST API first so they take precedence over the static mount.
-    app.include_router(proxy_router)
+    _attach(ctx, app)
     app.include_router(ui_router, prefix="/api")
 
     @app.get("/health")
@@ -132,8 +197,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         finally:
             hub.disconnect(ws)
 
-    # Static UI (served last, so /v1/*, /api/*, /health win).
-    ui_dir = _ui_dir(settings)
+    # Static UI (served last, so /api/*, /health win).
+    ui_dir = _ui_dir(ctx.settings)
 
     @app.get("/favicon.ico")
     async def favicon() -> Response:
@@ -149,24 +214,26 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     return app
 
 
-app = create_app()
+# Ad-hoc UI-only entry point for ``uvicorn llm_proxy.app:app`` (default settings).
+app = create_ui_app(Context(Settings()))
 
 
 def cli_overrides(argv: list[str] | None = None) -> dict[str, str | int]:
     """Parse the command line into settings overrides.
 
-    Usage: ``llm-proxy [UPSTREAM_BASE_URL] [--host HOST] [--port PORT]``.
+    Usage: ``llm-proxy [UPSTREAM_BASE_URL] [--host HOST] [--llm-port N] [--ui-port N]``.
     Returns only the options actually given, keyed by ``Settings`` field name,
     so the result can be passed straight to ``Settings(**overrides)``.
     """
     parser = argparse.ArgumentParser(
         prog="llm-proxy",
-        description="OpenAI-compatible LLM proxy with a live conversation WebUI.",
+        description="Transparent LLM API proxy with a live conversation WebUI.",
     )
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     parser.add_argument("upstream", nargs="?", metavar="UPSTREAM_BASE_URL", help="upstream base URL")
-    parser.add_argument("--host", metavar="HOST", help="listen host")
-    parser.add_argument("--port", metavar="PORT", type=int, help="listen port")
+    parser.add_argument("--host", metavar="HOST", help="listen host for both listeners (default 0.0.0.0)")
+    parser.add_argument("--llm-port", metavar="PORT", type=int, help="LLM proxy listen port (default 8080)")
+    parser.add_argument("--ui-port", metavar="PORT", type=int, help="WebUI/API listen port (default 9090)")
     parser.add_argument("--upstream-api-key", metavar="KEY", help="server-side fallback API key")
     parser.add_argument("--log-level", metavar="LEVEL", help="app log level")
     parser.add_argument("--ui-dir", metavar="DIR", help="static UI directory")
@@ -174,7 +241,8 @@ def cli_overrides(argv: list[str] | None = None) -> dict[str, str | int]:
     opts = {
         "upstream_base_url": args.upstream,
         "listen_host": args.host,
-        "listen_port": args.port,
+        "llm_port": args.llm_port,
+        "ui_port": args.ui_port,
         "upstream_api_key": args.upstream_api_key,
         "log_level": args.log_level,
         "ui_dir": args.ui_dir,
@@ -182,7 +250,43 @@ def cli_overrides(argv: list[str] | None = None) -> dict[str, str | int]:
     return {key: value for key, value in opts.items() if value is not None}
 
 
+async def _run(ctx: Context) -> None:
+    """Serve both listeners in one process under a single shared signal handler.
+
+    Two ``uvicorn.Server`` objects must not each call ``serve()``: its
+    ``capture_signals`` wrapper would let the second server overwrite the first's
+    signal handlers and re-raise the captured signal LIFO on shutdown. Instead we
+    drive both with ``_serve()`` under one handler we install and restore.
+    """
+    settings = ctx.settings
+    servers = [
+        uvicorn.Server(
+            uvicorn.Config(create_llm_app(ctx), host=settings.listen_host, port=settings.llm_port)
+        ),
+        uvicorn.Server(uvicorn.Config(create_ui_app(ctx), host=settings.listen_host, port=settings.ui_port)),
+    ]
+    originals = {sig: signal.getsignal(sig) for sig in (signal.SIGINT, signal.SIGTERM)}
+    seen_int = 0
+
+    def _on_signal(signum, _frame):
+        nonlocal seen_int
+        for srv in servers:
+            srv.should_exit = True
+        if signum is signal.SIGINT and seen_int >= 1:
+            # A second interrupt force-quits, matching uvicorn's own behaviour.
+            raise SystemExit(130)
+        seen_int += 1
+
+    for sig in originals:
+        signal.signal(sig, _on_signal)
+    try:
+        await asyncio.gather(servers[0]._serve(), servers[1]._serve())
+    finally:
+        for sig, handler in originals.items():
+            signal.signal(sig, handler)
+
+
 def main() -> None:
     """Console entry point (``llm-proxy``): command-line settings over defaults."""
     settings = Settings(**cli_overrides())
-    uvicorn.run(create_app(settings), host=settings.listen_host, port=settings.listen_port)
+    asyncio.run(_run(Context(settings)))

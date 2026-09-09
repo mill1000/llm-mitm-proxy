@@ -1,14 +1,17 @@
 """The proxy pipeline: identify client, forward to upstream, tap the response, capture.
 
-Core behavior (v1 same-format OpenAI -> OpenAI) is **tap-and-forward**: the upstream
-response (including SSE streams) is streamed back to the client untouched, while a
-side parse accumulates the exchange for the store. The tap never blocks the client path.
+Transparent tap-and-forward: the request goes to the upstream verbatim and the
+upstream response (SSE streams included) is streamed back to the client
+untouched, while a side parse accumulates the exchange for the store. The tap
+never blocks the client path. Only the OpenAI chat endpoint is decoded; all
+other traffic is captured opaquely (raw, capped) and logged at INFO.
 """
 
 from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import re
 import time
 import uuid
@@ -43,10 +46,27 @@ _STRIP_RESP = {"content-length", "content-encoding", "transfer-encoding", "conne
 # Headers masked in captured exchanges/dumps.
 _SECRET_HEADERS = {"authorization", "proxy-authorization", "x-api-key"}
 
+# The one request the bundled adapter decodes (M6 turns this into the dissector
+# hierarchy). Everything else is captured opaquely - the transparent-MITM
+# contract is: forward everything, decode what we can.
+CHAT_PATH = "/v1/chat/completions"
+
+# Raw (non-JSON) request/response bodies and undecoded SSE streams are stored
+# capped, so the ring-bounded store stays bounded for large payloads.
+_RAW_BODY_CAP = 64 * 1024
 
 # Client ids are embedded in REST paths (/api/conversations/{cid}), so they are
 # restricted to a single-segment character set (no "/" or ":").
 _ID_UNSAFE = re.compile(r"[^A-Za-z0-9._-]+")
+
+log = logging.getLogger("llm_proxy.proxy")
+
+
+def _capped_text(data: bytes) -> str | None:
+    """Best-effort UTF-8 text for a raw (non-JSON) body, capped for storage."""
+    if not data:
+        return None
+    return data[:_RAW_BODY_CAP].decode("utf-8", errors="replace")
 
 
 def _safe_json(data) -> dict | None:
@@ -162,13 +182,17 @@ class Pipeline:
     def _resp_headers(headers: dict) -> dict:
         return {k: v for k, v in headers.items() if k.lower() not in _STRIP_RESP}
 
-    # ---- entry point (called by the router for every /v1/* request) ----
+    # ---- entry point (called by the router for every request on the LLM port) ----
     async def handle(self, request: Request) -> Response:
         t0 = time.time()
         body = await request.body()
+        # Forward the full path *including the query string* verbatim: a
+        # transparent proxy must not drop ``?model=...`` and friends.
+        url = request.url
+        full_path = f"{url.path}?{url.query}" if url.query else url.path
         wire_req = WireRequest(
             method=request.method,
-            path=request.url.path,
+            path=full_path,
             headers=dict(request.headers),
             body=body,
             body_json=_safe_json(body),
@@ -178,10 +202,15 @@ class Pipeline:
         client_id = self.client_id(request)
         headers = self._upstream_headers(dict(request.headers))
 
-        try:
-            norm_req = self.in_adapter.parse_request(wire_req)
-        except Exception:
+        decoded = wire_req.method == "POST" and wire_req.path == CHAT_PATH
+        if decoded:
+            try:
+                norm_req = self.in_adapter.parse_request(wire_req)
+            except Exception:  # noqa: BLE001
+                norm_req = None
+        else:
             norm_req = None
+            log.info("undecoded request: %s %s (opaque capture)", wire_req.method, wire_req.path)
 
         cid = self.store.conversation_id(client_id, tag)
         exchange_id = str(uuid.uuid4())
@@ -206,6 +235,9 @@ class Pipeline:
     async def _forward(
         self, wire_req, norm_req, client_id, tag, cid, exchange_id, headers, t0, *, is_replay: bool
     ) -> Response:
+        decoded = wire_req.method == "POST" and wire_req.path == CHAT_PATH
+        # Display hint for the pending card; the real stream decision is made
+        # from the upstream response's content-type in _upstream().
         is_stream = bool(wire_req.body_json and wire_req.body_json.get("stream"))
         # Full captured request shape (headers/body redacted), plus model/preview
         # for the card header. Shared by the in-flight placeholder and the
@@ -216,30 +248,32 @@ class Pipeline:
             "path": wire_req.path,
             "headers": _redact(wire_req.headers),
             "body_json": wire_req.body_json,
+            "body_text": None if wire_req.body_json is not None else _capped_text(wire_req.body),
             "size_bytes": len(wire_req.body) if wire_req.body else 0,
             "model": (wire_req.body_json or {}).get("model"),
             "preview": self._last_user_preview(wire_req.body_json),
         }
         # Register in-flight before responding: the exchange_started event is
         # focus-scoped and a UI that only now focuses this conversation misses
-        # it, so REST must already show the pending exchange.
-        self.store.begin_exchange(
-            client_id,
-            tag,
-            Exchange(
-                id=exchange_id,
-                is_replay=is_replay,
-                client_request=client_request,
-                in_flight=True,
-                streaming=is_stream,
-            ),
+        # it, so REST must already show the pending exchange. The sequence is
+        # assigned here (conv.append) and forwarded in the event so the pending
+        # card - and any replay from it - targets the right exchange; a UI-side
+        # guess desyncs behind a slow in-flight request.
+        pending = Exchange(
+            id=exchange_id,
+            is_replay=is_replay,
+            client_request=client_request,
+            in_flight=True,
+            streaming=is_stream,
         )
+        self.store.begin_exchange(client_id, tag, pending)
         self.hub.emit(
             cid,
             {
                 "type": "exchange_started",
                 "conversation_id": cid,
                 "exchange_id": exchange_id,
+                "sequence": pending.sequence,
                 "streaming": is_stream,
                 "is_replay": is_replay,
                 "ts": t0,
@@ -249,12 +283,18 @@ class Pipeline:
         )
 
         try:
-            if is_stream:
-                return await self._stream(
-                    wire_req, norm_req, client_id, tag, cid, exchange_id, headers, t0, is_replay=is_replay
-                )
-            return await self._non_stream(
-                wire_req, norm_req, client_id, tag, cid, exchange_id, headers, t0, is_replay=is_replay
+            return await self._upstream(
+                wire_req,
+                norm_req,
+                decoded,
+                client_request,
+                client_id,
+                tag,
+                cid,
+                exchange_id,
+                headers,
+                t0,
+                is_replay=is_replay,
             )
         except asyncio.CancelledError:
             # The client went away before the upstream responded (e.g. gave up on
@@ -266,6 +306,7 @@ class Pipeline:
                 tag,
                 wire_req,
                 norm_req,
+                client_request,
                 exchange_id=exchange_id,
                 status=499,
                 resp_headers={},
@@ -319,103 +360,22 @@ class Pipeline:
             wire_req, norm_req, client_id, tag, cid, exchange_id, headers, t0, is_replay=True
         )
 
-    # ---- non-streaming ----
-    async def _non_stream(
-        self, wire_req, norm_req, client_id, tag, cid, exchange_id, headers, t0, *, is_replay: bool = False
+    # ---- upstream call: open the stream, branch on the response's content-type ----
+    async def _upstream(
+        self,
+        wire_req,
+        norm_req,
+        decoded: bool,
+        client_request: dict,
+        client_id,
+        tag,
+        cid,
+        exchange_id,
+        headers,
+        t0,
+        *,
+        is_replay: bool,
     ) -> Response:
-        t_send = time.time()
-        try:
-            resp = await self.http.request(
-                wire_req.method, wire_req.path, content=wire_req.body, headers=headers
-            )
-        except Exception as exc:  # noqa: BLE001
-            t_end = time.time()
-            ex = self._capture(
-                client_id,
-                tag,
-                wire_req,
-                norm_req,
-                exchange_id=exchange_id,
-                status=502,
-                resp_headers={},
-                streaming=False,
-                body=b"",
-                error={"type": type(exc).__name__, "message": str(exc)},
-                t0=t0,
-                t_send=t_send,
-                t_first=None,
-                t_end=t_end,
-                is_replay=is_replay,
-            )
-            self.hub.emit(
-                cid,
-                {
-                    "type": "exchange_completed",
-                    "conversation_id": cid,
-                    "exchange_id": exchange_id,
-                    "ts": t_end,
-                    "exchange": ex.to_dict(),
-                },
-                dock=True,
-            )
-            return Response(
-                content=json.dumps({"error": {"message": f"upstream error: {exc}"}}).encode(),
-                status_code=502,
-                media_type="application/json",
-            )
-
-        t_end = time.time()
-        resp_body = resp.content
-        wire_resp = WireResponse(
-            status=resp.status_code,
-            headers=dict(resp.headers),
-            body=resp_body,
-            body_json=_safe_json(resp_body),
-        )
-        try:
-            norm_resp = self.out_adapter.parse_response(wire_resp)
-        except Exception:
-            norm_resp = None
-
-        ex = self._capture(
-            client_id,
-            tag,
-            wire_req,
-            norm_req,
-            exchange_id=exchange_id,
-            status=resp.status_code,
-            resp_headers=dict(resp.headers),
-            streaming=False,
-            body=resp_body,
-            norm_resp=norm_resp,
-            t0=t0,
-            t_send=t_send,
-            t_first=t_end,
-            t_end=t_end,
-            is_replay=is_replay,
-        )
-        self.hub.emit(
-            cid,
-            {
-                "type": "exchange_completed",
-                "conversation_id": cid,
-                "exchange_id": exchange_id,
-                "ts": t_end,
-                "exchange": ex.to_dict(),
-            },
-            dock=True,
-        )
-        return Response(
-            content=resp_body,
-            status_code=resp.status_code,
-            headers=self._resp_headers(dict(resp.headers)),
-            media_type=resp.headers.get("content-type"),
-        )
-
-    # ---- streaming: tap-and-forward with live UI fan-out ----
-    async def _stream(
-        self, wire_req, norm_req, client_id, tag, cid, exchange_id, headers, t0, *, is_replay: bool = False
-    ):
         # Open the upstream stream *before* responding, so the client receives the
         # upstream's real status/headers (a clean 502 if it is unreachable) rather
         # than a premature 200 that is then aborted mid-body.
@@ -423,7 +383,9 @@ class Pipeline:
         # Hold the stream context manager alive across the response: httpx2's
         # stream() is an @asynccontextmanager, and dropping it would let it be
         # GC'd, closing the response stream before the body is read.
-        stream_cm = self.http.stream(wire_req.method, wire_req.path, content=wire_req.body, headers=headers)
+        stream_cm = self.http.stream(
+            wire_req.method, wire_req.path, content=wire_req.body or None, headers=headers
+        )
         try:
             up = await stream_cm.__aenter__()
         except Exception as exc:  # noqa: BLE001
@@ -433,6 +395,7 @@ class Pipeline:
                 tag,
                 wire_req,
                 norm_req,
+                client_request,
                 exchange_id=exchange_id,
                 status=502,
                 resp_headers={},
@@ -464,84 +427,28 @@ class Pipeline:
 
         status = up.status_code
         resp_headers = dict(up.headers)
-        content_type = resp_headers.get("content-type", "")
-        state: dict = {"first": None, "end": None, "first_content": None, "last_content": None}
-
-        if "text/event-stream" in content_type:
-            sse = SSEStream()
-            raw_chunks: list[bytes] = []
-
-            async def generate():
-                try:
-                    async for chunk in up.aiter_bytes():
-                        if state["first"] is None:
-                            state["first"] = time.time()
-                        events = sse.feed(chunk)
-                        for ev in events:
-                            if ev["event"] == "message":
-                                content, reasoning = _delta_parts(ev["data"])
-                                if content or reasoning:
-                                    now = time.time()
-                                    if content:
-                                        if state["first_content"] is None:
-                                            state["first_content"] = now
-                                        state["last_content"] = now
-                                    self.hub.emit(
-                                        cid,
-                                        {
-                                            "type": "delta",
-                                            "conversation_id": cid,
-                                            "exchange_id": exchange_id,
-                                            "delta": content,
-                                            "reasoning_delta": reasoning,
-                                            "ts": now,
-                                        },
-                                    )
-                        if self.settings.include_raw_chunks:
-                            raw_chunks.append(chunk)
-                        yield chunk
-                finally:
-                    state["end"] = time.time()
-                    await stream_cm.__aexit__(None, None, None)
-                    ex = self._capture(
-                        client_id,
-                        tag,
-                        wire_req,
-                        norm_req,
-                        exchange_id=exchange_id,
-                        status=status,
-                        resp_headers=resp_headers,
-                        streaming=True,
-                        reassembled=sse.reassembled(),
-                        raw_chunks=raw_chunks,
-                        t0=t0,
-                        t_send=t_send,
-                        t_first=state["first"],
-                        t_end=state["end"],
-                        t_first_content=state["first_content"],
-                        t_last_content=state["last_content"],
-                        is_replay=is_replay,
-                    )
-                    self.hub.emit(
-                        cid,
-                        {
-                            "type": "exchange_completed",
-                            "conversation_id": cid,
-                            "exchange_id": exchange_id,
-                            "ts": state["end"],
-                            "exchange": ex.to_dict(),
-                        },
-                        dock=True,
-                    )
-
-            return StreamingResponse(
-                generate(),
-                status_code=status,
-                media_type="text/event-stream",
-                headers={"cache-control": "no-cache", "x-accel-buffering": "no"},
+        if "text/event-stream" in resp_headers.get("content-type", ""):
+            return await self._sse_stream(
+                up,
+                stream_cm,
+                wire_req,
+                norm_req,
+                decoded,
+                client_request,
+                client_id,
+                tag,
+                cid,
+                exchange_id,
+                status,
+                resp_headers,
+                t0,
+                t_send,
+                is_replay=is_replay,
             )
 
-        # Upstream returned a non-stream (e.g. a JSON error) for a stream request.
+        # Non-SSE response (JSON, text, or an upstream error): drain it fully,
+        # tap it, and return it verbatim.
+        state: dict = {"first": None, "end": None}
         data = b""
         try:
             async for chunk in up.aiter_bytes():
@@ -551,16 +458,25 @@ class Pipeline:
         finally:
             state["end"] = time.time()
             await stream_cm.__aexit__(None, None, None)
+        wire_resp = WireResponse(status=status, headers=resp_headers, body=data, body_json=_safe_json(data))
+        norm_resp = None
+        if decoded:
+            try:
+                norm_resp = self.out_adapter.parse_response(wire_resp)
+            except Exception:  # noqa: BLE001
+                norm_resp = None
         ex = self._capture(
             client_id,
             tag,
             wire_req,
             norm_req,
+            client_request,
             exchange_id=exchange_id,
             status=status,
             resp_headers=resp_headers,
             streaming=False,
             body=data,
+            norm_resp=norm_resp,
             t0=t0,
             t_send=t_send,
             t_first=state["first"],
@@ -585,6 +501,117 @@ class Pipeline:
             media_type=resp_headers.get("content-type"),
         )
 
+    # ---- SSE stream: tap-and-forward with live UI fan-out (decoded chat) or a
+    # capped raw capture (undecoded) ----
+    async def _sse_stream(
+        self,
+        up,
+        stream_cm,
+        wire_req,
+        norm_req,
+        decoded: bool,
+        client_request: dict,
+        client_id,
+        tag,
+        cid,
+        exchange_id,
+        status,
+        resp_headers,
+        t0,
+        t_send,
+        *,
+        is_replay: bool,
+    ) -> StreamingResponse:
+        state: dict = {"first": None, "end": None, "first_content": None, "last_content": None}
+        sse = SSEStream() if decoded else None
+        raw_chunks: list[bytes] = []
+        raw_parts: list[bytes] = []
+        raw_len = 0
+
+        async def generate():
+            nonlocal raw_len
+            try:
+                async for chunk in up.aiter_bytes():
+                    if state["first"] is None:
+                        state["first"] = time.time()
+                    if decoded:
+                        events = sse.feed(chunk)
+                        for ev in events:
+                            if ev["event"] == "message":
+                                content, reasoning = _delta_parts(ev["data"])
+                                if content or reasoning:
+                                    now = time.time()
+                                    if content:
+                                        if state["first_content"] is None:
+                                            state["first_content"] = now
+                                        state["last_content"] = now
+                                    self.hub.emit(
+                                        cid,
+                                        {
+                                            "type": "delta",
+                                            "conversation_id": cid,
+                                            "exchange_id": exchange_id,
+                                            "delta": content,
+                                            "reasoning_delta": reasoning,
+                                            "ts": now,
+                                        },
+                                    )
+                        if self.settings.include_raw_chunks:
+                            raw_chunks.append(chunk)
+                    elif raw_len < _RAW_BODY_CAP:
+                        # Undecoded SSE: keep a capped raw copy - the raw stream
+                        # is the only faithful view of this traffic.
+                        room = _RAW_BODY_CAP - raw_len
+                        raw_parts.append(chunk[:room])
+                        raw_len += min(len(chunk), room)
+                    yield chunk
+            finally:
+                state["end"] = time.time()
+                await stream_cm.__aexit__(None, None, None)
+                ex = self._capture(
+                    client_id,
+                    tag,
+                    wire_req,
+                    norm_req,
+                    client_request,
+                    exchange_id=exchange_id,
+                    status=status,
+                    resp_headers=resp_headers,
+                    streaming=True,
+                    reassembled=sse.reassembled() if decoded else None,
+                    raw_chunks=raw_chunks,
+                    raw_text=(
+                        "".join(p.decode("utf-8", errors="replace") for p in raw_parts)
+                        if not decoded
+                        else None
+                    ),
+                    t0=t0,
+                    t_send=t_send,
+                    t_first=state["first"],
+                    t_end=state["end"],
+                    t_first_content=state["first_content"],
+                    t_last_content=state["last_content"],
+                    is_replay=is_replay,
+                )
+                self.hub.emit(
+                    cid,
+                    {
+                        "type": "exchange_completed",
+                        "conversation_id": cid,
+                        "exchange_id": exchange_id,
+                        "ts": state["end"],
+                        "exchange": ex.to_dict(),
+                    },
+                    dock=True,
+                )
+
+        return StreamingResponse(
+            generate(),
+            status_code=status,
+            media_type="text/event-stream",
+            headers={"cache-control": "no-cache", "x-accel-buffering": "no"},
+        )
+
     # ---- capture (build an Exchange and store it) ----
     def _capture(
         self,
@@ -592,6 +619,7 @@ class Pipeline:
         tag,
         wire_req,
         norm_req,
+        client_request,
         *,
         exchange_id,
         status,
@@ -600,6 +628,7 @@ class Pipeline:
         body=None,
         reassembled=None,
         raw_chunks=None,
+        raw_text=None,
         norm_resp=None,
         error=None,
         t0,
@@ -662,27 +691,29 @@ class Pipeline:
         }
         if streaming and reassembled is not None:
             server_response["reassembled"] = reassembled
+        elif raw_text is not None:
+            # Undecoded SSE: the capped raw stream is the only faithful capture.
+            server_response["body_text"] = raw_text
         else:
-            server_response["body_json"] = _safe_json(body_bytes)
+            parsed = _safe_json(body_bytes)
+            server_response["body_json"] = parsed
+            if parsed is None:
+                server_response["body_text"] = _capped_text(body_bytes)
         if self.settings.include_raw_chunks and raw_chunks is not None:
             server_response["chunks"] = [c.decode("utf-8", errors="replace") for c in raw_chunks]
 
         exchange = Exchange(
             id=exchange_id,
-            sequence=0,
             is_replay=is_replay,
-            client_request={
-                "timestamp": t0,
-                "method": wire_req.method,
-                "path": wire_req.path,
-                "headers": _redact(wire_req.headers),
-                "body_json": wire_req.body_json,
-                "size_bytes": len(wire_req.body) if wire_req.body else 0,
-            },
+            client_request=client_request,
             server_response=server_response,
             timings=timings,
             usage=usage,
             error=error,
         )
-        self.store.add_exchange(client_id, tag, exchange)
-        return exchange
+        # add_exchange finalizes the in-flight placeholder in place and returns the
+        # copy that lives in the ring buffer, whose sequence was assigned at
+        # begin_exchange. Return it (not the freshly-built one) so the completed
+        # event carries the real sequence rather than the default 0.
+        _, _, stored = self.store.add_exchange(client_id, tag, exchange)
+        return stored

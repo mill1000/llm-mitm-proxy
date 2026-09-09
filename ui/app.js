@@ -200,13 +200,16 @@
 
   function fullRequest(ex) {
     const cr = ex.client_request || {};
-    return JSON.stringify({ method: cr.method, path: cr.path, headers: cr.headers, body: cr.body_json }, null, 2);
+    const obj = { method: cr.method, path: cr.path, headers: cr.headers, body: cr.body_json };
+    if (cr.body_text != null) obj.body_text = cr.body_text;
+    return JSON.stringify(obj, null, 2);
   }
   function fullResponse(ex) {
     const sr = ex.server_response || {};
     const obj = { status: sr.status, headers: sr.headers, streaming: sr.streaming, size_bytes: sr.size_bytes };
     if (sr.reassembled) obj.reassembled = sr.reassembled;
     if (sr.body_json) obj.body = sr.body_json;
+    if (sr.body_text != null) obj.body_text = sr.body_text;
     if (sr.chunks) obj.chunks = sr.chunks;
     return JSON.stringify(obj, null, 2);
   }
@@ -215,6 +218,10 @@
     for (const key of ["reassembled", "body_json"]) {
       const c = ((sr[key] || {}).choices || [])[0];
       if (c && c.message && c.message.content != null) return c.message.content;
+    }
+    if (sr.body_text != null) {
+      const t = String(sr.body_text).trim();
+      return t.length <= 200 ? t : t.slice(0, 200) + "…";
     }
     return "";
   }
@@ -548,7 +555,7 @@
         if (ev.conversation_id === state.focusCid) {
           upsertExchange({
             id: ev.exchange_id,
-            sequence: state.lastSeq + 1,
+            sequence: ev.sequence,
             is_replay: !!ev.is_replay,
             client_request: ev.client_request,
             server_response: { status: "…", streaming: ev.streaming },

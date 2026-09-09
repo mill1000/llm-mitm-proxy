@@ -8,7 +8,7 @@ import unittest
 
 from fastapi.testclient import TestClient
 
-from llm_proxy.app import create_app
+from llm_proxy.app import Context, create_ui_app
 from llm_proxy.config import Settings
 
 # Settings for the app under test: the local mock upstream (no M3 test makes an
@@ -17,8 +17,9 @@ BASE = Settings(upstream_base_url="http://127.0.0.1:8082", log_level="critical")
 
 
 def _fresh_client(**overrides) -> TestClient:
-    """A TestClient with a fresh app (entered); ``overrides`` are Settings fields."""
-    client = TestClient(create_app(BASE.model_copy(update=overrides)))
+    """An entered UI TestClient with a fresh Context; ``overrides`` are Settings fields."""
+    ctx = Context(BASE.model_copy(update=overrides))
+    client = TestClient(create_ui_app(ctx))
     client.__enter__()
     return client
 

@@ -30,7 +30,7 @@ COPY ui /app/ui
 RUN adduser -D -u 1000 -h /dev/null -s /sbin/nologin appuser
 USER appuser
 
-EXPOSE 9090
+EXPOSE 8080 9090
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s \
   CMD python3 -c "import urllib.request;urllib.request.urlopen('http://127.0.0.1:9090/health', timeout=8)"
@@ -38,4 +38,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s \
 
 ENTRYPOINT ["/sbin/tini", "--"]
 
-CMD ["/bin/sh", "-c", "llm-proxy --ui-dir /app/ui ${UPSTREAM_BASE_URL:+$UPSTREAM_BASE_URL} ${UPSTREAM_API_KEY:+--upstream-api-key $UPSTREAM_API_KEY} ${LISTEN_HOST:+--host $LISTEN_HOST} ${LISTEN_PORT:+--port $LISTEN_PORT} ${LOG_LEVEL:+--log-level $LOG_LEVEL}"]
+CMD ["/bin/sh", "-c", "llm-proxy --ui-dir /app/ui ${UPSTREAM_BASE_URL:+$UPSTREAM_BASE_URL} ${UPSTREAM_API_KEY:+--upstream-api-key $UPSTREAM_API_KEY} ${LISTEN_HOST:+--host $LISTEN_HOST} ${LLM_PORT:+--llm-port $LLM_PORT} ${UI_PORT:+--ui-port $UI_PORT} ${LOG_LEVEL:+--log-level $LOG_LEVEL}"]

@@ -12,9 +12,12 @@ from pydantic import BaseModel
 
 
 class Settings(BaseModel):
-    # --- listen ---
+    # --- listen (one process, two listeners) ---
     listen_host: str = "0.0.0.0"
-    listen_port: int = 9090
+    # LLM listener: transparent catch-all proxy to the upstream (client traffic).
+    llm_port: int = 8080
+    # UI listener: WebUI + /api/* + /ws + /health.
+    ui_port: int = 9090
 
     # --- upstream (single local llama.cpp server) ---
     upstream_base_url: str = "http://host.docker.internal:8080"
