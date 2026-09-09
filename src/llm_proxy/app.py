@@ -1,7 +1,8 @@
 """FastAPI app factory. One process serves: proxy API, UI REST API, and the static UI.
 
-Run with: ``uvicorn llm_proxy.app:app --host 0.0.0.0 --port 9090 --workers 1``
-(live WebSocket hub + in-memory store live in this single process).
+Run with: ``llm-proxy`` (console script; binds LISTEN_HOST / LISTEN_PORT) or
+``uvicorn llm_proxy.app:app`` for ad-hoc runs. The live WebSocket hub +
+in-memory store live in this single process.
 """
 
 from __future__ import annotations
@@ -12,6 +13,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 import httpx2
+import uvicorn
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import Response
 from fastapi.staticfiles import StaticFiles
@@ -23,6 +25,7 @@ from .adapters.base import AdapterRegistry
 from .api.ui import router as ui_router
 from .config import Settings, get_settings
 from .hub import Hub
+from .logconf import configure_logging
 from .proxy.pipeline import Pipeline
 from .proxy.router import router as proxy_router
 from .store.memory import MemoryStore
@@ -54,17 +57,20 @@ class _NoCacheStaticFiles(StaticFiles):
 async def lifespan(app: FastAPI):
     settings = get_settings()
 
-    # Wire the LOG_LEVEL setting to the app loggers. uvicorn's dictConfig leaves
-    # the root logger without a handler, so without this our INFO logs (e.g. the
-    # llm_proxy.ws connection trace) would be silently dropped.
-    logging.basicConfig(
-        level=settings.log_level.upper(),
-        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-    )
+    # Wire the LOG_LEVEL setting to the app loggers. uvicorn's
+    # dictConfig leaves the root logger without a handler, so without this our
+    # INFO logs (e.g. the llm_proxy.ws connection trace) would be silently dropped.
+    configure_logging(settings)
 
-    # Pooled, keep-alive async client to the single upstream. Long read timeout for LLM generation.
+    # Pooled, keep-alive async client to the single upstream. The read timeout is
+    # the max gap between upstream bytes: long enough for slow generation, short
+    # enough to trip on a dead link. See UPSTREAM_*_TIMEOUT.
     limits = httpx2.Limits(max_connections=200, max_keepalive_connections=50)
-    timeout = httpx2.Timeout(300.0, connect=10.0)
+    timeout = httpx2.Timeout(
+        settings.upstream_read_timeout,
+        connect=settings.upstream_connect_timeout,
+        pool=settings.upstream_pool_timeout,
+    )
     app.state.http = httpx2.AsyncClient(base_url=settings.upstream_base_url, limits=limits, timeout=timeout)
     app.state.settings = settings
     app.state.store = MemoryStore(settings.retention_max_exchanges, settings.retention_max_age_hours)
@@ -76,8 +82,12 @@ async def lifespan(app: FastAPI):
 
 
 def create_app() -> FastAPI:
+    settings = get_settings()
     app = FastAPI(title="LLM Proxy", version=__version__, lifespan=lifespan)
-    app.state.hub = Hub()
+    app.state.hub = Hub(
+        ping_interval=settings.ws_ping_interval,
+        ping_timeout=settings.ws_ping_timeout,
+    )
 
     # Proxy API + UI REST API first so they take precedence over the static mount.
     app.include_router(proxy_router)
@@ -113,6 +123,8 @@ def create_app() -> FastAPI:
                     hub.set_focus(ws, msg.get("conversation_id"))
                 elif mtype == "unsub":
                     hub.set_focus(ws, None)
+                elif mtype == "pong":
+                    hub.pong(ws)
         except WebSocketDisconnect as exc:
             log.info("ws closed by client %s: code=%s reason=%s", ws.client, exc.code, exc.reason or "-")
         finally:
@@ -136,3 +148,10 @@ def create_app() -> FastAPI:
 
 
 app = create_app()
+
+
+def main() -> None:
+    """Console entry point (``llm-proxy``): run the app under uvicorn on the
+    configured LISTEN_HOST / LISTEN_PORT."""
+    settings = get_settings()
+    uvicorn.run("llm_proxy.app:app", host=settings.listen_host, port=settings.listen_port)

@@ -346,6 +346,10 @@
   // ---------- websocket ----------
   function onWsMessage(ev) {
     switch (ev.type) {
+      case "ping":
+        // Liveness reply; the server prunes sockets that go silent (hub._ping_loop).
+        if (state.ws) state.ws.send(JSON.stringify({ type: "pong", ts: ev.ts }));
+        break;
       case "activity":
         pulse(ev.conversation_id);
         break;

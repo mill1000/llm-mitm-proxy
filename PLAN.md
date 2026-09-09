@@ -550,7 +550,7 @@ services:
 | Q9 | Plugin scope | v1 = structural adapters with OpenAI↔OpenAI passthrough; cross-format (OpenAI↔Anthropic) is roadmap. |
 | Q10 | Dump consumers | Human / LLM inspection only (no specific ingest tool). |
 | Q11 | Container arch | `amd64` first; multi-arch (`arm64`) is part of M3. |
-| Q12 | Observability extras | Structured JSON logs. |
+| Q12 | Observability extras | None — text logs only (JSON log format dropped). |
 
 ---
 

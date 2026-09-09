@@ -8,6 +8,9 @@ import unittest
 # Point the proxy at the local mock BEFORE settings are read.
 os.environ["UPSTREAM_BASE_URL"] = "http://127.0.0.1:8082"
 os.environ["LISTEN_PORT"] = "9090"
+os.environ["LOG_LEVEL"] = (
+    "critical"  # keep the suite quiet; tests that assert on logs capture their own handler
+)
 
 from fastapi.testclient import TestClient  # noqa: E402
 

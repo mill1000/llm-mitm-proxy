@@ -26,6 +26,11 @@ class Settings(BaseSettings):
     upstream_base_url: str = "http://host.docker.internal:8080"
     # Optional server-side fallback key; only injected when a client sends no key.
     upstream_api_key: str | None = None
+    # Upstream timeouts (seconds). read = max gap between upstream bytes (covers
+    # slow LLM generation; a dead link trips it far sooner than the default).
+    upstream_connect_timeout: float = 10.0
+    upstream_read_timeout: float = 300.0
+    upstream_pool_timeout: float = 30.0
 
     # --- adapters (independent; cross-format is roadmap) ---
     in_adapter: str = "openai"
@@ -45,6 +50,13 @@ class Settings(BaseSettings):
     # --- capture ---
     # Keep raw SSE chunks in the store (memory-heavy; off by default).
     include_raw_chunks: bool = False
+
+    # --- live UI (WebSocket) ---
+    # App-level liveness: the hub pings each UI socket every ws_ping_interval and
+    # closes it if no pong arrives within ws_ping_timeout. This prunes half-open
+    # sockets (network drop without FIN) that would otherwise linger in the hub.
+    ws_ping_interval: float = 20.0
+    ws_ping_timeout: float = 20.0
 
     # --- misc ---
     # Override the static UI directory (defaults to the package-relative ``ui/``).

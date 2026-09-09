@@ -1,12 +1,7 @@
-.git
-.gitignore
-__pycache__/
-*.pyc
-*.pyo
+# Keep the build context small. .git must stay: setuptools_scm reads the
+# version tags from it when building the wheel (see README "Versioning").
 .venv/
-venv/
-.env
-*.log
-dist/
-build/
-*.egg-info/
+node_modules/
+**/__pycache__/
+*.pyc
+.devcontainer/

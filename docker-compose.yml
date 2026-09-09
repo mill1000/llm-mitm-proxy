@@ -1,6 +1,10 @@
 services:
   llm-proxy:
-    build: .
+    build:
+      context: .
+      # Optional: bake a specific version into the image (e.g. from a git tag):
+      # args:
+      #   VERSION: "2026.09.08"
     image: llm-proxy:latest
     # Standard port publishing. On Linux this goes through iptables DNAT,
     # which preserves the real client source IP — so IP-based client

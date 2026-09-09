@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib
 import os
 import socket
 import unittest
@@ -9,6 +10,9 @@ import unittest
 # Point the proxy at the local mock BEFORE settings are read.
 os.environ["UPSTREAM_BASE_URL"] = "http://127.0.0.1:8082"
 os.environ["LISTEN_PORT"] = "9090"
+os.environ["LOG_LEVEL"] = (
+    "critical"  # keep the suite quiet; tests that assert on logs capture their own handler
+)
 
 from fastapi.testclient import TestClient  # noqa: E402
 
@@ -26,6 +30,27 @@ CHAT = "/v1/chat/completions"
 
 def _payload(stream: bool) -> dict:
     return {"model": "local-model", "stream": stream, "messages": [{"role": "user", "content": "hi"}]}
+
+
+class TestPackaging(unittest.TestCase):
+    """__version__ must come from the installed package metadata (setuptools_scm), not a fallback."""
+
+    def test_version_matches_installed_metadata(self):
+        from importlib.metadata import version as pkg_version
+
+        from llm_proxy import __version__
+
+        self.assertEqual(__version__, pkg_version("llm-proxy"))
+
+    def test_console_script_resolves(self):
+        """The llm-proxy console script must resolve to a callable in the package."""
+        from importlib.metadata import distribution
+
+        eps = [ep for ep in distribution("llm-proxy").entry_points if ep.name == "llm-proxy"]
+        self.assertEqual(len(eps), 1)
+        module_name, _, attr = eps[0].value.partition(":")
+        module = importlib.import_module(module_name)
+        self.assertTrue(callable(getattr(module, attr)))
 
 
 class TestProxy(unittest.TestCase):
