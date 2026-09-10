@@ -9,6 +9,13 @@ There is no authentication, no SSL/TLS termination, or other "reverse proxy" fea
 ## Client Identification
 Clients are identified by their source IP, user agent, and API key (if provided), which determines which "conversation" traffic appears under in the Web UI. An API key is not required, IP and user agent are enough to tell many clients apart, but an API key can be used as a further split for clients sharing the same IP, and user agent.
 
+## Dissectors
+The proxy forwards all traffic verbatim and decodes requests and responses for the Web UI with per-request dissectors that match on method + path.
+
+Supported dissectors:
+- `openai`: OpenAI-compatible chat completions
+- `generic`: everything else, captured as raw data
+
 ## Vibe Warning
 This project was entirely **vibe coded** with Qwen 3.8 27B and the Zed Agent on local hardware.
 
