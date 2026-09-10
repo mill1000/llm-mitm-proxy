@@ -1,8 +1,9 @@
-# Keep the build context small. .git must stay: setuptools_scm reads the
-# version tags from it when building the wheel (see README "Versioning").
 .venv/
 node_modules/
 llm_proxy/web/
 **/__pycache__/
 *.pyc
 .devcontainer/
+build/
+*.egg-info/
+dist/

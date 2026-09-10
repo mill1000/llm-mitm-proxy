@@ -28,8 +28,15 @@ dev = [
     "black>=24",
 ]
 
+[project.urls]
+Repository = "https://github.com/mill1000/llm-mitm-proxy"
+Issues = "https://github.com/mill1000/llm-mitm-proxy/issues"
+
 [project.scripts]
 llm-mitm-proxy = "llm_proxy.app:main"
+
+[tool.setuptools]
+include-package-data = false
 
 [tool.setuptools.packages.find]
 where = ["."]
