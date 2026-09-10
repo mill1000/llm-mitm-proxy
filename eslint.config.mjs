@@ -2,7 +2,7 @@ import globals from "globals";
 
 export default [
   {
-    ignores: ["node_modules/"],
+    ignores: ["node_modules/", "ui/marked.min.js"],
   },
   {
     files: ["ui/**/*.js"],
@@ -12,6 +12,7 @@ export default [
       globals: {
         ...globals.browser,
         ...globals.es2021,
+        marked: "readonly",
       },
     },
     rules: {

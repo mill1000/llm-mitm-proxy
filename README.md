@@ -7,31 +7,35 @@ server traffic to a **local llama.cpp** upstream.
 Think **mitmproxy + the llama.cpp WebUI**: clients on the left dock, the
 conversation in the main pane (client request on the left, server response on the
 right), live tokens, timestamps + deltas, and expandable full wire calls.
-Every request (any method, any path) is forwarded to the upstream verbatim; the
-OpenAI chat endpoint is decoded into the full conversation view, and all other
-traffic is captured opaquely (raw, capped) so nothing ever 404s at the proxy.
+Every request (any method, any path) is forwarded to the upstream verbatim;
+each request is decoded *per request* — chat completions get the full
+conversation view, everything else is captured opaquely (raw, capped) — so
+nothing ever 404s at the proxy.
 
 **See [PLAN.md](./PLAN.md)** for the full design, key decisions, and milestone breakdown.
 
 ## Status
 
-**M5 — transparent MITM core (two-port)** (this tree; awaiting commit). One
-process, two listeners: the **LLM port (default 8080)** is a catch-all — every
-method/path (query string included) is forwarded to the upstream verbatim and
-tapped, with **no reserved routes**, so clients like Zed work through it with
+**M6 — dissector framework** (this tree; awaiting commit). The proxy stays a
+transparent catch-all: one process, two listeners — the **LLM port (default
+8080)** forwards every method/path (query string included) to the upstream
+verbatim with **no reserved routes**, so clients like Zed work through it with
 zero 404s; the **UI port (default 9090)** serves the WebUI, `/api/*`, `/ws`,
-and `/health`, and no proxy routes at all. `POST /v1/chat/completions` is
-decoded into the full conversation view (live tokens, timestamps + timing
-deltas, expandable wire calls, **replay** with a bottom-dock editor, collapsible
-thinking block, JSON export with secrets redacted); every other request is
-captured opaquely (raw, capped) and logged at `INFO`.
+and `/health` only. Decoding is **per request** (observation-only, never
+rewrites the wire): `POST */chat/completions` is decoded by the `openai`
+dissector into the full conversation view (live tokens, timestamps + timing
+deltas, expandable wire calls, tool calls, **replay** with a bottom-dock
+editor, collapsible thinking block, JSON export with secrets redacted); every
+other request (`/v1/models`, `/props`, unknown paths, …) falls back to the
+`generic` dissector — opaque raw capture (capped), logged at `debug`.
 
 - M0 — foundation (proxy, capture, REST, export) — done
 - M1 — live streaming UI (WebSocket fan-out) + conversation view — done
 - M2 — replay + full JSON export — done
-- M3 — adapter seams + hardening (timeouts, WS liveness, non-root multi-arch image) — done
+- M3 — hardening (timeouts, WS liveness, non-root multi-arch image) — done
 - M4 — polish (replay editor dock, collapsible thinking, minimal compose) — done
-- M5 — transparent MITM core (two-port: LLM catch-all 8080, UI 9090) — done (awaiting commit)
+- M5 — transparent MITM core (two-port: LLM catch-all 8080, UI 9090) — done
+- M6 — per-request decode (openai chat decoder + generic fallback, tool-calls UI) — done (awaiting commit)
 
 ## Quick start (Docker)
 
@@ -49,7 +53,8 @@ Point the proxy at your llama.cpp server by setting `UPSTREAM_BASE_URL` in
 `docker-compose.yml` (default is `http://host.docker.internal:8080`). If your
 upstream requires a key, set `UPSTREAM_API_KEY` — it is only injected when a
 client sends no key; client-supplied keys are always passed through unchanged.
-The image runs as a non-root user and is arch-neutral; for a multi-arch image:
+The image runs as a non-root user and is
+arch-neutral; for a multi-arch image:
 
 ```bash
 docker buildx build --platform linux/amd64,linux/arm64 -t llm-proxy:latest .
@@ -70,6 +75,8 @@ The upstream base URL is the positional argument (the package reads no
 environment variables — see Configuration below). Both listeners start: the LLM
 proxy on `8080` and the WebUI/API on `9090`. (An ad-hoc `uvicorn
 llm_proxy.app:app` run starts the **UI listener only** with default settings.)
+Chat completions are decoded into the full conversation view; every other
+request is captured opaquely.
 
 Then call it like any OpenAI endpoint — clients hit the LLM port, the proxy's
 own API stays on the UI port:
@@ -91,7 +98,7 @@ curl -X POST http://localhost:9090/api/conversations/127.0.0.1/exchanges/0/repla
 
 ## Tests
 
-Install the package, then run the end-to-end suite (M0–M5; it spins up a
+Install the package, then run the end-to-end suite (M0–M6; it spins up a
 mock llama.cpp upstream on `127.0.0.1:8082`):
 
 ```bash
@@ -127,7 +134,7 @@ installs the package (`.[dev]`) into the image's system Python (no
 Inside the container:
 
 ```bash
-python -m unittest discover -v      # Python test suite (M0–M5)
+python -m unittest discover -v      # Python test suite (M0–M6)
 npm run verify:js                   # node --check + ESLint over ui/
 llm-proxy http://localhost:8080
 ```
@@ -171,7 +178,7 @@ usage: llm-proxy [-h] [--version] [--host HOST] [--llm-port PORT] [--ui-port POR
 | `--llm-port` | LLM proxy listener port (default `8080`, the transparent catch-all) |
 | `--ui-port` | WebUI + `/api/*` + `/ws` + `/health` listener port (default `9090`) |
 | `--upstream-api-key` | optional server-side fallback key, injected only when a client sends no key |
-| `--log-level` | app loggers, incl. the `llm_proxy.ws` connection trace (`debug` = per-event fan-out) |
+| `--log-level` | app loggers, incl. the `llm_proxy.ws` connection trace at `debug` (connect/focus/disconnect) |
 | `--ui-dir` | static UI directory (default: the package-relative `ui/`; the image passes `/app/ui`) |
 | `--help` / `--version` | usage / package version |
 
@@ -189,6 +196,12 @@ values are skipped, so the defaults apply):
 | `UI_PORT` | `--ui-port` |
 | `LOG_LEVEL` | `--log-level` |
 
+### WebUI
+
+Browser-side WS tracing (dev-console `[ws] …` lines) is off by default. Enable
+it per-session by opening the WebUI with the `wslog` query parameter, e.g.
+`http://localhost:9090/?wslog` — no server setting or rebuild involved.
+
 ### Defaults reference
 
 Settings not exposed on the command line are always their defaults — a
@@ -197,9 +210,7 @@ these needs to be tunable:
 
 | Setting | Default | Notes |
 |---|---|---|
-| `in_adapter` / `out_adapter` | `openai` / `openai` | Adapter registry names; a bad name fails startup (the M6 dissector refactor supersedes this) |
-| `upstream_connect_timeout` | `10` | Seconds to establish an upstream connection |
-| `upstream_read_timeout` | `300` | Max gap between upstream bytes (covers slow generation) |
+| `upstream_connect_timeout` | `10` | Seconds to establish an upstream connection (the dead-link detector; there is deliberately no read timeout - as a transparent proxy, timeout policy belongs to the client) |
 | `upstream_pool_timeout` | `30` | Wait for a free pooled connection |
 | `client_id_header` | *(unset)* | Explicit-identity fallback when the real IP is hidden |
 | `split_conversations` | *(unset)* | `history` = no-key auto-split (off by default) |
@@ -217,11 +228,12 @@ llm_proxy/
   hub.py               # WebSocket fan-out hub (non-blocking live UI delivery + liveness)
   logconf.py           # logging setup (text logs)
   proxy/               # catch-all LLM router, pipeline (tap-and-forward), SSE parser
-  adapters/            # in/out adapter protocols + registry + openai adapter
-  model/               # normalized IR + conversation objects (ring buffer)
+  dissectors/          # observation dissectors: generic (fallback) + openai (chat decode); per-request selection
+  model/               # wire/parse objects + conversation objects (ring buffer)
   store/               # in-memory store + retention
   api/                 # /api/* UI endpoints
   dump.py              # JSON export
-ui/                    # static single-page UI (index.html, app.js, styles.css; no build)
+ui/                    # static single-page UI (index.html, app.js, styles.css; no build;
+                       #   markdown rendered by vendored marked v15.0.12 — marked.min.js)
 Dockerfile, docker-compose.yml
 ```

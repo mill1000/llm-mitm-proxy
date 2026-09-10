@@ -6,7 +6,8 @@
   ``/ws`` WebSocket, and ``/health``. It serves no proxy routes.
 
 Run with ``llm-proxy`` (console script; both listeners, command-line settings,
-see --help) or ``uvicorn llm_proxy.app:app`` for an ad-hoc **UI-only** run with
+see --help) or ``uvicorn llm_proxy.app:app --timeout-graceful-shutdown 2
+--log-level warning --no-access-log`` for an ad-hoc **UI-only** run with
 default settings. The store and WebSocket hub live in this single process and are
 shared by both listeners; each listener builds its own upstream http client +
 pipeline in its lifespan (one connection pool per listener).
@@ -31,7 +32,6 @@ from starlette.types import Scope
 from starlette.websockets import WebSocket, WebSocketDisconnect
 
 from . import __version__
-from .adapters.base import AdapterRegistry
 from .api.ui import router as ui_router
 from .config import Settings
 from .hub import Hub
@@ -39,6 +39,8 @@ from .logconf import configure_logging
 from .proxy.pipeline import Pipeline
 from .proxy.router import router as llm_router
 from .store.memory import MemoryStore
+
+log = logging.getLogger("llm_proxy")
 
 
 def _ui_dir(settings: Settings) -> Path:
@@ -76,9 +78,9 @@ class Context:
 
     def __init__(self, settings: Settings):
         self.settings = settings
-        # Wire the log level to the root logger (idempotent). uvicorn's
-        # dictConfig leaves root without a handler, so without this the app's
-        # INFO logs (e.g. the llm_proxy.ws trace) would be silently dropped.
+        # Wire the log level to the root logger (idempotent). In the ad-hoc
+        # ``uvicorn llm_proxy.app:app`` path, uvicorn's dictConfig leaves root
+        # without a handler, so without this the app's logs would be dropped.
         configure_logging(settings)
         self.store = MemoryStore(settings.retention_max_exchanges, settings.retention_max_age_hours)
         self.hub = Hub(
@@ -89,18 +91,19 @@ class Context:
     def build_pipeline(self) -> tuple[httpx2.AsyncClient, Pipeline]:
         """A fresh (upstream http client, pipeline) pair for one listener.
 
-        Pooled, keep-alive client to the single upstream. The read timeout is the
-        max gap between upstream bytes: long enough for slow generation, short
-        enough to trip on a dead link.
+        Pooled, keep-alive client to the single upstream. No read timeout: the
+        proxy is transparent, so timeout policy belongs to the client (a gap cap
+        would kill silent persistent streams like /models/sse). The connect
+        timeout is the dead-link detector.
         """
         limits = httpx2.Limits(max_connections=200, max_keepalive_connections=50)
         timeout = httpx2.Timeout(
-            self.settings.upstream_read_timeout,
+            None,
             connect=self.settings.upstream_connect_timeout,
             pool=self.settings.upstream_pool_timeout,
         )
         http = httpx2.AsyncClient(base_url=self.settings.upstream_base_url, limits=limits, timeout=timeout)
-        pipeline = Pipeline(http, self.settings, AdapterRegistry(), self.store, self.hub)
+        pipeline = Pipeline(http, self.settings, self.store, self.hub)
         return http, pipeline
 
 
@@ -162,16 +165,19 @@ def create_ui_app(ctx: Context) -> FastAPI:
 
     @app.get("/health")
     async def health() -> dict:
-        # Probe the upstream with a short timeout so the UI pill reflects the *real*
-        # link state: the proxy process being alive alone is not useful here.
+        # Reachability only, not an OpenAI probe: any HTTP response (even a 404)
+        # means the upstream is reachable; only a connect failure/timeout means it
+        # is down. Protocol-agnostic - no assumption about which API it speaks.
         upstream = "ok"
         try:
-            r = await app.state.http.get("/v1/models", timeout=3.0)
-            if r.status_code >= 400:
-                upstream = f"error ({r.status_code})"
+            await app.state.http.get("/", timeout=3.0)
         except Exception:  # noqa: BLE001
             upstream = "error"
-        return {"status": "ok", "upstream": upstream}
+        return {
+            "status": "ok",
+            "upstream": upstream,
+            "upstream_url": app.state.settings.upstream_base_url,
+        }
 
     @app.websocket("/ws")
     async def ws_endpoint(ws: WebSocket):
@@ -193,7 +199,7 @@ def create_ui_app(ctx: Context) -> FastAPI:
                 elif mtype == "pong":
                     hub.pong(ws)
         except WebSocketDisconnect as exc:
-            log.info("ws closed by client %s: code=%s reason=%s", ws.client, exc.code, exc.reason or "-")
+            log.debug("ws closed by client %s: code=%s reason=%s", ws.client, exc.code, exc.reason or "-")
         finally:
             hub.disconnect(ws)
 
@@ -235,7 +241,9 @@ def cli_overrides(argv: list[str] | None = None) -> dict[str, str | int]:
     parser.add_argument("--llm-port", metavar="PORT", type=int, help="LLM proxy listen port (default 8080)")
     parser.add_argument("--ui-port", metavar="PORT", type=int, help="WebUI/API listen port (default 9090)")
     parser.add_argument("--upstream-api-key", metavar="KEY", help="server-side fallback API key")
-    parser.add_argument("--log-level", metavar="LEVEL", help="app log level")
+    parser.add_argument(
+        "--log-level", metavar="LEVEL", help="app log level (verbose, debug, info, warning, error)"
+    )
     parser.add_argument("--ui-dir", metavar="DIR", help="static UI directory")
     args = parser.parse_args(argv)
     opts = {
@@ -250,6 +258,13 @@ def cli_overrides(argv: list[str] | None = None) -> dict[str, str | int]:
     return {key: value for key, value in opts.items() if value is not None}
 
 
+# Graceful shutdown budget (seconds) per listener. Past it, uvicorn cancels
+# lingering work - in-flight chat streams, persistent /models/sse feeds, the UI
+# WebSocket - instead of waiting for them to end on their own, so
+# ``docker compose down`` finishes well inside its 10s default grace period.
+SHUTDOWN_GRACE = 2
+
+
 async def _run(ctx: Context) -> None:
     """Serve both listeners in one process under a single shared signal handler.
 
@@ -257,31 +272,68 @@ async def _run(ctx: Context) -> None:
     ``capture_signals`` wrapper would let the second server overwrite the first's
     signal handlers and re-raise the captured signal LIFO on shutdown. Instead we
     drive both with ``_serve()`` under one handler we install and restore.
+
+    SIGINT/SIGTERM requests a graceful exit on both listeners; lingering work is
+    cancelled after ``SHUTDOWN_GRACE`` seconds, and a second SIGINT skips even
+    that (uvicorn's ``force_exit`` semantics).
     """
     settings = ctx.settings
+    # log_config=None keeps uvicorn from installing its own handlers, so its
+    # records propagate through the app's root handler (one timestamped format);
+    # log_level="warning" silences its startup/access chatter, access_log=False
+    # drops per-request access lines entirely.
     servers = [
         uvicorn.Server(
-            uvicorn.Config(create_llm_app(ctx), host=settings.listen_host, port=settings.llm_port)
+            uvicorn.Config(
+                create_llm_app(ctx),
+                host=settings.listen_host,
+                port=settings.llm_port,
+                timeout_graceful_shutdown=SHUTDOWN_GRACE,
+                log_config=None,
+                log_level="warning",
+                access_log=False,
+            )
         ),
-        uvicorn.Server(uvicorn.Config(create_ui_app(ctx), host=settings.listen_host, port=settings.ui_port)),
+        uvicorn.Server(
+            uvicorn.Config(
+                create_ui_app(ctx),
+                host=settings.listen_host,
+                port=settings.ui_port,
+                timeout_graceful_shutdown=SHUTDOWN_GRACE,
+                log_config=None,
+                log_level="warning",
+                access_log=False,
+            )
+        ),
     ]
     originals = {sig: signal.getsignal(sig) for sig in (signal.SIGINT, signal.SIGTERM)}
     seen_int = 0
 
     def _on_signal(signum, _frame):
         nonlocal seen_int
-        for srv in servers:
-            srv.should_exit = True
         if signum is signal.SIGINT and seen_int >= 1:
             # A second interrupt force-quits, matching uvicorn's own behaviour.
-            raise SystemExit(130)
+            for srv in servers:
+                srv.force_exit = True
+            return
         seen_int += 1
+        for srv in servers:
+            srv.should_exit = True
+
+    async def _announce() -> None:
+        # Log only once both listeners are actually bound (Server.started).
+        while not all(srv.started for srv in servers):
+            await asyncio.sleep(0.05)
+        log.info("LLM proxy listening on http://%s:%d", settings.listen_host, settings.llm_port)
+        log.info("Web UI available on http://%s:%d", settings.listen_host, settings.ui_port)
 
     for sig in originals:
         signal.signal(sig, _on_signal)
+    announce = asyncio.create_task(_announce())
     try:
         await asyncio.gather(servers[0]._serve(), servers[1]._serve())
     finally:
+        announce.cancel()
         for sig, handler in originals.items():
             signal.signal(sig, handler)
 

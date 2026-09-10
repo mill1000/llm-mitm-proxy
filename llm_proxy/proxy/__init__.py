@@ -1,1 +1,1 @@
-"""Proxy pipeline: /v1/* routing, in->IR->out orchestration, SSE tap."""
+"""Proxy pipeline: transparent tap-and-forward, SSE tap, capture."""

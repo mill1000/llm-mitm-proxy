@@ -109,7 +109,7 @@ body {
 }
 .dock-row:hover .dr-remove,
 .dock-row:focus-within .dr-remove { opacity: 1; }
-.dr-remove:hover { color: var(--text); background: var(--panel); }
+.dr-remove:hover { color: var(--err); background: var(--panel); }
 .dr-time { font-size: 0.7rem; color: var(--muted); flex: 0 0 auto; }
 .dr-sub { font-size: 0.7rem; color: var(--muted); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dock-row.pulse .dr-name { color: var(--accent); }
@@ -161,6 +161,8 @@ body {
   overflow: hidden;
   flex-shrink: 0;
 }
+.exchange.collapsed .ex-body { display: none; }
+.exchange.collapsed .ex-head { border-bottom: none; }
 .ex-head {
   display: flex;
   align-items: center;
@@ -192,6 +194,18 @@ body {
 .badge.stream { color: var(--server); border-color: var(--server); }
 .badge.replay { color: var(--accent); border-color: var(--accent); }
 .badge.err { color: var(--err); border-color: var(--err); }
+.badge.status.ok { color: var(--ok); border-color: var(--ok); }
+.badge.status.bad { color: var(--err); border-color: var(--err); }
+.ex-spin {
+  flex: 0 0 auto;
+  width: 0.75rem;
+  height: 0.75rem;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(1turn); } }
 
 .ex-body { display: flex; gap: 0; }
 .side { flex: 1 1 50%; min-width: 0; padding: 0.75rem; }
@@ -214,19 +228,17 @@ body {
   background: var(--panel);
   border-radius: 6px;
   padding: 0.4rem 0.5rem;
-  max-height: 8rem;
-  overflow-y: auto;
 }
 .resp-text {
   margin-top: 0.5rem;
-  font-size: 0.9rem;
+  font-size: 0.85rem;
   white-space: pre-wrap;
   word-break: break-word;
-  min-height: 1.2rem;
-  max-height: 20rem;
-  overflow-y: auto;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  background: var(--panel);
+  border-radius: 6px;
+  padding: 0.4rem 0.5rem;
 }
+.resp-text:empty { display: none; }
 .think {
   margin-top: 0.5rem;
 }
@@ -254,10 +266,87 @@ body {
   border-radius: 6px;
   padding: 0.4rem 0.5rem;
 }
+.tool-calls { margin-top: 0.5rem; }
+.tool-calls > summary { cursor: pointer; font-size: 0.75rem; color: var(--muted); user-select: none; }
+.tool-calls > summary:hover { color: var(--accent); }
+.tool-call { margin-top: 0.35rem; }
+.tool-name {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--accent);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+/* Plain mode matches .preview (sans-serif); markdown mode inherits the same
+   base, so only markdown syntax gains structure (code keeps monospace). */
+/* Markdown content uses normal whitespace (marked's trailing newline would
+   otherwise render as a blank line); plain mode keeps pre-wrap for fidelity. */
+.md { overflow-wrap: break-word; white-space: normal; }
+.md p { margin: 0.3rem 0; }
+.md > :first-child { margin-top: 0; }
+.md > :last-child { margin-bottom: 0; }
+.md h1, .md h2, .md h3, .md h4, .md h5, .md h6 { margin: 0.5rem 0 0.25rem; line-height: 1.25; }
+.md h1 { font-size: 1.05rem; }
+.md h2 { font-size: 1rem; }
+.md h3 { font-size: 0.95rem; }
+.md h4, .md h5, .md h6 { font-size: 0.88rem; }
+.md ul, .md ol { margin: 0.3rem 0; padding-left: 1.2rem; }
+.md li { margin: 0.1rem 0; }
+.md blockquote { margin: 0.4rem 0; padding: 0.1rem 0.6rem; border-left: 3px solid var(--border); color: var(--muted); }
+.md hr { margin: 0.5rem 0; border: 0; border-top: 1px solid var(--border); }
+.md a { color: var(--accent); }
+.md code {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0 0.25rem;
+  font-size: 0.75rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.md pre.md-code {
+  margin: 0.4rem 0;
+  padding: 0.5rem 0.6rem;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow-x: auto;
+  white-space: pre;
+  font-size: 0.75rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.md pre.md-code code { background: none; border: 0; padding: 0; font-size: inherit; }
+
+/* Request side: tool definitions are one collapsible (each tool row expandable
+   to description + params); call rows are always visible, mirroring the server
+   side (see .tool-calls). */
+.tools { margin-top: 0.4rem; }
+.tools summary { cursor: pointer; font-size: 0.75rem; color: var(--muted); }
+.tools summary:hover { color: var(--accent); }
+.tools-list { margin-top: 0.3rem; max-height: 12rem; overflow: auto; }
+.tool-item { margin-top: 0.2rem; }
+.tool-item > summary { font-size: 0.72rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.tool-detail { margin-top: 0.2rem; }
+.tool-desc { font-size: 0.72rem; color: var(--muted); margin-bottom: 0.2rem; }
+.tool-params, .tool-args, .tool-result {
+  margin: 0.2rem 0 0;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.4rem 0.5rem;
+  font-size: 0.72rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  overflow: auto;
+  max-height: 14rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.tool-sub { color: var(--muted); white-space: pre-wrap; word-break: break-word; }
+.tool-res { margin: 0.25rem 0 0 0.6rem; }
+.tool-res > summary { cursor: pointer; font-size: 0.72rem; color: var(--muted); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.tool-res > summary:hover { color: var(--accent); }
 .cursor { display: inline-block; width: 0.55em; background: var(--server); animation: blink 1s steps(1) infinite; margin-left: 1px; }
 @keyframes blink { 50% { opacity: 0; } }
 
-details.full { margin-top: 0.6rem; }
+details.full { margin-top: 0.6rem; position: relative; }
 details.full summary {
   cursor: pointer;
   font-size: 0.75rem;
@@ -274,8 +363,28 @@ details.full pre {
   font-size: 0.72rem;
   overflow: auto;
   max-height: 18rem;
+  resize: vertical;
   white-space: pre;
 }
+.copy-btn {
+  position: absolute;
+  top: 0.55rem;
+  right: 0.5rem;
+  z-index: 1;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--panel-2);
+  color: var(--muted);
+  font-size: 0.62rem;
+  padding: 0.08rem 0.4rem;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+details.full[open]:hover .copy-btn,
+details.full[open] .copy-btn:focus-visible { opacity: 1; }
+.copy-btn:hover { color: var(--accent); border-color: var(--accent); }
+.copy-btn.copied { color: var(--ok); border-color: var(--ok); }
 .err { color: var(--err); font-size: 0.8rem; margin-top: 0.4rem; white-space: pre-wrap; }
 
 /* ---- replay dock (bottom of the conversation pane) ---- */
@@ -290,7 +399,17 @@ details.full pre {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+  overflow-y: auto;
 }
+.rd-grip {
+  flex: 0 0 auto;
+  height: 9px;
+  margin: -0.6rem -1rem 0;
+  cursor: ns-resize;
+  touch-action: none;
+}
+.rd-grip:hover,
+.rd-grip.drag { background: var(--accent-dim); }
 .replay-dock[hidden] { display: none; }
 .rd-head { display: flex; align-items: center; gap: 0.5rem; }
 .rd-title { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
@@ -312,10 +431,11 @@ details.full pre {
 .rd-f.rd-check input { width: auto; }
 .rd-body {
   width: 100%;
-  min-height: 9rem;
-  max-height: 22rem;
-  resize: vertical;
+  flex: 1 1 auto;
+  min-height: 4rem;
+  resize: none;
   background: var(--panel-2);
+  max-height: none;
   border: 1px solid var(--border);
   color: var(--text);
   border-radius: 6px;
@@ -325,6 +445,9 @@ details.full pre {
   white-space: pre;
   overflow: auto;
 }
+/* Before the user drags the grip, the textarea keeps its initial height; once
+   the dock is explicitly sized, the textarea flexes to fill it. */
+.replay-dock:not(.sized) .rd-body { min-height: 9rem; }
 .rd-status { font-size: 0.7rem; color: var(--muted); }
 .rd-status.err { color: var(--err); }
 

@@ -22,9 +22,11 @@
     wsLastMsgAt: null, // ms; last WS message received (stale detection)
     exById: new Map(), // exchange_id -> exchange object (focused conversation)
     live: new Map(), // exchange_id -> accumulated streamed text
+    collapsed: new Set(), // exchange ids whose card body is hidden
     lastSeq: 0,
     stick: true,
     replaySeq: null, // sequence loaded into the replay dock
+    md: localStorage.getItem("llmproxy.md") !== "0", // markdown rendering on by default
   };
 
   // ---------- formatting ----------
@@ -223,6 +225,10 @@
       const t = String(sr.body_text).trim();
       return t.length <= 200 ? t : t.slice(0, 200) + "…";
     }
+    if (sr.body_json) {
+      const t = JSON.stringify(sr.body_json);
+      return t.length <= 200 ? t : t.slice(0, 200) + "…";
+    }
     return "";
   }
   function reasoningText(ex) {
@@ -232,6 +238,26 @@
       if (c && c.message && c.message.reasoning_content) return c.message.reasoning_content;
     }
     return "";
+  }
+  function toolCalls(ex) {
+    const sr = ex.server_response || {};
+    for (const key of ["reassembled", "body_json"]) {
+      const c = ((sr[key] || {}).choices || [])[0];
+      if (c && c.message && Array.isArray(c.message.tool_calls)) return c.message.tool_calls;
+    }
+    return [];
+  }
+  function toolCallsHtml(tcs) {
+    if (!tcs.length) return "";
+    const items = tcs
+      .map((tc) => {
+        const fn = (tc && tc.function) || {};
+        return `<div class="tool-call"><span class="tool-name">${esc(fn.name || "tool")}</span><pre class="tool-args">${esc(
+          fn.arguments != null ? fn.arguments : ""
+        )}</pre></div>`;
+      })
+      .join("");
+    return `<details class="tool-calls"><summary>tool calls - ${tcs.length}</summary>${items}</details>`;
   }
   function timingsText(ex) {
     const t = ex.timings || {};
@@ -264,6 +290,107 @@
     });
   }
 
+  // Model output markdown via vendored marked (ui/marked.min.js).
+  function mdToHtml(src) {
+    const text = String(src ?? "");
+    if (typeof marked === "undefined") return esc(text);
+    return marked.parse(text, { gfm: true, breaks: true });
+  }
+
+  function setText(el, text) {
+    // Trailing whitespace renders as a blank line under pre-wrap (and marked
+    // appends its own newline), so trim it in both modes.
+    const t = String(text ?? "").replace(/[ \t\r\n]+$/, "");
+    if (state.md) {
+      el.classList.add("md");
+      el.innerHTML = mdToHtml(t);
+    } else {
+      el.classList.remove("md");
+      el.textContent = t;
+    }
+  }
+
+  // OpenAI chat requests carry the full history, so the previous request's
+  // messages are (nearly) a prefix of this one. Diff to show only what is new.
+  function prevMsgs(ex) {
+    let best = null;
+    for (const p of state.exById.values()) {
+      const s = p && p.sequence;
+      if (typeof s !== "number" || s >= ex.sequence) continue;
+      const m = ((p.client_request || {}).body_json || {}).messages;
+      if (!Array.isArray(m)) continue;
+      if (!best || s > best.s) best = { s, m };
+    }
+    return best ? best.m : null;
+  }
+  function requestTools(ex) {
+    const body = (ex.client_request || {}).body_json || {};
+    const defs = Array.isArray(body.tools) ? body.tools : [];
+    const calls = [];
+    const results = [];
+    const msgs = Array.isArray(body.messages) ? body.messages : [];
+    const pm = prevMsgs(ex);
+    let start = 0;
+    if (pm && pm.length <= msgs.length && JSON.stringify(msgs.slice(0, pm.length)) === JSON.stringify(pm)) start = pm.length;
+    for (let i = start; i < msgs.length; i++) {
+      const m = msgs[i];
+      if (!m || typeof m !== "object") continue;
+      if (Array.isArray(m.tool_calls)) {
+        for (const tc of m.tool_calls) {
+          const fn = (tc && tc.function) || {};
+          calls.push({ id: tc.id || "", name: fn.name || "tool", args: fn.arguments != null ? String(fn.arguments) : "" });
+        }
+      } else if (m.role === "tool") {
+        results.push({ id: m.tool_call_id || "", name: m.name || "", content: m.content != null ? String(m.content) : "" });
+      }
+    }
+    return { defs, calls, results };
+  }
+  function toolsHtml(ex) {
+    const { defs, calls, results } = requestTools(ex);
+    if (!defs.length && !calls.length && !results.length) return "";
+    let html = "";
+    if (defs.length) {
+      let inner = "";
+      for (const t of defs) {
+        const fn = (t && t.function) || t || {};
+        const name = fn.name || "tool";
+        const desc = fn.description ? `<div class="tool-desc">${esc(String(fn.description))}</div>` : "";
+        const params = fn.parameters != null ? `<pre class="tool-params">${esc(JSON.stringify(fn.parameters, null, 2))}</pre>` : "";
+        inner += `<details class="tool-item"><summary><span class="tool-name">${esc(name)}</span></summary><div class="tool-detail">${desc}${params}</div></details>`;
+      }
+      html += `<details class="tools"><summary>available tools - ${defs.length}</summary><div class="tools-list">${inner}</div></details>`;
+    }
+    if (calls.length || results.length) {
+      // Collapsed by default; per-row name + args visible, result payload
+      // expandable so long outputs don't push the page around. Paired by
+      // tool_call_id, so the call on the server card and its result here read
+      // as one round trip.
+      const resDetail = (content) =>
+        `<details class="tool-res"><summary>result</summary><pre class="tool-result">${esc(content)}</pre></details>`;
+      const byId = new Map();
+      for (const r of results) if (r.id) byId.set(r.id, r);
+      const used = new Set();
+      let inner = "";
+      let n = 0;
+      for (const c of calls) {
+        const res = c.id ? byId.get(c.id) : null;
+        if (res) used.add(res.id);
+        n += 1;
+        inner += `<div class="tool-call"><span class="tool-name">${esc(c.name)}</span>${
+          c.args ? `<pre class="tool-args">${esc(c.args)}</pre>` : ""
+        }${res ? resDetail(res.content) : '<div class="tool-sub">no result in this request</div>'}</div>`;
+      }
+      for (const r of results) {
+        if (r.id && used.has(r.id)) continue;
+        n += 1;
+        inner += `<div class="tool-call"><span class="tool-name">${esc(r.name || "result")}</span>${resDetail(r.content)}</div>`;
+      }
+      html += `<details class="tool-calls"><summary>tool call results - ${n}</summary>${inner}</details>`;
+    }
+    return html;
+  }
+
   function clientSideHtml(ex) {
     const cr = ex.client_request || {};
     const body = cr.body_json || {};
@@ -275,23 +402,22 @@
         <div class="line">${esc(cr.method)} ${esc(cr.path)}</div>
         ${model ? `<div class="line model">model: ${esc(model)}</div>` : ""}
         ${pv ? '<div class="preview"></div>' : ""}
-        <details class="full"><summary>full request</summary><pre class="req-pre"></pre></details>
+        ${toolsHtml(ex)}
+        <details class="full"><summary>full request</summary><pre class="req-pre"></pre><button class="copy-btn" type="button">copy</button></details>
       </div>`;
   }
   function serverSideHtml(ex, reasoning) {
-    const sr = ex.server_response || {};
-    const status = sr.status != null ? sr.status : "…";
     const think = reasoning
       ? '<details class="think"><summary class="think-summary"></summary><pre class="think-text"></pre></details>'
       : "";
     return `
       <div class="side server">
         <div class="side-label">SERVER</div>
-        <div class="line">${status}${sr.streaming ? " · stream" : ""}</div>
         ${think}
         <div class="resp-text"></div>
+        ${toolCallsHtml(toolCalls(ex))}
         ${ex.error ? `<div class="err">${esc(ex.error.message)}</div>` : ""}
-        <details class="full"><summary>full response</summary><pre class="resp-pre"></pre></details>
+        <details class="full"><summary>full response</summary><pre class="resp-pre"></pre><button class="copy-btn" type="button">copy</button></details>
       </div>`;
   }
 
@@ -421,6 +547,37 @@
       $("rd-send").disabled = false;
     }
   }
+  // The dock is resized by dragging its top grip up/down (CSS resize only
+  // offers the bottom edge, which belongs to the textarea area).
+  function wireDockResize() {
+    const dock = $("replay-dock");
+    const grip = dock.querySelector(".rd-grip");
+    const conv = dock.parentElement;
+    grip.addEventListener("pointerdown", (e) => {
+      e.preventDefault();
+      grip.setPointerCapture(e.pointerId);
+      const startY = e.clientY;
+      const startH = dock.getBoundingClientRect().height;
+      const headH = conv.querySelector(".conv-head").getBoundingClientRect().height;
+      const move = (ev) => {
+        const maxH = conv.getBoundingClientRect().height - headH - 8;
+        const h = Math.min(Math.max(startH + (startY - ev.clientY), 96), maxH); // drag up => taller
+        dock.style.height = `${Math.round(h)}px`;
+        dock.classList.add("sized");
+      };
+      const done = (ev) => {
+        grip.classList.remove("drag");
+        grip.releasePointerCapture(ev.pointerId);
+        grip.removeEventListener("pointermove", move);
+        grip.removeEventListener("pointerup", done);
+        grip.removeEventListener("pointercancel", done);
+      };
+      grip.classList.add("drag");
+      grip.addEventListener("pointermove", move);
+      grip.addEventListener("pointerup", done);
+      grip.addEventListener("pointercancel", done);
+    });
+  }
   function wireReplayDock() {
     $("rd-cancel").addEventListener("click", closeReplayDock);
     $("rd-send").addEventListener("click", sendReplay);
@@ -432,6 +589,33 @@
         else rdPatch(f.key, f.type === "number" ? Number(e.target.value) : e.target.value);
       });
     }
+  }
+
+  // navigator.clipboard needs a secure context (https or localhost); on a LAN
+  // IP over http it is undefined, so fall back to a temporary textarea.
+  async function copyText(btn, text) {
+    let ok = false;
+    try {
+      await navigator.clipboard.writeText(text);
+      ok = true;
+    } catch {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      try {
+        ok = document.execCommand("copy");
+      } catch {
+        ok = false;
+      }
+      ta.remove();
+    }
+    btn.textContent = ok ? "copied" : "failed";
+    setTimeout(() => {
+      btn.textContent = "copy";
+    }, 1200);
   }
 
   function exportExchange(cid, seq) {
@@ -448,15 +632,19 @@
     const text = isLive ? live.content : respText(ex);
     const reasoning = isLive ? live.reasoning : reasoningText(ex);
     const badges = [];
+    const st = (ex.server_response || {}).status;
+    if (ex.in_flight) badges.push('<span class="ex-spin" title="in progress"></span>');
+    else if (st != null) badges.push(`<span class="badge status${st >= 400 ? " bad" : " ok"}">${st}</span>`);
     if (ex.server_response && ex.server_response.streaming) badges.push('<span class="badge stream">stream</span>');
     if (ex.is_replay) badges.push('<span class="badge replay">replay</span>');
     if (ex.error) badges.push('<span class="badge err">error</span>');
-
+    const collapsed = state.collapsed.has(ex.id);
     const el = document.createElement("div");
-    el.className = "exchange" + (isLive ? " live" : "");
+    el.className = "exchange" + (isLive ? " live" : "") + (collapsed ? " collapsed" : "");
     el.dataset.exid = ex.id;
     el.innerHTML = `
       <div class="ex-head">
+        <button class="btn btn-sm collapse-btn" data-action="collapse" title="Collapse or expand this card">${collapsed ? "\u25b8" : "\u25be"}</button>
         <span class="ex-seq">#${ex.sequence}</span>
         <span class="ex-time">${fmtTime(ex.client_request && ex.client_request.timestamp)}</span>
         <span class="ex-timings"></span>
@@ -464,6 +652,7 @@
         <span class="ex-actions">
           <button class="btn btn-sm" data-action="replay" title="Edit and re-send this request">replay</button>
           <button class="btn btn-sm" data-action="export" title="Download this exchange as JSON">export</button>
+          <button class="btn btn-sm danger" data-action="remove" title="Remove this exchange from the conversation">×</button>
         </span>
       </div>
       <div class="ex-body">${clientSideHtml(ex)}${serverSideHtml(ex, reasoning)}</div>`;
@@ -471,16 +660,52 @@
     el.querySelector(".ex-timings").textContent = timingsText(ex);
     el.querySelector('[data-action="replay"]').addEventListener("click", () => openReplayDock(ex));
     el.querySelector('[data-action="export"]').addEventListener("click", () => exportExchange(state.focusCid, ex.sequence));
+    const collapseBtn = el.querySelector('[data-action="collapse"]');
+    collapseBtn.addEventListener("click", () => {
+      const nowCollapsed = !el.classList.toggle("collapsed");
+      if (nowCollapsed) state.collapsed.add(ex.id);
+      else state.collapsed.delete(ex.id);
+      collapseBtn.textContent = nowCollapsed ? "\u25b8" : "\u25be";
+    });
+    el.querySelector('[data-action="remove"]').addEventListener("click", async () => {
+      const btn = el.querySelector('[data-action="remove"]');
+      btn.disabled = true;
+      const r = await fetch(`/api/conversations/${encodeURIComponent(state.focusCid)}/exchanges/${ex.sequence}`, {
+        method: "DELETE",
+      });
+      if (r.ok) {
+        state.exById.delete(ex.id);
+        state.live.delete(ex.id);
+        el.remove();
+      } else {
+        btn.disabled = false;
+      }
+    });
+    for (const full of el.querySelectorAll("details.full")) {
+      const pre = full.querySelector("pre");
+      const btn = full.querySelector(".copy-btn");
+      btn.addEventListener("click", () => copyText(btn, pre.textContent));
+      // 18rem is the resting size; grabbing the UA resize handle lifts the cap
+      // (the element resize event does not fire in Firefox, so detect the grab
+      // itself) and pins the current height so the box does not jump open.
+      pre.addEventListener("pointerdown", (e) => {
+        const r = pre.getBoundingClientRect();
+        if (r.bottom - e.clientY < 16 && r.right - e.clientX < 16) {
+          pre.style.height = `${Math.round(r.height)}px`;
+          pre.style.maxHeight = "none";
+        }
+      });
+    }
     const pv = el.querySelector(".preview");
     if (pv) pv.textContent = previewOf(ex);
     el.querySelector(".req-pre").textContent = fullRequest(ex);
     el.querySelector(".resp-pre").textContent = fullResponse(ex);
     const rt = el.querySelector(".resp-text");
-    rt.textContent = text;
+    setText(rt, text);
     const think = el.querySelector(".think");
     if (think) {
       wireThink(think);
-      think.querySelector(".think-text").textContent = reasoning;
+      setText(think.querySelector(".think-text"), reasoning);
       think.querySelector(".think-summary").textContent = thinkSummary(reasoning);
     }
     if (isLive) placeCursor(el, { content: text, reasoning });
@@ -506,7 +731,7 @@
     if (!el) return;
     const st = state.live.get(exid) || { content: "", reasoning: "" };
     const rt = el.querySelector(".resp-text");
-    if (rt) rt.textContent = st.content;
+    if (rt) setText(rt, st.content);
     let think = el.querySelector(".think");
     if (st.reasoning && !think) {
       // Reasoning started streaming after the card was built without one: add an
@@ -524,12 +749,27 @@
     }
     if (think) {
       const tt = think.querySelector(".think-text");
-      tt.textContent = st.reasoning;
+      setText(tt, st.reasoning);
       think.querySelector(".think-summary").textContent = thinkSummary(st.reasoning);
       if (think._stick) tt.scrollTop = tt.scrollHeight;
     }
     placeCursor(el, st);
     maybeScroll();
+  }
+
+  function rerenderMd() {
+    // Markdown toggle: re-render the text of every visible card under the new
+    // mode (live cards use their accumulated stream, completed ones the stored
+    // exchange).
+    for (const el of document.querySelectorAll("#ex-list .exchange")) {
+      const ex = state.exById.get(el.dataset.exid);
+      if (!ex) continue;
+      const live = state.live.get(ex.id);
+      const rt = el.querySelector(".resp-text");
+      if (rt) setText(rt, live ? live.content : respText(ex));
+      const tt = el.querySelector(".think-text");
+      if (tt) setText(tt, live ? live.reasoning : reasoningText(ex));
+    }
   }
 
   function maybeScroll() {
@@ -557,6 +797,7 @@
             id: ev.exchange_id,
             sequence: ev.sequence,
             is_replay: !!ev.is_replay,
+            dissector: ev.dissector || "generic",
             client_request: ev.client_request,
             server_response: { status: "…", streaming: ev.streaming },
             timings: {},
@@ -587,7 +828,11 @@
     p.classList.toggle("ws-off", !on);
   }
 
+  // WS console tracing is off by default; enable per-session with ?wslog in the URL.
+  const wsLogOn = new URLSearchParams(location.search).has("wslog");
+
   function wslog(level, ...args) {
+    if (!wsLogOn) return;
     console[level](`[ws] ${new Date().toISOString().slice(11, 23)}`, ...args);
   }
 
@@ -658,7 +903,7 @@
     try {
       const h = await api("/health");
       ok = h.upstream === "ok";
-      label = `upstream: ${h.upstream}`;
+      label = `upstream: ${h.upstream_url} ${h.upstream}`;
     } catch {
       /* proxy unreachable */
     }
@@ -683,6 +928,7 @@
       $("ex-list").innerHTML = "";
       state.exById.clear();
       state.live.clear();
+      state.collapsed.clear();
       state.lastSeq = 0;
       closeReplayDock();
     });
@@ -690,11 +936,27 @@
       state.stick = e.target.checked;
       if (state.stick) maybeScroll();
     });
+    // Scrolling up unsticks auto-scroll; re-enabling requires re-checking.
+    $("ex-list").addEventListener("scroll", () => {
+      const list = $("ex-list");
+      if (list.scrollHeight - list.scrollTop - list.clientHeight > 16) {
+        state.stick = false;
+        $("stick").checked = false;
+      }
+    });
+    const md = $("md");
+    md.checked = state.md;
+    md.addEventListener("change", (e) => {
+      state.md = e.target.checked;
+      localStorage.setItem("llmproxy.md", state.md ? "1" : "0");
+      rerenderMd();
+    });
     $("filter").addEventListener("input", (e) => renderDock(e.target.value));
   }
 
   async function init() {
     wireButtons();
+    wireDockResize();
     wireReplayDock();
     checkUpstream();
     setInterval(() => {

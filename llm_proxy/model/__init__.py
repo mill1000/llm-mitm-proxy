@@ -1,1 +1,1 @@
-"""Data model: normalized IR and conversation objects."""
+"""Data model: wire/parse objects and conversation objects."""

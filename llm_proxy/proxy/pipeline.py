@@ -2,9 +2,10 @@
 
 Transparent tap-and-forward: the request goes to the upstream verbatim and the
 upstream response (SSE streams included) is streamed back to the client
-untouched, while a side parse accumulates the exchange for the store. The tap
-never blocks the client path. Only the OpenAI chat endpoint is decoded; all
-other traffic is captured opaquely (raw, capped) and logged at INFO.
+untouched, while a side parse (the dissector) accumulates the exchange for the
+store. The tap never blocks the client path. The selected dissector decodes
+what it recognizes; anything else is captured opaquely (raw, capped) and
+logged at INFO.
 """
 
 from __future__ import annotations
@@ -20,12 +21,13 @@ import httpx2
 from fastapi import Request
 from fastapi.responses import Response, StreamingResponse
 
-from ..adapters.base import AdapterRegistry
+from .. import dissectors  # noqa: F401  (registers the bundled dissectors)
+from ..dissectors.base import get_dissector
 from ..hub import Hub
 from ..model.conversation import Conversation, Exchange
-from ..model.ir import WireRequest, WireResponse
+from ..model.ir import ParsedRequest, WireRequest
 from ..store.memory import MemoryStore
-from .sse import SSEStream
+from .util import safe_json
 
 # Hop-by-hop / transport headers we must not forward upstream (httpx2 rebuilds them).
 _HOP_BY_HOP = {
@@ -46,11 +48,6 @@ _STRIP_RESP = {"content-length", "content-encoding", "transfer-encoding", "conne
 # Headers masked in captured exchanges/dumps.
 _SECRET_HEADERS = {"authorization", "proxy-authorization", "x-api-key"}
 
-# The one request the bundled adapter decodes (M6 turns this into the dissector
-# hierarchy). Everything else is captured opaquely - the transparent-MITM
-# contract is: forward everything, decode what we can.
-CHAT_PATH = "/v1/chat/completions"
-
 # Raw (non-JSON) request/response bodies and undecoded SSE streams are stored
 # capped, so the ring-bounded store stays bounded for large payloads.
 _RAW_BODY_CAP = 64 * 1024
@@ -69,18 +66,6 @@ def _capped_text(data: bytes) -> str | None:
     return data[:_RAW_BODY_CAP].decode("utf-8", errors="replace")
 
 
-def _safe_json(data) -> dict | None:
-    if not data:
-        return None
-    try:
-        if isinstance(data, (bytes, bytearray)):
-            data = data.decode("utf-8")
-        obj = json.loads(data)
-        return obj if isinstance(obj, dict) else None
-    except (json.JSONDecodeError, UnicodeDecodeError, ValueError):
-        return None
-
-
 def _mask(v) -> str:
     if not v:
         return v
@@ -92,48 +77,48 @@ def _redact(headers: dict) -> dict:
     return {k: (_mask(v) if k.lower() in _SECRET_HEADERS else v) for k, v in headers.items()}
 
 
-def _delta_parts(data: dict | None) -> tuple[str, str]:
-    """Concatenate one SSE chunk's ``choices[].delta`` content and reasoning text."""
-    if not data:
-        return "", ""
-    content = ""
-    reasoning = ""
-    for c in data.get("choices", []) or []:
-        delta = c.get("delta") or {}
-        piece = delta.get("content")
-        if piece:
-            content += piece
-        rp = delta.get("reasoning_content")
-        if rp:
-            reasoning += rp
-    return content, reasoning
-
-
 class Pipeline:
-    def __init__(
-        self, http: httpx2.AsyncClient, settings, registry: AdapterRegistry, store: MemoryStore, hub: Hub
-    ):
+    def __init__(self, http: httpx2.AsyncClient, settings, store: MemoryStore, hub: Hub):
         self.http = http
         self.settings = settings
         self.store = store
         self.hub = hub
-        self.in_adapter = registry.in_adapter(settings.in_adapter)
-        self.out_adapter = registry.out_adapter(settings.out_adapter)
-        self.same_format = settings.in_adapter == settings.out_adapter
+        # Selection is per request by method+path: the chat decoder when the path
+        # is an OpenAI-compatible chat completion, else the generic raw-capture
+        # fallback. No global setting; the pipeline branches on ``is self.generic``
+        # for the opaque INFO log.
+        self.chat = get_dissector("openai")
+        self.generic = get_dissector("generic")
 
-    @staticmethod
-    def _last_user_preview(body_json: dict | None, limit: int = 160) -> str | None:
-        """A short, UI-friendly preview of the last user message (no full body over WS)."""
-        if not body_json:
+    def dissector_for(self, method: str, path: str):
+        """The dissector for this request: the chat decoder if the path is an
+        OpenAI-compatible chat completion, else the generic raw-capture fallback."""
+        return self.chat if self.chat.matches(method, path) else self.generic
+
+    def _parse_request(self, dissector, wire_req) -> ParsedRequest:
+        try:
+            return dissector.request(wire_req)
+        except Exception:  # noqa: BLE001
+            # A tap must never break the forward path: fall back to raw capture.
+            log.warning(
+                "dissector %s failed to parse the request; capturing raw", dissector.name, exc_info=True
+            )
+            return self.generic.request(wire_req)
+
+    def _parse_response(self, dissector, wire_req, status: int, resp_headers: dict, data: bytes):
+        """Run the dissector's response lifecycle over a fully drained body."""
+        try:
+            handle = dissector.response_started(wire_req, status, resp_headers)
+            if handle is None:
+                return None
+            dissector.feed_chunk(handle, data)
+            return dissector.finalize(handle)
+        except Exception:  # noqa: BLE001
+            # A tap must never break the forward path: fall back to raw capture.
+            log.warning(
+                "dissector %s failed to decode the response; capturing raw", dissector.name, exc_info=True
+            )
             return None
-        for m in reversed(body_json.get("messages", []) or []):
-            if m.get("role") == "user":
-                c = m.get("content")
-                if isinstance(c, str):
-                    return c if len(c) <= limit else c[:limit] + "…"
-                if c:
-                    return str(c)[:limit]
-        return None
 
     # ---- client identity ----
     @staticmethod
@@ -195,22 +180,17 @@ class Pipeline:
             path=full_path,
             headers=dict(request.headers),
             body=body,
-            body_json=_safe_json(body),
+            body_json=safe_json(body),
         )
 
         tag = request.headers.get("x-conversation-id", "") if self.settings.split_conversations else ""
         client_id = self.client_id(request)
         headers = self._upstream_headers(dict(request.headers))
 
-        decoded = wire_req.method == "POST" and wire_req.path == CHAT_PATH
-        if decoded:
-            try:
-                norm_req = self.in_adapter.parse_request(wire_req)
-            except Exception:  # noqa: BLE001
-                norm_req = None
-        else:
-            norm_req = None
-            log.info("undecoded request: %s %s (opaque capture)", wire_req.method, wire_req.path)
+        dissector = self.dissector_for(wire_req.method, wire_req.path)
+        if dissector is self.generic:
+            log.debug("undecoded request: %s %s (opaque capture)", wire_req.method, wire_req.path)
+        parsed_req = self._parse_request(dissector, wire_req)
 
         cid = self.store.conversation_id(client_id, tag)
         exchange_id = str(uuid.uuid4())
@@ -228,14 +208,24 @@ class Pipeline:
                 broadcast=True,
             )
         return await self._forward(
-            wire_req, norm_req, client_id, tag, cid, exchange_id, headers, t0, is_replay=False
+            wire_req, parsed_req, dissector, client_id, tag, cid, exchange_id, headers, t0, is_replay=False
         )
 
     # ---- forward to upstream (shared by live requests and replay) ----
     async def _forward(
-        self, wire_req, norm_req, client_id, tag, cid, exchange_id, headers, t0, *, is_replay: bool
+        self,
+        wire_req,
+        parsed_req,
+        dissector,
+        client_id,
+        tag,
+        cid,
+        exchange_id,
+        headers,
+        t0,
+        *,
+        is_replay: bool,
     ) -> Response:
-        decoded = wire_req.method == "POST" and wire_req.path == CHAT_PATH
         # Display hint for the pending card; the real stream decision is made
         # from the upstream response's content-type in _upstream().
         is_stream = bool(wire_req.body_json and wire_req.body_json.get("stream"))
@@ -250,8 +240,8 @@ class Pipeline:
             "body_json": wire_req.body_json,
             "body_text": None if wire_req.body_json is not None else _capped_text(wire_req.body),
             "size_bytes": len(wire_req.body) if wire_req.body else 0,
-            "model": (wire_req.body_json or {}).get("model"),
-            "preview": self._last_user_preview(wire_req.body_json),
+            "model": parsed_req.model,
+            "preview": parsed_req.preview,
         }
         # Register in-flight before responding: the exchange_started event is
         # focus-scoped and a UI that only now focuses this conversation misses
@@ -265,6 +255,7 @@ class Pipeline:
             client_request=client_request,
             in_flight=True,
             streaming=is_stream,
+            dissector=dissector.name,
         )
         self.store.begin_exchange(client_id, tag, pending)
         self.hub.emit(
@@ -276,6 +267,7 @@ class Pipeline:
                 "sequence": pending.sequence,
                 "streaming": is_stream,
                 "is_replay": is_replay,
+                "dissector": dissector.name,
                 "ts": t0,
                 "client_request": client_request,
             },
@@ -285,8 +277,7 @@ class Pipeline:
         try:
             return await self._upstream(
                 wire_req,
-                norm_req,
-                decoded,
+                dissector,
                 client_request,
                 client_id,
                 tag,
@@ -305,13 +296,13 @@ class Pipeline:
                 client_id,
                 tag,
                 wire_req,
-                norm_req,
                 client_request,
                 exchange_id=exchange_id,
                 status=499,
                 resp_headers={},
                 streaming=False,
                 body=b"",
+                dissector=dissector.name,
                 error={"type": "CancelledError", "message": "client disconnected before upstream responded"},
                 t0=t0,
                 t_send=t0,
@@ -319,17 +310,18 @@ class Pipeline:
                 t_end=t_end,
                 is_replay=is_replay,
             )
-            self.hub.emit(
-                cid,
-                {
-                    "type": "exchange_completed",
-                    "conversation_id": cid,
-                    "exchange_id": exchange_id,
-                    "ts": t_end,
-                    "exchange": ex.to_dict(),
-                },
-                dock=True,
-            )
+            if ex is not None:
+                self.hub.emit(
+                    cid,
+                    {
+                        "type": "exchange_completed",
+                        "conversation_id": cid,
+                        "exchange_id": exchange_id,
+                        "ts": t_end,
+                        "exchange": ex.to_dict(),
+                    },
+                    dock=True,
+                )
             raise
 
     # ---- replay (re-send a captured client request to the upstream) ----
@@ -350,23 +342,20 @@ class Pipeline:
         tag = conv.tag
         cid = conv.id
         headers = self._replay_headers(cr.get("headers") or {})
-        try:
-            norm_req = self.in_adapter.parse_request(wire_req)
-        except Exception:  # noqa: BLE001
-            norm_req = None
+        dissector = self.dissector_for(wire_req.method, wire_req.path)
+        parsed_req = self._parse_request(dissector, wire_req)
         t0 = time.time()
         exchange_id = str(uuid.uuid4())
         return await self._forward(
-            wire_req, norm_req, client_id, tag, cid, exchange_id, headers, t0, is_replay=True
+            wire_req, parsed_req, dissector, client_id, tag, cid, exchange_id, headers, t0, is_replay=True
         )
 
     # ---- upstream call: open the stream, branch on the response's content-type ----
     async def _upstream(
         self,
         wire_req,
-        norm_req,
-        decoded: bool,
-        client_request: dict,
+        dissector,
+        client_request,
         client_id,
         tag,
         cid,
@@ -388,19 +377,53 @@ class Pipeline:
         )
         try:
             up = await stream_cm.__aenter__()
-        except Exception as exc:  # noqa: BLE001
+            status = up.status_code
+            resp_headers = dict(up.headers)
+            if "text/event-stream" in resp_headers.get("content-type", ""):
+                return await self._sse_stream(
+                    up,
+                    stream_cm,
+                    wire_req,
+                    dissector,
+                    client_request,
+                    client_id,
+                    tag,
+                    cid,
+                    exchange_id,
+                    status,
+                    resp_headers,
+                    t0,
+                    t_send,
+                    is_replay=is_replay,
+                )
+
+            # Non-SSE response (JSON, text, or an upstream error): drain it fully,
+            # tap it, and return it verbatim.
+            state: dict = {"first": None, "end": None}
+            data = b""
+            try:
+                async for chunk in up.aiter_bytes():
+                    if state["first"] is None:
+                        state["first"] = time.time()
+                    data += chunk
+            finally:
+                state["end"] = time.time()
+                await stream_cm.__aexit__(None, None, None)
+        except Exception as exc:  # noqa: BLE001 - upstream failed before the
+            # client received anything (request, response, or a mid-drain death):
+            # a clean 502, captured as a failed exchange.
             t_end = time.time()
             ex = self._capture(
                 client_id,
                 tag,
                 wire_req,
-                norm_req,
                 client_request,
                 exchange_id=exchange_id,
                 status=502,
                 resp_headers={},
                 streaming=False,
                 body=b"",
+                dissector=dissector.name,
                 error={"type": type(exc).__name__, "message": str(exc)},
                 t0=t0,
                 t_send=t_send,
@@ -408,92 +431,54 @@ class Pipeline:
                 t_end=t_end,
                 is_replay=is_replay,
             )
-            self.hub.emit(
-                cid,
-                {
-                    "type": "exchange_completed",
-                    "conversation_id": cid,
-                    "exchange_id": exchange_id,
-                    "ts": t_end,
-                    "exchange": ex.to_dict(),
-                },
-                dock=True,
-            )
+            if ex is not None:
+                self.hub.emit(
+                    cid,
+                    {
+                        "type": "exchange_completed",
+                        "conversation_id": cid,
+                        "exchange_id": exchange_id,
+                        "ts": t_end,
+                        "exchange": ex.to_dict(),
+                    },
+                    dock=True,
+                )
             return Response(
                 content=json.dumps({"error": {"message": f"upstream error: {exc}"}}).encode(),
                 status_code=502,
                 media_type="application/json",
             )
-
-        status = up.status_code
-        resp_headers = dict(up.headers)
-        if "text/event-stream" in resp_headers.get("content-type", ""):
-            return await self._sse_stream(
-                up,
-                stream_cm,
-                wire_req,
-                norm_req,
-                decoded,
-                client_request,
-                client_id,
-                tag,
-                cid,
-                exchange_id,
-                status,
-                resp_headers,
-                t0,
-                t_send,
-                is_replay=is_replay,
-            )
-
-        # Non-SSE response (JSON, text, or an upstream error): drain it fully,
-        # tap it, and return it verbatim.
-        state: dict = {"first": None, "end": None}
-        data = b""
-        try:
-            async for chunk in up.aiter_bytes():
-                if state["first"] is None:
-                    state["first"] = time.time()
-                data += chunk
-        finally:
-            state["end"] = time.time()
-            await stream_cm.__aexit__(None, None, None)
-        wire_resp = WireResponse(status=status, headers=resp_headers, body=data, body_json=_safe_json(data))
-        norm_resp = None
-        if decoded:
-            try:
-                norm_resp = self.out_adapter.parse_response(wire_resp)
-            except Exception:  # noqa: BLE001
-                norm_resp = None
+        parsed = self._parse_response(dissector, wire_req, status, resp_headers, data)
         ex = self._capture(
             client_id,
             tag,
             wire_req,
-            norm_req,
             client_request,
             exchange_id=exchange_id,
             status=status,
             resp_headers=resp_headers,
             streaming=False,
             body=data,
-            norm_resp=norm_resp,
+            parsed=parsed,
+            dissector=dissector.name,
             t0=t0,
             t_send=t_send,
             t_first=state["first"],
             t_end=state["end"],
             is_replay=is_replay,
         )
-        self.hub.emit(
-            cid,
-            {
-                "type": "exchange_completed",
-                "conversation_id": cid,
-                "exchange_id": exchange_id,
-                "ts": state["end"],
-                "exchange": ex.to_dict(),
-            },
-            dock=True,
-        )
+        if ex is not None:
+            self.hub.emit(
+                cid,
+                {
+                    "type": "exchange_completed",
+                    "conversation_id": cid,
+                    "exchange_id": exchange_id,
+                    "ts": state["end"],
+                    "exchange": ex.to_dict(),
+                },
+                dock=True,
+            )
         return Response(
             content=data,
             status_code=status,
@@ -508,9 +493,8 @@ class Pipeline:
         up,
         stream_cm,
         wire_req,
-        norm_req,
-        decoded: bool,
-        client_request: dict,
+        dissector,
+        client_request,
         client_id,
         tag,
         cid,
@@ -522,8 +506,14 @@ class Pipeline:
         *,
         is_replay: bool,
     ) -> StreamingResponse:
-        state: dict = {"first": None, "end": None, "first_content": None, "last_content": None}
-        sse = SSEStream() if decoded else None
+        state: dict = {"first": None, "end": None, "first_content": None, "last_content": None, "size": 0}
+        try:
+            handle = dissector.response_started(wire_req, status, resp_headers)
+        except Exception:  # noqa: BLE001
+            log.warning(
+                "dissector %s failed to open the response; capturing raw", dissector.name, exc_info=True
+            )
+            handle = None
         raw_chunks: list[bytes] = []
         raw_parts: list[bytes] = []
         raw_len = 0
@@ -534,57 +524,67 @@ class Pipeline:
                 async for chunk in up.aiter_bytes():
                     if state["first"] is None:
                         state["first"] = time.time()
-                    if decoded:
-                        events = sse.feed(chunk)
-                        for ev in events:
-                            if ev["event"] == "message":
-                                content, reasoning = _delta_parts(ev["data"])
-                                if content or reasoning:
-                                    now = time.time()
-                                    if content:
-                                        if state["first_content"] is None:
-                                            state["first_content"] = now
-                                        state["last_content"] = now
-                                    self.hub.emit(
-                                        cid,
-                                        {
-                                            "type": "delta",
-                                            "conversation_id": cid,
-                                            "exchange_id": exchange_id,
-                                            "delta": content,
-                                            "reasoning_delta": reasoning,
-                                            "ts": now,
-                                        },
-                                    )
-                        if self.settings.include_raw_chunks:
-                            raw_chunks.append(chunk)
-                    elif raw_len < _RAW_BODY_CAP:
-                        # Undecoded SSE: keep a capped raw copy - the raw stream
-                        # is the only faithful view of this traffic.
+                    state["size"] += len(chunk)
+                    if handle is not None:
+                        try:
+                            deltas = dissector.feed_chunk(handle, chunk)
+                        except Exception:  # noqa: BLE001
+                            deltas = []
+                        for d in deltas:
+                            if d.delta or d.reasoning_delta:
+                                now = time.time()
+                                if d.delta:
+                                    if state["first_content"] is None:
+                                        state["first_content"] = now
+                                    state["last_content"] = now
+                                self.hub.emit(
+                                    cid,
+                                    {
+                                        "type": "delta",
+                                        "conversation_id": cid,
+                                        "exchange_id": exchange_id,
+                                        "delta": d.delta,
+                                        "reasoning_delta": d.reasoning_delta,
+                                        "ts": now,
+                                    },
+                                )
+                    if self.settings.include_raw_chunks:
+                        raw_chunks.append(chunk)
+                    if raw_len < _RAW_BODY_CAP:
+                        # Keep a capped raw copy of every stream: the raw SSE is
+                        # the faithful capture when the dissector does not
+                        # reassemble it (undecoded, or a non-chat recognized path).
                         room = _RAW_BODY_CAP - raw_len
                         raw_parts.append(chunk[:room])
                         raw_len += min(len(chunk), room)
                     yield chunk
+            except httpx2.TransportError as exc:
+                # Upstream died mid-stream: end it cleanly (the finally below
+                # still records the partial capture) instead of crashing ASGI.
+                log.warning("upstream stream interrupted: %s %s: %s", wire_req.method, wire_req.path, exc)
             finally:
                 state["end"] = time.time()
                 await stream_cm.__aexit__(None, None, None)
+                parsed = None
+                if handle is not None:
+                    try:
+                        parsed = dissector.finalize(handle)
+                    except Exception:  # noqa: BLE001
+                        parsed = None
                 ex = self._capture(
                     client_id,
                     tag,
                     wire_req,
-                    norm_req,
                     client_request,
                     exchange_id=exchange_id,
                     status=status,
                     resp_headers=resp_headers,
                     streaming=True,
-                    reassembled=sse.reassembled() if decoded else None,
+                    raw_text="".join(p.decode("utf-8", errors="replace") for p in raw_parts),
                     raw_chunks=raw_chunks,
-                    raw_text=(
-                        "".join(p.decode("utf-8", errors="replace") for p in raw_parts)
-                        if not decoded
-                        else None
-                    ),
+                    body_size=state["size"],
+                    parsed=parsed,
+                    dissector=dissector.name,
                     t0=t0,
                     t_send=t_send,
                     t_first=state["first"],
@@ -593,17 +593,18 @@ class Pipeline:
                     t_last_content=state["last_content"],
                     is_replay=is_replay,
                 )
-                self.hub.emit(
-                    cid,
-                    {
-                        "type": "exchange_completed",
-                        "conversation_id": cid,
-                        "exchange_id": exchange_id,
-                        "ts": state["end"],
-                        "exchange": ex.to_dict(),
-                    },
-                    dock=True,
-                )
+                if ex is not None:
+                    self.hub.emit(
+                        cid,
+                        {
+                            "type": "exchange_completed",
+                            "conversation_id": cid,
+                            "exchange_id": exchange_id,
+                            "ts": state["end"],
+                            "exchange": ex.to_dict(),
+                        },
+                        dock=True,
+                    )
 
         return StreamingResponse(
             generate(),
@@ -618,7 +619,6 @@ class Pipeline:
         client_id,
         tag,
         wire_req,
-        norm_req,
         client_request,
         *,
         exchange_id,
@@ -626,10 +626,11 @@ class Pipeline:
         resp_headers,
         streaming,
         body=None,
-        reassembled=None,
-        raw_chunks=None,
+        body_size=None,
         raw_text=None,
-        norm_resp=None,
+        raw_chunks=None,
+        parsed=None,
+        dissector="generic",
         error=None,
         t0,
         t_send,
@@ -638,17 +639,15 @@ class Pipeline:
         t_first_content=None,
         t_last_content=None,
         is_replay: bool = False,
-    ) -> Exchange:
+    ) -> Exchange | None:
         body_bytes = body if body is not None else wire_req.body
         # Upstream-reported generation rate: llama.cpp embeds a ``timings`` object
         # (``predicted_n``/``predicted_ms``) in the final stream chunk and in
         # non-stream bodies. It is the only reliable tok/s for non-stream responses
         # and for reasoning models, where byte-level windows mislead.
-        up_timings = None
-        if reassembled is not None:
-            up_timings = reassembled.get("timings")
-        elif body_bytes:
-            up_timings = (_safe_json(body_bytes) or {}).get("timings")
+        up_timings = parsed.timings if parsed is not None else None
+        if up_timings is None and body_bytes:
+            up_timings = (safe_json(body_bytes) or {}).get("timings")
         gen_tok_per_sec = None
         if isinstance(up_timings, dict):
             pn = up_timings.get("predicted_n")
@@ -667,15 +666,10 @@ class Pipeline:
             "gen_tok_per_sec": gen_tok_per_sec,
         }
         usage = None
-        if norm_resp is not None and norm_resp.usage is not None:
-            u = norm_resp.usage
-            usage = {
-                "prompt_tokens": u.prompt_tokens,
-                "completion_tokens": u.completion_tokens,
-                "total_tokens": u.total_tokens,
-            }
-        elif reassembled and reassembled.get("usage"):
-            u = reassembled["usage"]
+        u = parsed.usage if parsed is not None else None
+        if not isinstance(u, dict) and body_bytes:
+            u = (safe_json(body_bytes) or {}).get("usage")
+        if isinstance(u, dict):
             usage = {
                 "prompt_tokens": int(u.get("prompt_tokens") or 0),
                 "completion_tokens": int(u.get("completion_tokens") or 0),
@@ -687,17 +681,19 @@ class Pipeline:
             "status": status,
             "headers": _redact(resp_headers),
             "streaming": streaming,
-            "size_bytes": len(body_bytes) if body_bytes else 0,
+            "size_bytes": body_size if body_size is not None else (len(body_bytes) if body_bytes else 0),
         }
-        if streaming and reassembled is not None:
-            server_response["reassembled"] = reassembled
+        if streaming and parsed is not None and parsed.reassembled is not None:
+            server_response["reassembled"] = parsed.reassembled
         elif raw_text is not None:
-            # Undecoded SSE: the capped raw stream is the only faithful capture.
+            # Undecoded stream: the capped raw stream is the only faithful capture.
             server_response["body_text"] = raw_text
         else:
-            parsed = _safe_json(body_bytes)
-            server_response["body_json"] = parsed
-            if parsed is None:
+            body_json = parsed.body_json if parsed is not None else None
+            if body_json is None:
+                body_json = safe_json(body_bytes)
+            server_response["body_json"] = body_json
+            if body_json is None:
                 server_response["body_text"] = _capped_text(body_bytes)
         if self.settings.include_raw_chunks and raw_chunks is not None:
             server_response["chunks"] = [c.decode("utf-8", errors="replace") for c in raw_chunks]
@@ -710,10 +706,13 @@ class Pipeline:
             timings=timings,
             usage=usage,
             error=error,
+            dissector=dissector,
         )
         # add_exchange finalizes the in-flight placeholder in place and returns the
         # copy that lives in the ring buffer, whose sequence was assigned at
         # begin_exchange. Return it (not the freshly-built one) so the completed
-        # event carries the real sequence rather than the default 0.
+        # event carries the real sequence rather than the default 0. It is None if
+        # the exchange was removed while in flight: callers then skip the completed
+        # event, since there is no stored exchange to point at.
         _, _, stored = self.store.add_exchange(client_id, tag, exchange)
         return stored

@@ -30,8 +30,6 @@ def _stats(exchanges) -> dict:
 def _proxy_block(settings) -> dict:
     return {
         "version": __version__,
-        "in_adapter": settings.in_adapter,
-        "out_adapter": settings.out_adapter,
         "upstream": {
             "name": "llama.cpp",
             "base_url": settings.upstream_base_url,

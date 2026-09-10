@@ -281,6 +281,25 @@ class TestLiveFanOut(unittest.TestCase):
         self.assertIsNotNone(comp["timings"]["t_first_content"])
         self.assertEqual(comp["timings"]["gen_tok_per_sec"], 200.0)
 
+    def test_tool_calls_reassembled(self):
+        # Agentic replies: fragmented delta.tool_calls must reassemble into the
+        # message (id/type/name from the first fragment, arguments concatenated).
+        with self.ui.websocket_connect("/ws") as ws:
+            ws.send_json({"type": "subscribe", "conversation_id": CID})
+            payload = {"model": "tooler", "stream": True, "messages": [{"role": "user", "content": "hi"}]}
+            self.llm.post(CHAT, json=payload)
+            events = _read_until_completed(ws)
+
+        comp = events[-1]["exchange"]
+        msg = comp["server_response"]["reassembled"]["choices"][0]["message"]
+        self.assertEqual(msg["content"], "Let me check.")
+        self.assertEqual(comp["server_response"]["reassembled"]["choices"][0]["finish_reason"], "tool_calls")
+        (tc,) = msg["tool_calls"]
+        self.assertEqual(tc["id"], "call_1")
+        self.assertEqual(tc["type"], "function")
+        self.assertEqual(tc["function"]["name"], "bash")
+        self.assertEqual(tc["function"]["arguments"], '{"command": "ls"}')
+
     def test_upstream_gen_rate_captured_stream_and_non_stream(self):
         # Stream: upstream timings arrive in the final SSE chunk.
         with self.ui.websocket_connect("/ws") as ws:
@@ -297,36 +316,6 @@ class TestLiveFanOut(unittest.TestCase):
             non_ex = _read_until_completed(ws)[-1]["exchange"]
         self.assertEqual(non_ex["timings"]["gen_tok_per_sec"], 100.0)
         self.assertIsNone(non_ex["timings"]["t_first_content"])
-
-    def test_client_seen_emit_is_logged_at_info(self):
-        """Regression: the client_seen broadcast fan-out must be visible at INFO.
-
-        "Empty dock despite a live WS" was undiagnosable until this line existed:
-        "-> N full" proves delivery to the UI's queue; "dropped" (WARNING) proves
-        the UI was not connected when the client appeared.
-        """
-        logger = logging.getLogger("llm_proxy.ws")
-        records: list[logging.LogRecord] = []
-
-        class _Capture(logging.Handler):
-            def emit(self, record: logging.LogRecord) -> None:
-                records.append(record)
-
-        capture = _Capture()
-        old_level = logger.level
-        logger.addHandler(capture)
-        logger.setLevel(logging.INFO)  # the production default
-        try:
-            with self.ui.websocket_connect("/ws") as ws:
-                self.llm.post(CHAT, json=_payload(stream=False))
-                ev = _receive_json(ws)
-                self.assertEqual(ev["type"], "client_seen")
-        finally:
-            logger.removeHandler(capture)
-            logger.setLevel(old_level)
-
-        text = "\n".join(r.getMessage() for r in records)
-        self.assertIn("emit client_seen -> 1 full", text)
 
     def test_client_registered_before_client_seen_broadcast(self):
         """Regression: by the time client_seen is broadcast, the client must

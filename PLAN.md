@@ -2,7 +2,7 @@
 
 > A lightweight, low-overhead, **transparent MITM proxy for LLM APIs** with a live "conversation" Web UI for inspecting, replaying, and exporting client↔server traffic.
 >
-> Status: **M0–M5 implemented** (M5 awaiting commit); M6+ proposed in §14. All questions resolved — see §13.
+> Status: **M0–M6 implemented** (M6 awaiting commit); M7+ proposed in §14. All questions resolved — see §13.
 
 ---
 
@@ -38,7 +38,7 @@
 | Client identity | **`host::user-agent::key`** (parts sanitized; key optional) | Trusted LAN; zero-config. The user agent splits tabs per *application* (two apps on one machine get separate tabs); an optional key adds a third split. See §5.1 + the Docker source-IP note. |
 | Streaming | **Tap-and-forward SSE** | Forward upstream SSE bytes to the client in real time (no full buffering) while tapping deltas to the UI. This is the core of both performance and the live view. |
 | Ports | **Two listeners, one process:** LLM port (default **8080**, catch-all → upstream) and UI port (default **9090**: Web UI, `/api/*`, `/ws`, `/health`) | A truly transparent proxy must not reserve any path for its own routes; separate ports remove the collision entirely and keep the LLM port 100% passthrough. |
-| Extraction model | **Dissector plugins** (observation-only) | One dissector level is selected per deployment via `--dissector` (default `generic`); dissectors match (method, path) and extract request/response data for the UI; the pipeline always forwards raw bytes verbatim. Replaces the old adapter/IR model — no translation, no in/out pairing (see §6). |
+| Extraction model | **Dissector plugins** (observation-only, selected **per request**) | Each request is matched by (method, path): a matching dissector decodes it, everything else falls back to `generic` raw capture — no selection flag. The pipeline always forwards raw bytes verbatim. Replaces the old adapter/IR model — no translation, no in/out pairing (see §6). |
 | Storage | **In-memory ring buffers** (+ optional on-disk JSON persistence) | Live tool first; persistence is opt-in. |
 | Testing | **`python -m unittest`** (stdlib) — one framework, no runner deps | Zero extra dependencies, consistent with the lean/low-overhead ethos. The suite is small (a handful of e2e + unit tests) and unittest is sufficient; `python -m unittest discover` needs no runner config. Migrate to pytest only if the suite grows and needs fixtures/parametrize. |
 
@@ -57,10 +57,9 @@ flowchart TB
     subgraph Proxy["LLM Proxy - one process"]
         LLM["LLM port 8080<br/>catch-all → upstream"]
         PIPE["Pipeline<br/>tap + forward verbatim"]
-        subgraph DIS["Dissectors (observation only)"]
-            D1[generic base]
-            D2[openai]
-            D3[llamacpp]
+        subgraph DIS["Dissectors (observation only, per-request)"]
+            D1["openai: chat decode"]
+            D2["generic: fallback"]
         end
         STORE[Conversations ring buffer]
         HUB[WebSocket hub]
@@ -97,7 +96,7 @@ The tap (dotted arrows) sits on the pipeline's forward path: the request (once) 
 - **LLM listener** — FastAPI app on the LLM port with a single catch-all route (`*` method, `/{path:path}`) → proxy pipeline. No other routes.
 - **UI listener** — FastAPI app on the UI port: static UI, `/api/*` (conversations, exchanges, replay, export, client removal), `WS /ws`, `GET /health`.
 - **Pipeline** — forwards the request **verbatim** (body/headers unchanged; hop-by-hop management; optional server-side key fallback) and streams the response back **verbatim, chunk by chunk**. On the way it taps both directions into the dissectors + store and records timings.
-- **Dissectors** — observation-only extraction plugins in a hierarchy (see §6): `generic` (base, raw capture) ← `openai` (chat decode) ← `llamacpp` (llama.cpp additions). One level is selected per deployment via `--dissector`; the base is the implicit fallback for non-matching requests, so every exchange is captured.
+- **Dissectors** — observation-only extraction plugins (see §6): `openai` decodes `POST */chat/completions`; `generic` is the implicit fallback for everything else (raw capture + `INFO` log). Selection is **per request** by (method, path) — no selection flag — so every exchange is captured.
 - **Store** — per-client conversation = bounded ring buffer of exchanges (configurable size/age). Thread-agnostic (single event loop → no locks needed on the hot path).
 - **WebSocket hub** — fans out events (new exchange, token delta, replay, error) to subscribed UI clients.
 - **UI** — single-page app: left dock (client/conversation list), main pane (conversation), transport over `/ws`.
@@ -150,7 +149,7 @@ Exchange
   id
   sequence          (monotonic per conversation)
   is_replay
-  dissector         ("generic" | "openai" | "llamacpp"; which dissector decoded this)
+  dissector         ("generic" | "openai"; which dissector decoded this)
   client_request:   { timestamp, method, path, headers, body_json, size_bytes }
   server_response:  { timestamp, status, headers, body_json | {stream:true, chunks:[], reassembled}, size_bytes }
   timings:          { t_request_in, t_upstream_send, t_first_byte, t_first_content,
@@ -189,7 +188,7 @@ This is opt-in via `SPLIT_CONVERSATIONS=history` (**off by default** = one tab p
 - **Auth pass-through (the key point):** the client's `Authorization` / API-key header is **forwarded to the upstream as-is** — never rewritten or replaced. The client's auth relationship with the upstream is preserved end-to-end.
   - *Fallback only:* if the client sends **no** key and `UPSTREAM_API_KEY` is configured, the proxy injects that server-side key (convenience for upstreams that require a key while some clients omit one). If neither is present, no auth header is sent.
   - When a client does send a key, it also serves as the conversation-tab identifier (see above).
-- **Traffic no deeper dissector decodes:** requests that fall through to the `generic` base (§6) are still proxied verbatim, captured opaquely (method/path/status/size + raw body preview), and **logged** (`INFO`: `undecoded request: METHOD /path` from host). They appear in the conversation as compact opaque cards (Q16) and support replay like any other exchange (Q18).
+- **Traffic no dissector decodes:** requests that fall back to `generic` (§6) are still proxied verbatim, captured opaquely (method/path/status/size + raw body preview), and **logged** (`INFO`: `undecoded request: METHOD /path` from host). They appear in the conversation as ordinary exchange cards — the two-sided layout with raw body preview (Q16) — and support replay like any other exchange (Q18).
 
 > **Client source IP under Docker.** On **Linux**, published ports are normally handled by **iptables DNAT**, which rewrites only the destination — so a service behind `ports:` **does see the real client source IP**. No special networking is required; plain `ports:` is sufficient for IP-based identification. Two caveats:
 > - If your Docker daemon routes published ports through the **userland proxy** (`docker-proxy`) instead of DNAT, the source IP can appear as the bridge IP (e.g. `172.17.0.1`). Fix by disabling the userland proxy (daemon `userland-proxy: false`) or, if you prefer, using `network_mode: host`.
@@ -228,7 +227,7 @@ class WireResponse:
     streaming: bool = False
 
 class Dissector(Protocol):
-    name: str                                  # "generic" | "openai" | "llamacpp"
+    name: str                                  # "generic" | "openai"
     def matches(self, method: str, path: str) -> bool: ...
     def request(self, wire: WireRequest) -> ParsedRequest: ...
     # Response lifecycle: start → feed chunks (streaming only) → finalize.
@@ -241,21 +240,18 @@ class Dissector(Protocol):
 - **`ParsedResponse`** — `reassembled` (text), `reasoning`, `usage`, `timings` (when the upstream reports them, e.g. llama.cpp `predicted_n/predicted_ms`), `body_json`, raw.
 - **`Delta`** — `{delta, reasoning_delta}` → the WS `delta` event that drives live rendering.
 
-**Hierarchy:** dissectors inherit, each level adding decoding on top of its parent — `llamacpp` extends `openai` (llama.cpp speaks the OpenAI API, plus its own paths/fields), which extends `generic` (raw capture). A child inherits its parent's `matches()` and extraction, then overrides/extends.
+**Selection (per request):** for each proxied request, the pipeline tries the registered dissectors' `matches(method, path)`; the first match decodes it, otherwise the request falls back to `generic` (raw capture + `INFO` log). There is **no deployment-level selection flag** — the same client may send chat requests (decoded) and metadata pokes (opaque) in one conversation. `generic` matches everything, so every exchange has a dissector.
 
-**Selection:** one dissector level is selected per deployment via the **`--dissector`** CLI flag (`openai` | `llamacpp` | `generic`, default `generic`) — the chosen level is the top of its inheritance chain, so its inherited matches cover everything shallower. Per request: if the selected dissector matches → decode at that level; otherwise fall back to the `generic` base (raw capture + log). The base matches everything, so every exchange has a dissector.
+**Set (M6):**
 
-**Initial set (M6):**
-
-| dissector | matches | adds on top of its parent |
+| dissector | matches | extracts |
 |---|---|---|
-| `generic` (base) | everything | raw capture: method/path/status/size + raw body (JSON-pretty-printed when it parses, capped at N KB); no per-chunk parsing → compact opaque card + `INFO` log |
-| `openai` | `POST /v1/chat/completions` (only — Q21) | full chat decode — current behavior: messages, live streaming deltas, reasoning, usage, timings |
-| `llamacpp` | inherited, plus llama.cpp-specific paths (`GET /props`, `GET /models/sse`, …) | metadata as typed cards (model info, load progress) instead of raw JSON; upstream timings where reported |
+| `openai` | `POST */chat/completions` (Q21) | full chat decode: model, stream flag, messages, live streaming deltas (content + reasoning + tool calls), reassembled completion, usage, upstream timings |
+| `generic` (fallback) | everything (implicit) | raw capture: method/path/status/size + raw body (JSON-pretty-printed when it parses, capped at N KB); no per-chunk parsing; `INFO` log per undecoded request |
 
-**Config:** `--dissector llamacpp|openai|generic` (CLI; default `generic` — no env vars in the package, §11).
+(The earlier `llamacpp` level was dropped: llama.cpp speaks the OpenAI chat API, so the `openai` decoder covers it, and its metadata paths — `/props`, `/models/sse`, `/v1/models` — are deliberately *not* decoded, just captured opaquely.)
 
-**Performance:** dissectors sit *off* the forward path (tap, §9). The `generic` base must stay cheap — no full body parse beyond a JSON sniff, capped raw capture; deeper levels add per-chunk work only for the paths they extend.
+**Performance:** dissectors sit *off* the forward path (tap, §9). The `generic` fallback must stay cheap — no full body parse beyond a JSON sniff, capped raw capture; the `openai` decoder adds per-chunk work only for chat paths.
 
 ---
 
@@ -270,7 +266,6 @@ Proposed JSON schema (versioned). Design goals: self-describing, replayable, and
   "exported_at": "2026-09-04T12:00:00Z",
   "proxy": {
     "version": "2026.09.04",
-    "dissector": "llamacpp",
     "upstream": { "name": "llama.cpp", "base_url": "http://llamacpp:8080", "model": "local-model" }
   },
   "client": { "id": "client-a", "name": "my-app" },
@@ -364,7 +359,7 @@ Features:
 - **Live:** streaming responses render token-by-token as they arrive over `/ws`; timing deltas update live (TTFT, running total, tok/s).
 - **Thinking text:** the server card shows the model's reasoning block inline (v1); in **M4** it is collapsible to a one-line summary (see mockup).
 - **Expand:** each side expands to the **full wire call** — method, path, headers, raw body, status, raw SSE/JSON, size, usage.
-- **Opaque exchanges:** traffic decoded only by the `generic` base (§6) renders as a compact card — method, path, status, size, raw body preview — in the same two-sided layout, with a `dissector` badge distinguishing `generic` from a deeper dissector (e.g. `openai`, `llamacpp`).
+- **Undecoded exchanges:** traffic falling back to the `generic` base (§6) renders in the **same two-sided layout** as decoded exchanges — client method/path (model when sniffed) on the left, status + raw body preview on the right. No separate card shape and no dissector badge: the card content itself signals what was decoded.
 - **Timestamps & deltas:** per-exchange absolute timestamp + TTFT, total, and per-token metrics.
 - **Replay (on the client/request side):** a button on the captured request re-sends it to the upstream. The fresh result is appended as a **new exchange** flagged `is_replay` (so the original response is preserved for comparison). The button opens the **bottom-dock editor** (structured fields + raw JSON) pre-populated with that exchange's request; the dock re-sends the **full edited body** in place of the captured one (empty body = as-is) — see the dock in the mockup above.
 - **Export:** per-conversation (and per-exchange) JSON download per §7.
@@ -465,7 +460,6 @@ services:
       LISTEN_HOST: "0.0.0.0"
       LLM_PORT: "8080"           # LLM API proxy port; move it if it clashes with a local llama.cpp on 8080
       UI_PORT: "9090"            # Web UI + app API
-      DISSECTOR: "llamacpp"      # openai | llamacpp | generic (default)
       # llama.cpp runs on the Docker host; reach it via host-gateway (mapped below).
       # Use the host's LAN IP if you prefer.
       UPSTREAM_BASE_URL: "http://host.docker.internal:8080"
@@ -487,7 +481,7 @@ services:
 #   llm-proxy-data:
 ```
 
-**Config:** the package reads **no env vars**. `llm-proxy` takes CLI options (positional upstream, `--host`, `--llm-port`, `--ui-port`, `--dissector`, `--upstream-api-key`, `--log-level`, `--ui-dir`) over defaults, and the image `CMD` maps the container env vars (`UPSTREAM_BASE_URL`, `UPSTREAM_API_KEY`, `LISTEN_HOST`, `LLM_PORT`, `UI_PORT`, `DISSECTOR`, `LOG_LEVEL`) onto them. Settings not on the CLI (upstream timeouts, retention, capture, WS liveness, uvloop) are defaults-only — add a CLI option if one needs to be tunable.
+**Config:** the package reads **no env vars**. `llm-proxy` takes CLI options (positional upstream, `--host`, `--llm-port`, `--ui-port`, `--upstream-api-key`, `--log-level`, `--ui-dir`) over defaults, and the image `CMD` maps the container env vars (`UPSTREAM_BASE_URL`, `UPSTREAM_API_KEY`, `LISTEN_HOST`, `LLM_PORT`, `UI_PORT`, `LOG_LEVEL`) onto them. Settings not on the CLI (upstream timeouts, retention, capture, WS liveness, uvloop) are defaults-only — add a CLI option if one needs to be tunable.
 
 **Build:** `docker compose build` / `docker build -t llm-proxy .`. Multi-arch (Q11) is free — no code changes: `docker buildx build --platform linux/amd64,linux/arm64 -t llm-proxy . --push`.
 
@@ -528,12 +522,12 @@ services:
 | Q13 | Conversation granularity | **One tab per client by default** (`host::user-agent`, §5.1). Optional no-key auto-split via `SPLIT_CONVERSATIONS=history` (message-history boundary detection) or an `X-Conversation-Id` header to force a tag (see §4). |
 | Q14 | Cross-protocol translation | **Out of scope, permanently.** Dissectors are observation-only (§6). |
 | Q15 | Port layout | **Two ports:** LLM 8080 (catch-all proxy), UI 9090 (Web UI + /api/* + /ws + /health). One process, two listeners. |
-| Q16 | Opaque (undecoded) traffic in the conversation view | **Show** it: compact opaque card in the same two-sided layout + `INFO` log line. |
-| Q17 | Initial dissector set | **Hierarchical:** `generic` (base, raw capture) ← `openai` (chat decode) ← `llamacpp` (llama.cpp additions); one level selected per deployment via `--dissector` (default `generic`, the implicit fallback) (§6). No Anthropic dissector. |
+| Q16 | Opaque (undecoded) traffic in the conversation view | **Show** it in the ordinary two-sided exchange card (raw body preview; no separate card shape, no dissector badge) + `INFO` log line. |
+| Q17 | Initial dissector set | **`openai` + `generic` fallback**, selected **per request** by (method, path) — no `--dissector` flag, no hierarchy (llama.cpp speaks the OpenAI chat API, so one chat decoder covers it; metadata paths are captured opaquely). No Anthropic dissector. |
 | Q18 | Replay on opaque exchanges | **Yes** — replay works for every captured exchange, including opaque ones (re-issue the captured request). |
 | Q19 | Persistence | **Future idea, not a milestone.** Stays in the §14 future-ideas list (SQLite or JSON under `PROXY_DATA_DIR`). |
 | Q20 | Test restructure timing | **M7**, after M5+M6. |
-| Q21 | `openai` dissector match scope | **`POST /v1/chat/completions` only** — no legacy `/v1/completions`; unmatched paths fall through to the `generic` base (§6). |
+| Q21 | `openai` dissector match scope | **`POST */chat/completions` only** (both `/v1/chat/completions` and bare `/chat/completions`) — no legacy `/v1/completions`; unmatched requests fall back to `generic` (§6). |
 
 ---
 
@@ -574,20 +568,20 @@ services:
 **M5 — Transparent MITM core (two-port)**
 - Split the app into **two listeners in one process** (two uvicorn servers, shared loop/store/hub/upstream client): LLM port (default 8080) = catch-all, every method/path → upstream, no reserved routes; UI port (default 9090) = UI + `/api/*` + `/ws` + `/health`.
 - Pipeline forwards **everything** verbatim (non-SSE, non-JSON, error responses included) and taps every exchange into the store (raw capture, capped).
-- Traffic decoded only by the `generic` base: logged (`INFO`) + captured opaquely (opaque card).
+- Traffic decoded only by the `generic` base: logged (`debug`) + captured opaquely (raw body preview).
 - CLI: `--llm-port` / `--ui-port` (replace `--port`); Dockerfile + compose publish both ports; healthcheck on the UI port.
 - *Exit: any client (e.g. Zed) works through the proxy with zero 404s; `/props`, `/models/sse`, and any other path appear in the UI as captured exchanges; the UI port behaves exactly as today.*
 
-**M6 — Dissector framework**
-- `adapters/` → `dissectors/`: base protocol (`matches`/`request`/response lifecycle), registry, `--dissector` selection (§6).
-- Refactor existing chat-completions decode into the `openai` dissector (behavior unchanged).
-- Add the `generic` base (raw capture) and the `llamacpp` level (`/props`, `/models/sse`, other paths as they surface); `--dissector` CLI flag (`openai|llamacpp|generic`, default `generic`) with the generic base as implicit fallback.
-- UI: compact opaque card for `generic`-decoded exchanges; `dissector` badge; replay available for every captured exchange.
-- *Exit: every proxied request is shown in the conversation as well as it can be decoded; undecodable traffic is obvious, harmless, and logged.*
+**M6 — Per-request decode**
+- `adapters/` → `dissectors/`: base protocol (`matches`/`request`/response lifecycle) + registry; selection is **per request** by (method, path) — no `--dissector` flag, no hierarchy (§6).
+- Chat-completions decode lives in the `openai` dissector (matches `POST */chat/completions`); `generic` is the implicit fallback (raw capture + `debug` log). The earlier `llamacpp` level was dropped — llama.cpp speaks the OpenAI chat API, and its metadata paths are deliberately left opaque.
+- `/health` is **reachability-only** (any HTTP response from the upstream = `ok`), since a non-OpenAI upstream may not serve `/v1/models`.
+- SSE reassembly merges `delta.tool_calls` fragments; the UI shows tool calls (name + arguments) on the server card.
+- *Exit: chat decodes fully (content, thinking, tool calls); every other request is captured opaquely and logged; nothing ever 404s at the proxy.*
 
 **M7 — Test restructure**
 - Reorganize `tests/` by subject, not milestone: `test_store.py`, `test_proxy.py` (forwarding/streaming/timings/client-id), `test_dissectors.py`, `test_ui_api.py`, `test_ws.py`, `test_cli.py` (keep `mock_upstream.py`).
-- Same coverage and suite-time target as today (~5.5s, bounded waits).
+- Same coverage and suite-time target as today (~11s, bounded waits).
 - *Exit: suite organized by subject; fully green.*
 
 **Future ideas (not milestones)**
@@ -605,7 +599,7 @@ services:
 | SSE edge cases (multi-line `data:`, comments, `[DONE]`, keep-alive) | Malformed UI / stuck streams | Small, well-tested SSE line parser; treat unknown frames as passthrough. |
 | Memory growth from long/streaming conversations | OOM | Ring buffers; drop raw chunks after reassembly; high-water marks. |
 | Slow UI subscriber stalls client | Client latency | UI fan-out is a separate async task with backpressure/timeout; never blocks the client write path. |
-| Opaque traffic pollutes the conversation view | Noise in dock/main pane | Compact opaque cards; per-conversation filter; log-only alternative (Q16). |
+| Opaque traffic pollutes the conversation view | Noise in dock/main pane | Standard two-sided cards keep them scannable; per-conversation filter; log-only alternative (Q16). |
 | Two listeners complicate startup/deployment | Confusion about which port serves what | One process, two uvicorn servers on one loop; compose publishes both with comments; healthcheck on the UI port. |
 | UI complexity without a build step | Maintains-ability | Keep JS small/structured; optional Preact; no framework churn. |
 
@@ -631,9 +625,8 @@ llm-proxy/
 │   │   └── sse.py             # SSE line parser + chunk tap
 │   ├── dissectors/
 │   │   ├── base.py            # Dissector protocol + registry
-│   │   ├── generic.py         # base: raw capture, implicit fallback (opaque card + log)
-│   │   ├── openai.py          # extends generic: /v1/chat/completions decode (existing behavior)
-│   │   └── llamacpp.py        # extends openai: llama.cpp-specific paths
+│   │   ├── generic.py         # raw capture, implicit fallback (+ log)
+│   │   └── openai.py          # POST */chat/completions decode (chat, thinking, tool calls)
 │   ├── model/
 │   │   ├── ir.py              # wire/parsed types
 │   │   └── conversation.py    # Client/Conversation/Exchange, ring buffer

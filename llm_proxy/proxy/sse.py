@@ -1,9 +1,10 @@
 """Minimal SSE line parser + reassembler.
 
 Deliberately tiny: split on newlines, prefix-match ``data:``, parse JSON payloads,
-and accumulate ``choices[].delta`` (``content`` and, for reasoning models,
-``reasoning_content``) into a reassembled message. No heavy dependency, no
-full-JSON parse per token (parse-once happens on the reassembled body).
+and accumulate ``choices[].delta`` (``content``, ``reasoning_content`` for
+reasoning models, and ``tool_calls`` fragments) into a reassembled message.
+No heavy dependency, no full-JSON parse per token (parse-once happens on the
+reassembled body).
 """
 
 from __future__ import annotations
@@ -17,6 +18,7 @@ class SSEStream:
         self.chunks: list[dict] = []
         self._content_parts: list[str] = []
         self._reasoning_parts: list[str] = []
+        self._tool_calls: dict[int, dict] = {}
         self._id = ""
         self._model = ""
         self._finish_reason: str | None = None
@@ -63,14 +65,36 @@ class SSEStream:
             rpiece = delta.get("reasoning_content")
             if rpiece:
                 self._reasoning_parts.append(rpiece)
+            for tc in delta.get("tool_calls") or []:
+                self._merge_tool_call(tc)
             if c.get("finish_reason"):
                 self._finish_reason = c.get("finish_reason")
+
+    def _merge_tool_call(self, tc: dict) -> None:
+        # Tool-call deltas arrive in fragments: the first carries id/type/name,
+        # later ones append to function.arguments at the same index.
+        idx = tc.get("index")
+        idx = idx if isinstance(idx, int) else 0
+        cur = self._tool_calls.setdefault(
+            idx, {"type": "function", "function": {"name": "", "arguments": ""}}
+        )
+        if tc.get("id"):
+            cur["id"] = tc["id"]
+        if tc.get("type"):
+            cur["type"] = tc["type"]
+        fn = tc.get("function") or {}
+        if fn.get("name"):
+            cur["function"]["name"] = fn["name"]
+        if fn.get("arguments"):
+            cur["function"]["arguments"] += fn["arguments"]
 
     def reassembled(self) -> dict:
         """A reconstructed ``chat.completion`` object from the streamed deltas."""
         message: dict = {"role": "assistant", "content": "".join(self._content_parts)}
         if self._reasoning_parts:
             message["reasoning_content"] = "".join(self._reasoning_parts)
+        if self._tool_calls:
+            message["tool_calls"] = [self._tool_calls[i] for i in sorted(self._tool_calls)]
         out: dict = {
             "id": self._id,
             "object": "chat.completion",

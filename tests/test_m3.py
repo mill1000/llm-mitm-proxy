@@ -1,4 +1,4 @@
-"""M3 tests: adapter fail-fast, WS liveness (ping/pong + dead-socket pruning), upstream timeouts."""
+"""M3 tests: WS liveness (ping/pong + dead-socket pruning), upstream timeout policy."""
 
 from __future__ import annotations
 
@@ -28,28 +28,19 @@ def _close_client(client: TestClient) -> None:
     client.__exit__(None, None, None)
 
 
-class TestAdapterFailFast(unittest.TestCase):
-    def test_unknown_in_adapter_fails_startup(self):
-        """A bogus in_adapter must fail loudly at startup and list the available
-        adapters - not on the first proxied request."""
-        with self.assertRaises(KeyError) as ctx:
-            _fresh_client(in_adapter="does-not-exist")
-        self.assertIn("does-not-exist", str(ctx.exception))
-        self.assertIn("openai", str(ctx.exception))
-
-
 class TestUpstreamTimeouts(unittest.TestCase):
-    def test_upstream_timeouts_reach_the_client(self):
-        """The timeout settings must reach the pooled httpx2 client as connect/read/pool."""
+    def test_upstream_timeout_policy_reaches_the_client(self):
+        """connect/pool settings reach the pooled client, and read is intentionally
+        unbounded: a gap cap would kill silent persistent streams (/models/sse)
+        and long prefill/think phases, so timeout policy belongs to the client."""
         client = _fresh_client(
             upstream_connect_timeout=1.5,
-            upstream_read_timeout=7.5,
             upstream_pool_timeout=2.5,
         )
         try:
             t = client.app.state.http.timeout
             self.assertEqual(t.connect, 1.5)
-            self.assertEqual(t.read, 7.5)
+            self.assertIsNone(t.read)
             self.assertEqual(t.pool, 2.5)
         finally:
             _close_client(client)

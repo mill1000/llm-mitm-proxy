@@ -99,6 +99,7 @@ class TestProxy(unittest.TestCase):
         body = r.json()
         self.assertEqual(body["status"], "ok")
         self.assertEqual(body["upstream"], "ok")
+        self.assertEqual(body["upstream_url"], BASE.upstream_base_url)
 
     def test_health_reports_upstream_error_when_unreachable(self):
         # /health must report the *link* state, not just the proxy process: a

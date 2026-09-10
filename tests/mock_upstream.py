@@ -40,6 +40,19 @@ async def plain() -> PlainTextResponse:
     return PlainTextResponse("hello")
 
 
+@mock.get("/models/sse")
+async def models_sse() -> StreamingResponse:
+    """llama.cpp's model-load progress stream: a non-chat SSE (raw capture, never
+    reassembled as a chat completion)."""
+
+    async def gen():
+        for i in range(3):
+            yield f"data: {json.dumps({'status': 'loading', 'i': i})}\n\n"
+        yield "data: [DONE]\n\n"
+
+    return StreamingResponse(gen(), media_type="text/event-stream")
+
+
 @mock.get("/sse")
 async def sse() -> StreamingResponse:
     """A non-OpenAI SSE stream (exercises the undecoded-SSE raw capture path)."""
@@ -98,6 +111,39 @@ async def chat(request: Request):
             yield "data: [DONE]\n\n"
 
         return StreamingResponse(gen_think(), media_type="text/event-stream")
+
+    if stream and model == "tooler":
+        # Agentic reply: content plus fragmented delta.tool_calls (id/name in
+        # the first fragment, arguments appended across later ones).
+
+        async def gen_tool():
+            yield _sse_line(model, {"content": "Let me check."})
+            yield _sse_line(
+                model,
+                {
+                    "tool_calls": [
+                        {
+                            "index": 0,
+                            "id": "call_1",
+                            "type": "function",
+                            "function": {"name": "bash", "arguments": ""},
+                        }
+                    ]
+                },
+            )
+            for frag in ('{"com', 'mand": "ls"}'):
+                yield _sse_line(model, {"tool_calls": [{"index": 0, "function": {"arguments": frag}}]})
+                await asyncio.sleep(0.005)
+            yield _sse_line(
+                model,
+                {},
+                finish="tool_calls",
+                usage={"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
+                timings=TIMINGS,
+            )
+            yield "data: [DONE]\n\n"
+
+        return StreamingResponse(gen_tool(), media_type="text/event-stream")
 
     if model == "slow":
         # Holds the request open so tests can observe the in-flight exchange in REST.

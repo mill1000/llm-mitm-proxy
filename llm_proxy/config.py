@@ -23,15 +23,12 @@ class Settings(BaseModel):
     upstream_base_url: str = "http://host.docker.internal:8080"
     # Optional server-side fallback key; only injected when a client sends no key.
     upstream_api_key: str | None = None
-    # Upstream timeouts (seconds). read = max gap between upstream bytes (covers
-    # slow LLM generation; a dead link trips it far sooner than the default).
+    # Upstream timeouts (seconds). There is deliberately NO read timeout: the
+    # proxy is transparent, so timeout policy belongs to the client - a read gap
+    # cap would kill persistent streams (e.g. llama.cpp's silent /models/sse) and
+    # long prefill/think phases mid-flight. connect detects a dead upstream.
     upstream_connect_timeout: float = 10.0
-    upstream_read_timeout: float = 300.0
     upstream_pool_timeout: float = 30.0
-
-    # --- adapters (independent; cross-format is roadmap) ---
-    in_adapter: str = "openai"
-    out_adapter: str = "openai"
 
     # --- client identity ---
     # Explicit-identity fallback header (used when the real source IP is not visible).

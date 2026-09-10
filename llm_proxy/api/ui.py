@@ -1,8 +1,9 @@
 """UI REST API. Serves conversation data, replay, and export to the web UI.
 
-Endpoints: list clients, remove a client, read a conversation, read one
-exchange, replay an exchange (re-send its captured client request upstream),
-export a conversation or a single exchange, and clear a conversation.
+Endpoints: list clients, remove a client, read a conversation, read or remove
+one exchange, replay an exchange (re-send its captured client request
+upstream), export a conversation or a single exchange, and clear a
+conversation.
 """
 
 from __future__ import annotations
@@ -76,6 +77,19 @@ async def get_exchange(cid: str, seq: int, request: Request):
         if ex.sequence == seq:
             return ex.to_dict()
     raise HTTPException(status_code=404, detail="exchange not found")
+
+
+@router.delete("/conversations/{cid}/exchanges/{seq}")
+async def remove_exchange(cid: str, seq: int, request: Request):
+    """Remove an exchange from the conversation.
+
+    In-flight exchanges may be removed too: the upstream call continues but its
+    finalization is dropped, so no completed event is emitted for it.
+    """
+    store = _store(request)
+    if not store.remove_exchange(cid, seq):
+        raise HTTPException(status_code=404, detail="conversation or exchange not found")
+    return {"ok": True}
 
 
 @router.post("/conversations/{cid}/exchanges/{seq}/replay")

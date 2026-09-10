@@ -34,6 +34,7 @@
             <span id="conv-title" class="conv-title"></span>
             <div class="conv-actions">
               <label class="stick"><input type="checkbox" id="stick" checked /> auto-scroll</label>
+              <label class="stick"><input type="checkbox" id="md" checked /> markdown</label>
               <button id="btn-export" class="btn">Export</button>
               <button id="btn-clear" class="btn danger">Clear</button>
             </div>
@@ -41,6 +42,7 @@
           <div id="ex-list" class="ex-list"></div>
 
           <div id="replay-dock" class="replay-dock" hidden>
+            <div class="rd-grip" title="Drag to resize" aria-hidden="true"></div>
             <div class="rd-head">
               <span class="rd-title">Replay</span>
               <span id="rd-sub" class="rd-sub"></span>
@@ -62,6 +64,8 @@
       </main>
     </div>
 
+    <!-- Vendored marked v15.0.12: https://cdn.jsdelivr.net/npm/marked/marked.min.js -->
+    <script src="/marked.min.js"></script>
     <script src="/app.js"></script>
   </body>
 </html>

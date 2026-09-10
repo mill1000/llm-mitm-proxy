@@ -15,6 +15,9 @@ class MemoryStore:
         self._conversations: dict[str, Conversation] = {}
         self._inflight: dict[str, Exchange] = {}
         self._inflight_cids: dict[str, str] = {}
+        # Ids of exchanges removed while in flight; their finalization is
+        # dropped in add_exchange instead of stored (or re-appended).
+        self._removed: set[str] = set()
 
     @staticmethod
     def _conv_id(client_id: str, tag: str) -> str:
@@ -52,17 +55,23 @@ class MemoryStore:
 
     def add_exchange(
         self, client_id: str, tag: str, exchange: Exchange
-    ) -> tuple[Client, Conversation, Exchange]:
+    ) -> tuple[Client, Conversation, Exchange | None]:
         """Finalize an in-flight exchange (or append a new one) and return the stored copy.
 
         The returned exchange is the one living in the ring buffer. For an in-flight
         placeholder that is the placeholder itself, whose sequence was assigned at
         begin_exchange - so callers must emit/store this, not the freshly-built one,
         or the completed event carries the default sequence (0) instead of the real one.
+        It is None if the placeholder was removed while in flight: the finalization
+        is dropped, so callers must not emit a completed event for it.
         """
         client, conv = self.get_or_create_conversation(client_id, tag)
         pending = self._inflight.pop(exchange.id, None)
         if pending is not None:
+            if pending.id in self._removed:
+                self._removed.discard(pending.id)
+                self._inflight_cids.pop(pending.id, None)
+                return client, conv, None
             # Finalize the placeholder in place: its sequence and ring position stay stable.
             pending.client_request = exchange.client_request
             pending.server_response = exchange.server_response
@@ -92,6 +101,20 @@ class MemoryStore:
             self._inflight.pop(ex_id, None)
             self._inflight_cids.pop(ex_id, None)
         return self._conversations.pop(cid, None) is not None
+
+    def remove_exchange(self, cid: str, sequence: int) -> bool:
+        conv = self._conversations.get(cid)
+        if conv is None:
+            return False
+        ex = next((e for e in conv.exchanges if e.sequence == sequence), None)
+        if ex is None:
+            return False
+        conv.remove_exchange(sequence)
+        if ex.in_flight:
+            # Remember the id so add_exchange drops the finalization instead of
+            # re-appending the exchange when the upstream call eventually ends.
+            self._removed.add(ex.id)
+        return True
 
     def remove_client(self, client_id: str) -> bool:
         """Drop a client and all of its conversations. It re-registers on the next request."""

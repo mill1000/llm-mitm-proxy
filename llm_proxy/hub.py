@@ -66,7 +66,7 @@ class Hub:
         self._conns[ws] = conn
         conn.reader = asyncio.create_task(self._drain(conn))
         conn.pinger = asyncio.create_task(self._ping_loop(conn))
-        log.info(
+        log.debug(
             "ws connected from %s (%d total) [ping %.2gs/%.2gs]",
             ws.client,
             len(self._conns),
@@ -84,7 +84,7 @@ class Hub:
         conn = self._conns.get(ws)
         if conn is not None:
             if conn.focus != conversation_id:
-                log.info("ws focus %s -> %s", ws.client, conversation_id or "-")
+                log.debug("ws focus %s -> %s", ws.client, conversation_id or "-")
             conn.focus = conversation_id
 
     def disconnect(self, ws: WebSocket) -> None:
@@ -93,7 +93,7 @@ class Hub:
             for task in (conn.reader, conn.pinger):
                 if task is not None and not task.done():
                     task.cancel()
-            log.info("ws disconnected from %s (%d remain)", ws.client, len(self._conns))
+            log.debug("ws disconnected from %s (%d remain)", ws.client, len(self._conns))
 
     def emit(
         self, conversation_id: str, event: dict[str, Any], *, dock: bool = False, broadcast: bool = False
@@ -108,13 +108,6 @@ class Hub:
         hot path, so it must not await or block.
         """
         if not self._conns:
-            # A dropped *broadcast* (e.g. client_seen) means the UI was blind to a
-            # new client - log it loudly, it is the classic "empty dock" diagnosis.
-            log.log(
-                logging.WARNING if broadcast else logging.DEBUG,
-                "emit %s dropped: no ws connections",
-                event.get("type"),
-            )
             return
         full = json.dumps(event)
         dock_msg = (
@@ -122,23 +115,11 @@ class Hub:
             if dock
             else None
         )
-        n_full = n_dock = 0
         for conn in list(self._conns.values()):
             if broadcast or conn.focus == conversation_id:
                 conn.enqueue(full)
-                n_full += 1
             elif dock_msg is not None:
                 conn.enqueue(dock_msg)
-                n_dock += 1
-        # Per-chunk (non-broadcast) emits are hot-path and stay DEBUG; broadcasts
-        # are rare and are the load-bearing events for the dock, so they are INFO.
-        log.log(
-            logging.INFO if broadcast else logging.DEBUG,
-            "emit %s -> %d full, %d dock",
-            event.get("type"),
-            n_full,
-            n_dock,
-        )
 
     async def _drain(self, conn: _Conn) -> None:
         try:

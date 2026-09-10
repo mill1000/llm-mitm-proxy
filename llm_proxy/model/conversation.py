@@ -37,6 +37,8 @@ class Exchange:
     # focus-scoped and is lost to a UI that only now focuses the conversation.
     in_flight: bool = False
     streaming: bool = False
+    # Which dissector decoded this exchange ("generic" = opaque raw capture).
+    dissector: str = "generic"
 
     def to_dict(self) -> dict:
         return {
@@ -50,6 +52,7 @@ class Exchange:
             "error": self.error,
             "in_flight": self.in_flight,
             "streaming": self.streaming,
+            "dissector": self.dissector,
         }
 
 
@@ -77,6 +80,13 @@ class Conversation:
         exchange.sequence = self._seq
         self._seq += 1
         self._exchanges.append(exchange)
+
+    def remove_exchange(self, sequence: int) -> bool:
+        for i, ex in enumerate(self._exchanges):
+            if ex.sequence == sequence:
+                del self._exchanges[i]
+                return True
+        return False
 
     def _evict_old(self) -> None:
         cutoff = time.time() - self._max_age_s
