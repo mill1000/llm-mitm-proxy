@@ -495,11 +495,11 @@ services:
 | Async | `asyncio` (+ optional `uvloop`) |
 | Web framework | FastAPI + Uvicorn |
 | HTTP client | `httpx2` (async, pooled, streaming) |
-| Live UI | Native `WebSocket` + vanilla JS/TS (optional Preact) |
+| Live UI | Native `WebSocket` + vanilla JS (no framework); minimal esbuild build (bundle + minify + inline `marked`) → static `ui/dist` |
 | SSE parsing | small hand-rolled line parser (no heavy dep) |
 | Config | pydantic `Settings` (CLI args; container env vars mapped by the image `CMD`) |
 | Packaging | `pyproject.toml` + `pip` (PEP 621) |
-| Container | `python:3.14-alpine` build stage → `alpine` runtime (pipx, non-root, tini, healthcheck) |
+| Container | `node:alpine` (UI build) + `python:3.14-alpine` (wheel) → `alpine` runtime (pipx, non-root, tini, healthcheck) |
 
 ---
 
@@ -513,7 +513,7 @@ services:
 | Q3 | Client identity | **Source IP (primary) + optional API key as a secondary tag.** No key required by default. MAC not used as the key (see §5.1 note). |
 | Q4 | Scale | **≤10 clients, realistically 1–3, a few req/s max.** Async Python is plenty. |
 | Q5 | Retention & persistence | **In-memory (live) only for now.** SQLite as a future option (roadmap). |
-| Q6 | Frontend | **Decision (mine, since unanswered): no-build vanilla JS** single-page app. Keeps the image single-stage & tiny, zero Node toolchain, served by the same FastAPI process. If the UI grows, drop in Preact (still no build) or a framework later. |
+| Q6 | Frontend | **Vanilla JS** single-page app (no framework). M8 adds a **minimal esbuild build** (bundle + minify + inline `marked` from npm) — still no dev server, no HMR, no framework; `ui/dist` is pre-built at dev/docker-build time and served statically (zero per-request cost). |
 | Q7 | Proxy auth | **None by default** (trusted network). Optional key is an identifier, not a credential. |
 | Q8 | Exposure | **Internal / trusted network only.** No TLS/auth required. |
 | Q10 | Dump consumers | **Human / LLM inspection only** — no specific ingest tool; the §7 format stays self-describing JSON. |
@@ -528,6 +528,8 @@ services:
 | Q19 | Persistence | **Future idea, not a milestone.** Stays in the §14 future-ideas list (SQLite or JSON under `PROXY_DATA_DIR`). |
 | Q20 | Test restructure timing | **M7**, after M5+M6. |
 | Q21 | `openai` dissector match scope | **`POST */chat/completions` only** (both `/v1/chat/completions` and bare `/chat/completions`) — no legacy `/v1/completions`; unmatched requests fall back to `generic` (§6). |
+| Q22 | `marked` source | **npm `marked` bundled into `app.js` by esbuild** (replaces the vendored `marked.min.js`, which is deleted). The output bundle stays self-contained/offline — the original "go vendored" intent, but version-pinned via `package.json`. |
+| Q23 | UI modularization | **None — `app.js` stays a monolith.** The build only bundles/minifies/inlines; no source split. Revisit if the file outgrows ~2k lines. |
 
 ---
 
@@ -584,6 +586,16 @@ services:
 - Same coverage and suite-time target as today (~11s, bounded waits).
 - *Exit: suite organized by subject; fully green.*
 
+**M8 — Minimal frontend build (esbuild)**
+- Introduce the smallest possible build step: **esbuild** (single static binary, no config file, one-line CLI per entry) bundles `ui/app.js` (kept a **monolith — no source split**, Q23) + `ui/styles.css` into minified outputs in `ui/dist/`; `index.html` + `favicon.svg` are copied into `dist/`.
+- `marked` moves from the vendored `marked.min.js` (deleted) to the **npm `marked`**, inlined into the bundle by esbuild (Q22); `app.js` call sites updated to the npm API; `index.html` drops the marked `<script>` tag and serves the bundle as `<script type="module">` (build uses `--format=esm`).
+- npm scripts: `build`, `watch` (rebuild on save, ~50ms — FastAPI keeps serving; **no dev server, no HMR**), `verify:js` unchanged (syntax check + eslint on the sources). `ui/dist/` is gitignored.
+- App change: `_ui_dir` default becomes `ui/dist`; if absent → startup **warning** + UI mount skipped (the LLM proxy keeps working headless; `--ui-dir` still overrides).
+- Dockerfile: new `node:alpine` stage (`npm ci && npm run build`) → `COPY --from=ui … /app/ui`; runtime stage unchanged (non-root, tini, healthcheck, `--ui-dir /app/ui` as today). Devcontainer `postCreateCommand` gains `npm run build`.
+- Tests: `TestUiServing` asset assertions **skip when `ui/dist` is absent**, so the Python suite stays runnable without node.
+- *Rationale: the build is a one-time offline step (dev saves + docker build); at request time the server still just serves static files — zero per-request cost, hot path untouched.*
+- *Exit: `npm run build && npm run verify:js` clean; unit suite green with and without `dist/`; docker image builds and UI behavior is unchanged vs. the live instance; minified `app.js` materially smaller than the current 37KB source.*
+
 **Future ideas (not milestones)**
 - On-disk persistence (SQLite or JSON under `PROXY_DATA_DIR`) — Q19.
 - Additional dissectors (e.g. Anthropic, Ollama-native) if real clients need them — Q17.
@@ -636,8 +648,11 @@ llm-proxy/
 │   ├── api/
 │   │   └── ui.py              # /api/* endpoints
 │   └── dump.py                # JSON export
+├── package.json               # build + lint tooling (esbuild, marked, eslint)
+├── package-lock.json
 └── ui/
-    ├── index.html
-    ├── app.js
-    └── styles.css
+    ├── index.html             # source (copied into dist/ at build)
+    ├── app.js                 # source monolith (Q23); bundles marked from npm
+    ├── styles.css
+    └── dist/                  # gitignored esbuild output (served by the app)
 ```
