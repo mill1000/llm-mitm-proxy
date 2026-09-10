@@ -1,10 +1,11 @@
 # llm-mitm-proxy
 A simple transparent MITM proxy for LLM APIs with a live Web UI for inspecting, replaying, and exporting "conversations" between clients and an upstream server.
 
-**Trusted networks or testing only**
-There is no authentication, no SSL/TLS termination, or other "reverse proxy" feature set. Its primary intent is to provide visibility between an agent and the server.
-
 ![llm-mitm-proxy WebUI](./docs/screenshot.png)
+
+### Trusted Networks and/or Testing Only
+
+There is no authentication, no SSL/TLS termination, or other "reverse proxy" feature set. Its primary intent is to provide visibility between an agent and the server.
 
 ## Client Identification
 Clients are identified by their source IP, user agent, and API key (if provided), which determines which "conversation" traffic appears under in the Web UI. An API key is not required, IP and user agent are enough to tell many clients apart, but an API key can be used as a further split for clients sharing the same IP, and user agent.
@@ -22,6 +23,7 @@ This project was entirely **vibe coded** with Qwen 3.8 27B and the Zed Agent on 
 Work proceeded milestone by milestone according to the [PLAN.md](./docs/PLAN.md) with design, key decisions, and open questions. Occasional updates were made to the plan as direction shifted. Each milestone was tested against a llama.cpp server by a human before committed.
 
 The full agent conversation log is preserved in [CONVERSATION.md](./docs/CONVERSATION.md).
+
 
 ## Quick Start
 ### Docker Compose
