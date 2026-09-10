@@ -324,7 +324,7 @@ Notes:
 
 ## 8. Web UI Design
 
-**Vibe:** mitmproxy (list on the left) + Llama.cpp WebUI (chat in the main pane). Single page, no build step.
+**Vibe:** mitmproxy (list on the left) + Llama.cpp WebUI (chat in the main pane). Single page, vanilla JS, minimal esbuild build (M8: bundle + minify into static `ui/dist/`).
 
 ```
 
@@ -495,7 +495,7 @@ services:
 | Async | `asyncio` (+ optional `uvloop`) |
 | Web framework | FastAPI + Uvicorn |
 | HTTP client | `httpx2` (async, pooled, streaming) |
-| Live UI | Native `WebSocket` + vanilla JS (no framework); minimal esbuild build (bundle + minify + inline `marked`) → static `ui/dist` |
+| Live UI | Native `WebSocket` + vanilla JS (no framework); minimal esbuild build (bundle + minify + inline `marked`) → in-package `llm_proxy/web` (wheel package data) |
 | SSE parsing | small hand-rolled line parser (no heavy dep) |
 | Config | pydantic `Settings` (CLI args; container env vars mapped by the image `CMD`) |
 | Packaging | `pyproject.toml` + `pip` (PEP 621) |
@@ -530,6 +530,7 @@ services:
 | Q21 | `openai` dissector match scope | **`POST */chat/completions` only** (both `/v1/chat/completions` and bare `/chat/completions`) — no legacy `/v1/completions`; unmatched requests fall back to `generic` (§6). |
 | Q22 | `marked` source | **npm `marked` bundled into `app.js` by esbuild** (replaces the vendored `marked.min.js`, which is deleted). The output bundle stays self-contained/offline — the original "go vendored" intent, but version-pinned via `package.json`. |
 | Q23 | UI modularization | **None — `app.js` stays a monolith.** The build only bundles/minifies/inlines; no source split. Revisit if the file outgrows ~2k lines. |
+| Q24 | PyPI distribution | **Yes — the wheel is the full app.** `npm run build` outputs into the package (`llm_proxy/web/`), shipped as explicit package data; a `pip install llm-proxy` (or `pipx`) copy serves the WebUI with no extra files. Release process: build the UI before the wheel. The Docker runtime inherits this (no separate UI copy). |
 
 ---
 
@@ -587,12 +588,14 @@ services:
 - *Exit: suite organized by subject; fully green.*
 
 **M8 — Minimal frontend build (esbuild)**
-- Introduce the smallest possible build step: **esbuild** (single static binary, no config file, one-line CLI per entry) bundles `ui/app.js` (kept a **monolith — no source split**, Q23) + `ui/styles.css` into minified outputs in `ui/dist/`; `index.html` + `favicon.svg` are copied into `dist/`.
+- Introduce the smallest possible build step: **esbuild** (single static binary, no config file, one-line CLI per entry) bundles `ui/app.js` (kept a **monolith — no source split**, Q23) + `ui/styles.css` into minified outputs **inside the package at `llm_proxy/web/`**; `index.html` + `favicon.svg` are copied alongside. The directory is gitignored and shipped in the wheel as explicit package data (Q24).
 - `marked` moves from the vendored `marked.min.js` (deleted) to the **npm `marked`**, inlined into the bundle by esbuild (Q22); `app.js` call sites updated to the npm API; `index.html` drops the marked `<script>` tag and serves the bundle as `<script type="module">` (build uses `--format=esm`).
-- npm scripts: `build`, `watch` (rebuild on save, ~50ms — FastAPI keeps serving; **no dev server, no HMR**), `verify:js` unchanged (syntax check + eslint on the sources). `ui/dist/` is gitignored.
-- App change: `_ui_dir` default becomes `ui/dist`; if absent → startup **warning** + UI mount skipped (the LLM proxy keeps working headless; `--ui-dir` still overrides).
-- Dockerfile: new `node:alpine` stage (`npm ci && npm run build`) → `COPY --from=ui … /app/ui`; runtime stage unchanged (non-root, tini, healthcheck, `--ui-dir /app/ui` as today). Devcontainer `postCreateCommand` gains `npm run build`.
-- Tests: `TestUiServing` asset assertions **skip when `ui/dist` is absent**, so the Python suite stays runnable without node.
+- npm scripts: `build`, `watch` (rebuild on save, ~50ms — FastAPI keeps serving; **no dev server, no HMR**), `verify:js` unchanged (syntax check + eslint on the sources). `llm_proxy/_ui/` is gitignored; `package-lock.json` is now **committed** (Docker `npm ci` requires it).
+- App change: `_ui_dir` default becomes the in-package `llm_proxy/web` (served from site-packages in wheel/pipx installs, from the source tree in editable dev); if absent → startup **warning** + UI mount skipped (the LLM proxy keeps working headless; `--ui-dir` still overrides).
+- Dockerfile: new `node:alpine` stage (`npm ci && npm run build`) builds the UI into the package; the backend stage copies `llm_proxy/web` into the wheel build tree, so the **runtime stage needs no UI copy and `CMD` drops `--ui-dir /app/ui`** (non-root/tini/healthcheck unchanged). Devcontainer `postCreateCommand` gains `npm run build`.
+- Tests: `TestUiServing` asset assertions **skip when the in-package `web/` is absent** (suite stays runnable without node); `TestPackaging` gains an assertion that the four UI assets exist inside the installed package.
+- *Rationale: the build is a one-time offline step (dev saves + docker/release build); at request time the server still just serves static files — zero per-request cost, hot path untouched.*
+- *Exit: `npm run build && npm run verify:js` clean; unit suite green with and without the built UI; docker image builds and UI behavior is unchanged vs. the live instance; a built wheel unpacks with `llm_proxy/web/` present; minified `app.js` materially smaller than the current 37KB source.*
 - *Rationale: the build is a one-time offline step (dev saves + docker build); at request time the server still just serves static files — zero per-request cost, hot path untouched.*
 - *Exit: `npm run build && npm run verify:js` clean; unit suite green with and without `dist/`; docker image builds and UI behavior is unchanged vs. the live instance; minified `app.js` materially smaller than the current 37KB source.*
 
@@ -647,12 +650,12 @@ llm-proxy/
 │   ├── hub.py                 # WebSocket hub
 │   ├── api/
 │   │   └── ui.py              # /api/* endpoints
-│   └── dump.py                # JSON export
+│   ├── dump.py                # JSON export
+│   └── web/                   # gitignored esbuild output; wheel package data (Q24)
 ├── package.json               # build + lint tooling (esbuild, marked, eslint)
-├── package-lock.json
+├── package-lock.json          # committed (npm ci in the Dockerfile)
 └── ui/
-    ├── index.html             # source (copied into dist/ at build)
+    ├── index.html             # source (copied into llm_proxy/web at build)
     ├── app.js                 # source monolith (Q23); bundles marked from npm
-    ├── styles.css
-    └── dist/                  # gitignored esbuild output (served by the app)
+    └── styles.css
 ```

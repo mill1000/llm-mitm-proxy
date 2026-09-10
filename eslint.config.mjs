@@ -2,17 +2,16 @@ import globals from "globals";
 
 export default [
   {
-    ignores: ["node_modules/", "ui/marked.min.js"],
+    ignores: ["node_modules/", "llm_proxy/web/"],
   },
   {
     files: ["ui/**/*.js"],
     languageOptions: {
       ecmaVersion: 2022,
-      sourceType: "script",
+      sourceType: "module",
       globals: {
         ...globals.browser,
         ...globals.es2021,
-        marked: "readonly",
       },
     },
     rules: {

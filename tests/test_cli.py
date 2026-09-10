@@ -8,8 +8,12 @@ import contextlib
 import importlib
 import io
 import unittest
+from pathlib import Path
 
+import llm_proxy
 from llm_proxy.app import cli_overrides
+
+UI_DIR = Path(llm_proxy.__file__).resolve().parent / "web"
 
 
 class TestPackaging(unittest.TestCase):
@@ -31,6 +35,13 @@ class TestPackaging(unittest.TestCase):
         module_name, _, attr = eps[0].value.partition(":")
         module = importlib.import_module(module_name)
         self.assertTrue(callable(getattr(module, attr)))
+
+    def test_ui_assets_ship_in_package(self):
+        """The WebUI build output must live inside the package (wheel = full app for PyPI)."""
+        if not UI_DIR.is_dir():
+            self.skipTest("WebUI not built; run `npm run build`")
+        for asset in ("index.html", "app.js", "styles.css", "favicon.svg"):
+            self.assertTrue((UI_DIR / asset).is_file(), asset)
 
 
 class TestCli(unittest.TestCase):

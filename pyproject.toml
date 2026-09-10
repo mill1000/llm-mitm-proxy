@@ -36,6 +36,16 @@ llm-proxy = "llm_proxy.app:main"
 where = ["."]
 include = ["llm_proxy*"]
 
+# WebUI build output (esbuild; `npm run build`). Shipped in the wheel so a
+# pip-installed copy serves the UI with no extra files. Gitignored.
+[tool.setuptools.package-data]
+llm_proxy = [
+    "web/index.html",
+    "web/app.js",
+    "web/styles.css",
+    "web/favicon.svg",
+]
+
 [tool.isort]
 profile = "black"
 known_first_party = ["llm_proxy"]

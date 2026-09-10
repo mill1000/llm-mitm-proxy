@@ -1,10 +1,12 @@
-/* LLM Proxy — live conversation UI (vanilla JS, no build).
+/* LLM Proxy — live conversation UI (vanilla JS, esbuild-bundled; see package.json).
  *
  * One WebSocket to /ws drives live updates; REST (/api/...) is used for the
  * initial load, export, and clear. The dock shows conversations; the main pane
  * renders each exchange two-sided (client request | server response) with
  * live token streaming, timestamps, timing deltas, and expandable full wire.
  */
+import { marked } from "marked";
+
 (() => {
   "use strict";
 
@@ -290,11 +292,9 @@
     });
   }
 
-  // Model output markdown via vendored marked (ui/marked.min.js).
+  // Model output markdown (marked is bundled into this file by esbuild).
   function mdToHtml(src) {
-    const text = String(src ?? "");
-    if (typeof marked === "undefined") return esc(text);
-    return marked.parse(text, { gfm: true, breaks: true });
+    return marked.parse(String(src ?? ""), { gfm: true, breaks: true });
   }
 
   function setText(el, text) {

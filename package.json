@@ -1,14 +1,21 @@
 {
-  "name": "llm-proxy-dev",
+  "name": "llm-proxy",
   "private": true,
   "version": "0.0.0",
-  "description": "Dev-only tooling for JS verification. The UI itself has no build step (plain JS served from ui/).",
+  "description": "WebUI build (esbuild) + JS verification for the LLM proxy.",
+  "type": "module",
   "scripts": {
+    "build": "esbuild ui/app.js --bundle --minify --format=esm --outfile=llm_proxy/web/app.js && esbuild ui/styles.css --bundle --minify --outfile=llm_proxy/web/styles.css && cp ui/index.html ui/favicon.svg llm_proxy/web/",
+    "watch": "esbuild ui/app.js ui/styles.css --bundle --format=esm --outdir=llm_proxy/web --watch",
     "check": "node --check ui/app.js",
     "lint": "eslint ui",
     "verify:js": "npm run check && npm run lint"
   },
+  "dependencies": {
+    "marked": "^15.0.12"
+  },
   "devDependencies": {
+    "esbuild": "^0.25.0",
     "eslint": "^9",
     "globals": "^16"
   }

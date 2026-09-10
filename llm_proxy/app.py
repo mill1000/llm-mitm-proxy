@@ -44,10 +44,10 @@ log = logging.getLogger("llm_proxy")
 
 
 def _ui_dir(settings: Settings) -> Path:
-    """Resolve the static UI directory (``ui_dir`` override, else repo-relative ``ui/``)."""
+    """Resolve the static UI directory (``ui_dir`` override, else the in-package build)."""
     if settings.ui_dir:
         return Path(settings.ui_dir)
-    return Path(__file__).resolve().parents[1] / "ui"
+    return Path(__file__).resolve().parent / "web"
 
 
 class _NoCacheStaticFiles(StaticFiles):
@@ -216,6 +216,8 @@ def create_ui_app(ctx: Context) -> FastAPI:
 
     if ui_dir.is_dir():
         app.mount("/", _NoCacheStaticFiles(directory=ui_dir, html=True), name="ui")
+    else:
+        log.warning("UI directory %s not found — Web UI disabled (run `npm run build`)", ui_dir)
 
     return app
 

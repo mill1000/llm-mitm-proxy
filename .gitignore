@@ -1,10 +1,12 @@
 __pycache__/
 *.py[cod]
 *.egg-info/
+build/
+dist/
 .venv/
 venv/
 node_modules/
+llm_proxy/web/
 .env
 .DS_Store
 devcontainer-lock.json
-package-lock.json

@@ -16,7 +16,7 @@ nothing ever 404s at the proxy.
 
 ## Status
 
-**M7 — test reorganization** (this tree; awaiting commit). The proxy stays a
+**M8 — minimal frontend build** (this tree; awaiting commit). The proxy stays a
 transparent catch-all: one process, two listeners — the **LLM port (default
 8080)** forwards every method/path (query string included) to the upstream
 verbatim with **no reserved routes**, so clients like Zed work through it with
@@ -36,7 +36,8 @@ other request (`/v1/models`, `/props`, unknown paths, …) falls back to the
 - M4 — polish (replay editor dock, collapsible thinking, minimal compose) — done
 - M5 — transparent MITM core (two-port: LLM catch-all 8080, UI 9090) — done
 - M6 — per-request decode (openai chat decoder + generic fallback, tool-calls UI) — done
-- M7 — test reorganization (by subject: cli, proxy, ws, ui-api, dissectors, shutdown) — done (awaiting commit)
+- M7 — test reorganization (by subject: cli, proxy, ws, ui-api, dissectors, shutdown) — done
+- M8 — minimal frontend build (esbuild bundle + minify into the package; wheel ships the UI) — done (awaiting commit)
 
 ## Quick start (Docker)
 
@@ -117,26 +118,34 @@ isort llm_proxy tests
 black llm_proxy tests
 ```
 
-JS is verified with **`node --check` + ESLint** (flat config in `eslint.config.mjs`;
-the UI itself has no build step — plain JS served from `ui/`):
+JS is **built with esbuild** (`ui/` sources → minified bundle inside the package
+at `llm_proxy/web/`, with `marked` bundled in from npm) and verified with
+**`node --check` + ESLint** (flat config in `eslint.config.mjs`). The build is
+one-time per change — the server serves the static in-package output
+(zero per-request cost):
 
 ```bash
 npm install
-npm run verify:js
+npm run build          # one-time; use `npm run watch` while iterating on the UI
+npm run verify:js      # node --check + ESLint over ui/
 ```
+
+Running the proxy without a built UI still works for the LLM port; the Web UI
+mount is skipped with a warning until `npm run build` has been run.
 
 ## Dev container
 
 The repo includes a [devcontainer](./.devcontainer/devcontainer.json) (Python 3.14 +
 Node LTS). In VS Code: **Dev Containers: Reopen in Container**. On startup it
 installs the package (`.[dev]`) into the image's system Python (no
-`.venv` is created) and runs `npm install`.
+`.venv` is created), runs `npm install`, and builds the UI (`npm run build`).
 
 Inside the container:
 
 ```bash
-python -m unittest discover -v      # Python test suite (M0–M6)
-npm run verify:js                   # node --check + ESLint over ui/
+python -m unittest discover -v      # Python test suite (M0–M8)
+npm run build && npm run verify:js  # esbuild bundle + node --check + ESLint
+npm run watch                       # optional: rebuild the UI on save
 llm-proxy http://localhost:8080
 ```
 
@@ -156,6 +165,10 @@ untagged checkouts report a `dev` version with the commit id.
   includes `.git`), so the current tag is picked up automatically;
   `docker build --build-arg VERSION=2026.09.08 .` overrides it. The runtime
   stage is a minimal `alpine` image (wheel installed via `pipx`, non-root).
+- **Release (PyPI)**: the wheel is the full app — build the UI *before*
+  building the wheel so `llm_proxy/web/` is included:
+  `npm run build && python -m build`. A wheel built without the UI still works
+  (LLM port) but skips the Web UI with a startup warning.
 
 ## Configuration
 
@@ -180,7 +193,7 @@ usage: llm-proxy [-h] [--version] [--host HOST] [--llm-port PORT] [--ui-port POR
 | `--ui-port` | WebUI + `/api/*` + `/ws` + `/health` listener port (default `9090`) |
 | `--upstream-api-key` | optional server-side fallback key, injected only when a client sends no key |
 | `--log-level` | app loggers, incl. the `llm_proxy.ws` connection trace at `debug` (connect/focus/disconnect) |
-| `--ui-dir` | static UI directory (default: the package-relative `ui/`; the image passes `/app/ui`) |
+| `--ui-dir` | static UI directory (default: the in-package `llm_proxy/web` build) |
 | `--help` / `--version` | usage / package version |
 
 ### Docker env vars
@@ -234,7 +247,9 @@ llm_proxy/
   store/               # in-memory store + retention
   api/                 # /api/* UI endpoints
   dump.py              # JSON export
-ui/                    # static single-page UI (index.html, app.js, styles.css; no build;
-                       #   markdown rendered by vendored marked v15.0.12 — marked.min.js)
+ui/                    # single-page UI sources (index.html, app.js, styles.css)
+llm_proxy/web/         # gitignored esbuild output (bundled marked, minified); shipped
+                       #   in the wheel as package data and served from there
+package.json           # esbuild build + JS verification (marked, eslint)
 Dockerfile, docker-compose.yml
 ```

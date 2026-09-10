@@ -8,6 +8,7 @@ from __future__ import annotations
 import threading
 import time
 import unittest
+from pathlib import Path
 
 try:  # package form (unittest discover)
     from . import mock_upstream
@@ -203,6 +204,14 @@ class TestExchangeRemoval(MockedCase):
 class TestUiServing(MockedCase):
     """The WebUI SPA and its assets are served from the UI listener's static
     mount (no placeholder links, no browser caching, favicon.ico -> SVG)."""
+
+    @classmethod
+    def setUpClass(cls):
+        import llm_proxy
+
+        if not (Path(llm_proxy.__file__).resolve().parent / "web").is_dir():
+            raise unittest.SkipTest("WebUI not built; run `npm run build`")
+        super().setUpClass()
 
     def test_serves_ui_and_favicon(self):
         # The status page is served from the ui/ dir and must not contain
