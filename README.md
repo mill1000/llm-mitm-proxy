@@ -16,7 +16,7 @@ nothing ever 404s at the proxy.
 
 ## Status
 
-**M6 — dissector framework** (this tree; awaiting commit). The proxy stays a
+**M7 — test reorganization** (this tree; awaiting commit). The proxy stays a
 transparent catch-all: one process, two listeners — the **LLM port (default
 8080)** forwards every method/path (query string included) to the upstream
 verbatim with **no reserved routes**, so clients like Zed work through it with
@@ -35,7 +35,8 @@ other request (`/v1/models`, `/props`, unknown paths, …) falls back to the
 - M3 — hardening (timeouts, WS liveness, non-root multi-arch image) — done
 - M4 — polish (replay editor dock, collapsible thinking, minimal compose) — done
 - M5 — transparent MITM core (two-port: LLM catch-all 8080, UI 9090) — done
-- M6 — per-request decode (openai chat decoder + generic fallback, tool-calls UI) — done (awaiting commit)
+- M6 — per-request decode (openai chat decoder + generic fallback, tool-calls UI) — done
+- M7 — test reorganization (by subject: cli, proxy, ws, ui-api, dissectors, shutdown) — done (awaiting commit)
 
 ## Quick start (Docker)
 

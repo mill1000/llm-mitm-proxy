@@ -1,57 +1,27 @@
-"""M6 tests: per-request decode. Chat is decoded by the openai dissector;
-everything else falls back to the generic raw capture (per-exchange marker)."""
+"""Dissectors: chat-completions decode (openai) vs the generic raw-capture
+fallback, selected per request; plus the last-user preview helper."""
 
 from __future__ import annotations
 
 import unittest
 
 try:  # package form (unittest discover)
-    from .helpers import clients, close
-    from .mock_upstream import start_mock, stop_mock
+    from .helpers import CHAT, CID, MockedCase, payload
 except ImportError:  # direct execution fallback
-    from helpers import clients, close  # type: ignore
-    from mock_upstream import start_mock, stop_mock  # type: ignore
+    from helpers import CHAT, CID, MockedCase, payload  # type: ignore
 
-from llm_proxy.config import Settings
 from llm_proxy.dissectors.openai import _last_user_preview
 
-BASE = Settings(upstream_base_url="http://127.0.0.1:8082", log_level="critical")
 
-MOCK_PORT = 8082
-CHAT = "/v1/chat/completions"
-CID = "testclient"  # the source host Starlette's TestClient presents to the proxy
-
-
-def _payload(stream: bool, model: str = "local-model") -> dict:
-    return {"model": model, "stream": stream, "messages": [{"role": "user", "content": "hi"}]}
-
-
-class TestDecode(unittest.TestCase):
+class TestDecode(MockedCase):
     """Per-request decode: chat -> openai decoder, non-chat -> generic fallback."""
-
-    @classmethod
-    def setUpClass(cls):
-        start_mock(MOCK_PORT)
-
-    @classmethod
-    def tearDownClass(cls):
-        try:
-            stop_mock()
-        except Exception:
-            pass
-
-    def setUp(self):
-        self.ctx, self.llm, self.ui = clients(BASE)
-
-    def tearDown(self):
-        close(self.llm, self.ui)
 
     def _exchanges(self) -> list[dict]:
         """The testclient's exchanges, read back through the UI API."""
         return self.ui.get(f"/api/conversations/{CID}").json()["exchanges"]
 
     def test_chat_decoded_as_openai(self):
-        self.llm.post(CHAT, json=_payload(stream=True))
+        self.llm.post(CHAT, json=payload(stream=True))
         (ex,) = self._exchanges()
         self.assertEqual(ex["dissector"], "openai")
         self.assertEqual(
@@ -70,7 +40,7 @@ class TestDecode(unittest.TestCase):
         self.assertEqual(exs[2]["server_response"]["status"], 404)
 
     def test_mixed_conversation(self):
-        self.llm.post(CHAT, json=_payload(stream=True))
+        self.llm.post(CHAT, json=payload(stream=True))
         self.llm.get("/props", params={"model": "m"})
         exs = self._exchanges()
         self.assertEqual(exs[0]["dissector"], "openai")

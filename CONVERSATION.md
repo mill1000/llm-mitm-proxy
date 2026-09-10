@@ -335607,3 +335607,4603 @@ User's clarification: we're still on M6 (polish), and M7 must not be performed. 
 </thinking>
 
 Understood — staying on M6 polish, no M7 test restructure. Current state stands: everything in the working tree is done and tested (61/61), your side is `npm run verify:js`, rebuild + spot-check, commit. Send the next polish item whenever ready.
+
+## User (checkpoint)
+
+Ok begin M7
+
+## Assistant
+
+<thinking>
+The user is saying "Ok, start M7." In other words, the M7 hold is lifted — reorganize `tests/` by subject rather than by milestone.
+
+M7 in the plan:
+- Reorganize `tests/` by subject rather than milestone: `test_store.py`, `test_proxy.py` (forwarding/streaming/timings/client-id), `test_dissectors.py`, `test_ui_api.py`, `test_ws.py`, `test_cli.py` (keep `mock_upstream.py`).
+- Same coverage and suite time target as current (~11 seconds, with bounded waits).
+- *Exit criterion: suite organized by subject; all green.*
+
+First, let me investigate the current test files and their contents and plan the reorganization. Files: tests/test_m0.py, test_m1.py, test_m2.py, test_m3.py(?), test_shutdown.py, helpers.py, mock_upstream.py.
+
+Let me list the tests directory and check the test classes in each file.
+
+Approach: this is a reorganization task, and moving test methods between files. Main considerations:
+- Test classes may share setup (e.g., app factory with mock upstream). Each file may have its own setUp.
+- `unittest discover` picks up files matching `test*.py`.
+- Moving tests: each target file may need the setUp/fixture from the source file. If different source files have different setUp (e.g., m0 is llm app only, m1 is ui app + llm app), then merging by subject could create fixture conflicts.
+
+Let me check the structure first.
+
+</thinking>
+
+**Tool Call: List the `llm-proxy/tests` directory's contents**
+Status: Completed
+
+# Folders:
+llm-proxy/tests/__pycache__
+
+# Files:
+llm-proxy/tests/__init__.py
+llm-proxy/tests/helpers.py
+llm-proxy/tests/mock_upstream.py
+llm-proxy/tests/test_client_removal.py
+llm-proxy/tests/test_exchange_removal.py
+llm-proxy/tests/test_inflight.py
+llm-proxy/tests/test_m0.py
+llm-proxy/tests/test_m1.py
+llm-proxy/tests/test_m2.py
+llm-proxy/tests/test_m3.py
+llm-proxy/tests/test_m5.py
+llm-proxy/tests/test_m6.py
+llm-proxy/tests/test_shutdown.py
+
+
+**Tool Call: grep -n "class Test\|^import\|^from" tests/test_m0.py tests/test_m1.py tests/test_m2.py tests/test_m3.py tests/test_shutdown.py 2>/dev/null**
+Status: Completed
+
+Terminal:
+```
+tests/test_m0.py:3:from __future__ import annotations
+tests/test_m0.py:5:import contextlib
+tests/test_m0.py:6:import importlib
+tests/test_m0.py:7:import io
+tests/test_m0.py:8:import socket
+tests/test_m0.py:9:import unittest
+tests/test_m0.py:10:from urllib.parse import quote
+tests/test_m0.py:12:from fastapi.testclient import TestClient
+tests/test_m0.py:21:from llm_proxy.app import Context, cli_overrides, create_llm_app, create_ui_app
+tests/test_m0.py:22:from llm_proxy.config import Settings
+tests/test_m0.py:36:class TestPackaging(unittest.TestCase):
+tests/test_m0.py:57:class TestCli(unittest.TestCase):
+tests/test_m0.py:76:class TestProxy(unittest.TestCase):
+tests/test_m1.py:3:from __future__ import annotations
+tests/test_m1.py:5:import logging
+tests/test_m1.py:6:import threading
+tests/test_m1.py:7:import time
+tests/test_m1.py:8:import unittest
+tests/test_m1.py:10:from fastapi.testclient import TestClient
+tests/test_m1.py:19:from llm_proxy.config import Settings
+tests/test_m1.py:70:class TestLiveFanOut(unittest.TestCase):
+tests/test_m2.py:3:from __future__ import annotations
+tests/test_m2.py:5:import unittest
+tests/test_m2.py:16:from llm_proxy.config import Settings
+tests/test_m2.py:34:class TestReplayAndExport(unittest.TestCase):
+tests/test_m3.py:3:from __future__ import annotations
+tests/test_m3.py:5:import json
+tests/test_m3.py:6:import time
+tests/test_m3.py:7:import unittest
+tests/test_m3.py:9:from fastapi.testclient import TestClient
+tests/test_m3.py:11:from llm_proxy.app import Context, create_ui_app
+tests/test_m3.py:12:from llm_proxy.config import Settings
+tests/test_m3.py:31:class TestUpstreamTimeouts(unittest.TestCase):
+tests/test_m3.py:49:class TestWsLiveness(unittest.TestCase):
+tests/test_shutdown.py:10:from __future__ import annotations
+tests/test_shutdown.py:12:import http.client
+tests/test_shutdown.py:13:import json
+tests/test_shutdown.py:14:import signal
+tests/test_shutdown.py:15:import socket
+tests/test_shutdown.py:16:import subprocess
+tests/test_shutdown.py:17:import sys
+tests/test_shutdown.py:18:import threading
+tests/test_shutdown.py:19:import time
+tests/test_shutdown.py:20:import unittest
+tests/test_shutdown.py:21:from pathlib import Path
+tests/test_shutdown.py:23:from llm_proxy.app import SHUTDOWN_GRACE
+
+```
+
+
+## Assistant
+
+<thinking>
+Current test files:
+- test_client_removal.py
+- test_exchange_removal.py
+- test_inflight.py
+- test_m0.py (TestPackaging, TestCli, TestProxy)
+- test_m1.py (TestLiveFanOut)
+- test_m2.py (TestReplayAndExport)
+- test_m3.py (TestUpstreamTimeouts, TestWsLiveness)
+- test_m5.py
+- test_m6.py
+- test_shutdown.py
+- helpers.py, mock_upstream.py
+
+Let me check the classes in test_m5.py and test_m6.py (the grep didn't cover them—wait, it should have… the grep command included tests/test_m3.py tests/test_shutdown.py but did not include test_m5/test_m6/test_client_removal/test_exchange_removal/test_inflight). Let me grep these too.
+
+</thinking>
+
+**Tool Call: grep -n "class Test\|^import\|^from" tests/test_m5.py tests/test_m6.py tests/test_client_removal.py tests/test_exchange_removal.py tests/test_inflight.py tests/helpers.py**
+Status: Completed
+
+Terminal:
+```
+tests/test_m5.py:7:from __future__ import annotations
+tests/test_m5.py:9:import unittest
+tests/test_m5.py:18:from llm_proxy.app import cli_overrides
+tests/test_m5.py:19:from llm_proxy.config import Settings
+tests/test_m5.py:27:class TestCliPorts(unittest.TestCase):
+tests/test_m5.py:37:class TestTransparent(unittest.TestCase):
+tests/test_m6.py:4:from __future__ import annotations
+tests/test_m6.py:6:import unittest
+tests/test_m6.py:15:from llm_proxy.config import Settings
+tests/test_m6.py:16:from llm_proxy.dissectors.openai import _last_user_preview
+tests/test_m6.py:29:class TestDecode(unittest.TestCase):
+tests/test_m6.py:82:class TestPreview(unittest.TestCase):
+tests/test_client_removal.py:4:from __future__ import annotations
+tests/test_client_removal.py:6:import unittest
+tests/test_client_removal.py:15:from llm_proxy.config import Settings
+tests/test_client_removal.py:24:class TestClientRemoval(unittest.TestCase):
+tests/test_exchange_removal.py:8:from __future__ import annotations
+tests/test_exchange_removal.py:10:import threading
+tests/test_exchange_removal.py:11:import time
+tests/test_exchange_removal.py:12:import unittest
+tests/test_exchange_removal.py:21:from llm_proxy.config import Settings
+tests/test_exchange_removal.py:30:class TestExchangeRemoval(unittest.TestCase):
+tests/test_inflight.py:10:from __future__ import annotations
+tests/test_inflight.py:12:import threading
+tests/test_inflight.py:13:import time
+tests/test_inflight.py:14:import unittest
+tests/test_inflight.py:23:from llm_proxy.config import Settings
+tests/test_inflight.py:32:class TestInFlight(unittest.TestCase):
+tests/helpers.py:10:from __future__ import annotations
+tests/helpers.py:12:from fastapi.testclient import TestClient
+tests/helpers.py:14:from llm_proxy.app import Context, create_llm_app, create_ui_app
+tests/helpers.py:15:from llm_proxy.config import Settings
+
+```
+
+
+## Assistant
+
+<thinking>
+Okay, now I've got the full picture of the current test organization:
+
+| File | Classes | Subject |
+|---|---|---|
+| test_m0.py | TestPackaging, TestCli, TestProxy | packaging, CLI, proxy basics |
+| test_m1.py | TestLiveFanOut | WS fanout (live UI) |
+| test_m2.py | TestReplayAndExport | replay + export |
+| test_m3.py | TestUpstreamTimeouts, TestWsLiveness | proxy timeouts, WS liveness |
+| test_m5.py | TestCliPorts, TestTransparent | CLI ports, transparent catch-all |
+| test_m6.py | TestDecode, TestPreview | dissectors |
+| test_client_removal.py | TestClientRemoval | UI API |
+| test_exchange_removal.py | TestExchangeRemoval | UI API (deleting exchanges) |
+| test_inflight.py | TestInFlight | proxy (in-flight) |
+| test_shutdown.py | (tests) | ops/shutdown |
+| helpers.py, mock_upstream.py | shared | shared |
+
+M7 target organization from the plan:
+- `test_store.py` — tests for the store (ring buffer, retention)
+- `test_proxy.py` — forwarding / streaming / timing / client-id
+- `test_dissectors.py` — dissectors
+- `test_ui_api.py` — /api/* endpoints
+- `test_ws.py` — WS fanout + liveness
+- `test_cli.py` — CLI / argparse / packaging
+- Keep `mock_upstream.py`
+
+So the mapping is:
+- test_cli.py ← TestPackaging (test_m0), TestCli (test_m0), TestCliPorts (test_m5)
+- test_proxy.py ← TestProxy (test_m0), TestUpstreamTimeouts (test_m3), TestTransparent (test_m5), TestInFlight (test_inflight)
+- test_ws.py ← TestLiveFanOut (test_m1), TestWsLiveness (test_m3)
+- test_ui_api.py ← TestReplayAndExport (test_m2)? Hmm — replay and export: replay is an API endpoint (POST /api/…/replay), and export is GET /api/conversations/<id>/export. These are UI API endpoints, so test_ui_api.py. Plus TestClientRemoval, TestExchangeRemoval.
+- test_dissectors.py ← TestDecode, TestPreview (test_m6)
+- test_store.py ← ??? Where are the store tests? TestProxy in test_m0 might include store/retention tests. Let me check the actual test methods in each file and map them accurately.
+- test_shutdown.py ← keep as is (already subject-named; the plan says "keep mock_upstream.py" — shutdown is fine as its own subject file; the plan's list is illustrative: "reorganize tests/ by subject rather than milestone: test_store.py, test_proxy.py (…), test_dissectors.py, test_ui_api.py, test_ws.py, test_cli.py (keep mock_upstream.py)". shutdown is already subject-named, so keep it.
+
+Before moving, I need to read each file to understand:
+1. What fixtures each class uses (setUp builds the app with mock upstream and TestClient).
+2. Shared helpers within a file (module-level constants like CID, CHAT, _payload, _read_until_completed).
+
+Key design question: if I merge multiple classes into a single file, will they share setUp or be independent? The safest, most minimal change: each class keeps its own setUp, and I just move whole classes (and their private module-level helpers) to the target file. Where the same helper appears in multiple files, consolidate into helpers.py if possible.
+
+This is a fairly hefty amount of mechanical work. Plan:
+1. Fully read each test file.
+2. Decide on the mapping and the final file contents.
+3. Write the new files (or create + move + delete).
+4. Run formatters, then run the tests.
+5. Update PLAN.md's M7 to done? The user commits; mark M7's status in PLAN/README as done. The README's status says "M6 … (this tree; awaiting commit)". Once M7 is implemented, the status should be updated to M7. Hmm — the README's "Status" section header says "M6 — dissector framework (this tree; awaiting commit)". After M7: "M7 — test reorganization (this tree; awaiting commit)". I'll update at the end.
+
+Let me start reading the files. They're somewhat long, so I'll read each file in full. test_m1.py is about 380 lines (I've read parts). I'll read them all.
+
+</thinking>
+
+M7 = reorganize `tests/` by subject. Let me read all the test files to map classes → target files.
+
+
+
+**Tool Call: Read file `tests/test_m0.py`**
+Status: Completed
+
+```llm-proxy/tests/test_m0.py
+     1	"""M0 end-to-end tests: the proxy running against the mock llama.cpp upstream."""
+     2	
+     3	from __future__ import annotations
+     4	
+     5	import contextlib
+     6	import importlib
+     7	import io
+     8	import socket
+     9	import unittest
+    10	from urllib.parse import quote
+    11	
+    12	from fastapi.testclient import TestClient
+    13	
+    14	try:  # package form (unittest discover)
+    15	    from .helpers import clients, close
+    16	    from .mock_upstream import start_mock, stop_mock
+    17	except ImportError:  # direct execution fallback
+    18	    from helpers import clients, close  # type: ignore
+    19	    from mock_upstream import start_mock, stop_mock  # type: ignore
+    20	
+    21	from llm_proxy.app import Context, cli_overrides, create_llm_app, create_ui_app
+    22	from llm_proxy.config import Settings
+    23	
+    24	# Settings for the app under test: the local mock upstream, quiet logs (tests
+    25	# that assert on logs capture their own handler).
+    26	BASE = Settings(upstream_base_url="http://127.0.0.1:8082", log_level="critical")
+    27	
+    28	MOCK_PORT = 8082
+    29	CHAT = "/v1/chat/completions"
+    30	
+    31	
+    32	def _payload(stream: bool) -> dict:
+    33	    return {"model": "local-model", "stream": stream, "messages": [{"role": "user", "content": "hi"}]}
+    34	
+    35	
+    36	class TestPackaging(unittest.TestCase):
+    37	    """__version__ must come from the installed package metadata (setuptools_scm), not a fallback."""
+    38	
+    39	    def test_version_matches_installed_metadata(self):
+    40	        from importlib.metadata import version as pkg_version
+    41	
+    42	        from llm_proxy import __version__
+    43	
+    44	        self.assertEqual(__version__, pkg_version("llm-proxy"))
+    45	
+    46	    def test_console_script_resolves(self):
+    47	        """The llm-proxy console script must resolve to a callable in the package."""
+    48	        from importlib.metadata import distribution
+    49	
+    50	        eps = [ep for ep in distribution("llm-proxy").entry_points if ep.name == "llm-proxy"]
+    51	        self.assertEqual(len(eps), 1)
+    52	        module_name, _, attr = eps[0].value.partition(":")
+    53	        module = importlib.import_module(module_name)
+    54	        self.assertTrue(callable(getattr(module, attr)))
+    55	
+    56	
+    57	class TestCli(unittest.TestCase):
+    58	    """cli_overrides() maps command-line args onto Settings field names."""
+    59	
+    60	    def test_no_args_no_overrides(self):
+    61	        self.assertEqual(cli_overrides([]), {})
+    62	
+    63	    def test_positional_upstream_and_flags(self):
+    64	        self.assertEqual(
+    65	            cli_overrides(["http://127.0.0.1:8080", "--host", "0.0.0.0", "--ui-port", "9091"]),
+    66	            {"upstream_base_url": "http://127.0.0.1:8080", "listen_host": "0.0.0.0", "ui_port": 9091},
+    67	        )
+    68	
+    69	    def test_help_exits_zero(self):
+    70	        with contextlib.redirect_stdout(io.StringIO()):
+    71	            with self.assertRaises(SystemExit) as cm:
+    72	                cli_overrides(["--help"])
+    73	        self.assertEqual(cm.exception.code, 0)
+    74	
+    75	
+    76	class TestProxy(unittest.TestCase):
+    77	    """Each test uses a fresh shared Context (isolated store) against the shared mock."""
+    78	
+    79	    @classmethod
+    80	    def setUpClass(cls):
+    81	        start_mock(MOCK_PORT)
+    82	
+    83	    @classmethod
+    84	    def tearDownClass(cls):
+    85	        try:
+    86	            stop_mock()
+    87	        except Exception:
+    88	            pass
+    89	
+    90	    def setUp(self):
+    91	        self.ctx, self.llm, self.ui = clients(BASE)
+    92	
+    93	    def tearDown(self):
+    94	        close(self.llm, self.ui)
+    95	
+    96	    def test_health(self):
+    97	        r = self.ui.get("/health")
+    98	        self.assertEqual(r.status_code, 200)
+    99	        body = r.json()
+   100	        self.assertEqual(body["status"], "ok")
+   101	        self.assertEqual(body["upstream"], "ok")
+   102	        self.assertEqual(body["upstream_url"], BASE.upstream_base_url)
+   103	
+   104	    def test_health_reports_upstream_error_when_unreachable(self):
+   105	        # /health must report the *link* state, not just the proxy process: a
+   106	        # dead upstream shows up as upstream=error (the UI pill turns red).
+   107	        s = socket.socket()
+   108	        s.bind(("127.0.0.1", 0))
+   109	        dead_port = s.getsockname()[1]
+   110	        s.close()
+   111	
+   112	        dead = BASE.model_copy(update={"upstream_base_url": f"http://127.0.0.1:{dead_port}"})
+   113	        with TestClient(create_ui_app(Context(dead))) as c:
+   114	            body = c.get("/health").json()
+   115	            self.assertEqual(body["status"], "ok")
+   116	            self.assertEqual(body["upstream"], "error")
+   117	
+   118	    def test_non_streaming_passthrough(self):
+   119	        r = self.llm.post(CHAT, json=_payload(stream=False))
+   120	        self.assertEqual(r.status_code, 200)
+   121	        body = r.json()
+   122	        self.assertEqual(body["choices"][0]["message"]["content"], "Hello, world!")
+   123	        self.assertEqual(body["usage"]["total_tokens"], 8)
+   124	
+   125	    def test_streaming_tap_and_forward(self):
+   126	        r = self.llm.post(CHAT, json=_payload(stream=True))
+   127	        self.assertEqual(r.status_code, 200)
+   128	        self.assertIn("text/event-stream", r.headers.get("content-type", ""))
+   129	        self.assertIn("[DONE]", r.text)
+   130	        self.assertIn("Hello", r.text)
+   131	
+   132	    def test_streaming_upstream_error_status_passthrough(self):
+   133	        # Upstream returns a JSON error (not SSE) for a stream request; the proxy
+   134	        # must surface the upstream's status, not a premature 200.
+   135	        r = self.llm.post(
+   136	            CHAT, json={"model": "boom", "stream": True, "messages": [{"role": "user", "content": "hi"}]}
+   137	        )
+   138	        self.assertEqual(r.status_code, 404)
+   139	        self.assertIn("model not found", r.json()["error"]["message"])
+   140	
+   141	    def test_streaming_upstream_unreachable_returns_502(self):
+   142	        # Upstream unreachable (connection refused) -> a clean 502, not a phantom 200.
+   143	        s = socket.socket()
+   144	        s.bind(("127.0.0.1", 0))
+   145	        dead_port = s.getsockname()[1]
+   146	        s.close()
+   147	
+   148	        dead = BASE.model_copy(update={"upstream_base_url": f"http://127.0.0.1:{dead_port}"})
+   149	        with TestClient(create_llm_app(Context(dead))) as c:
+   150	            r = c.post(CHAT, json=_payload(stream=True))
+   151	            self.assertEqual(r.status_code, 502)
+   152	            self.assertIn("upstream error", r.json()["error"]["message"])
+   153	
+   154	    def test_capture_and_export(self):
+   155	        self.llm.post(CHAT, json=_payload(stream=False))
+   156	        self.llm.post(CHAT, json=_payload(stream=True))
+   157	
+   158	        clients_body = self.ui.get("/api/clients").json()
+   159	        self.assertTrue(clients_body)
+   160	        cid = clients_body[0]["conversation_ids"][0]
+   161	
+   162	        conv = self.ui.get(f"/api/conversations/{cid}").json()
+   163	        self.assertGreaterEqual(conv["exchange_count"], 2)
+   164	
+   165	        stream_ex = [ex for ex in conv["exchanges"] if ex["server_response"]["streaming"]]
+   166	        self.assertTrue(stream_ex)
+   167	        content = stream_ex[0]["server_response"]["reassembled"]["choices"][0]["message"]["content"]
+   168	        self.assertEqual(content, "Hello, world!")
+   169	        self.assertEqual(stream_ex[0]["usage"]["total_tokens"], 8)
+   170	
+   171	        exp = self.ui.get(f"/api/conversations/{cid}/export").json()
+   172	        self.assertEqual(exp["format"], "llm-proxy/conversation")
+   173	        self.assertEqual(exp["version"], 1)
+   174	        self.assertGreaterEqual(len(exp["exchanges"]), 2)
+   175	        self.assertGreaterEqual(exp["stats"]["total_completion_tokens"], 3)
+   176	
+   177	    def test_serves_ui_and_favicon(self):
+   178	        # The status page is served from the ui/ dir and must not contain
+   179	        # placeholder conversation links (literal <id> hrefs -> junk 404s).
+   180	        r = self.ui.get("/")
+   181	        self.assertEqual(r.status_code, 200)
+   182	        self.assertIn('href="/favicon.svg"', r.text)
+   183	        self.assertNotIn('href="/api/conversations', r.text)
+   184	
+   185	        # Browsers probe /favicon.ico even with an SVG icon link; serve the SVG.
+   186	        r = self.ui.get("/favicon.ico")
+   187	        self.assertEqual(r.status_code, 200)
+   188	        self.assertEqual(r.headers["content-type"], "image/svg+xml")
+   189	        self.assertIn("<svg", r.text)
+   190	
+   191	    def test_secret_redaction(self):
+   192	        self.llm.post(
+   193	            CHAT, json=_payload(stream=False), headers={"Authorization": "Bearer sk-secret-test-key-123"}
+   194	        )
+   195	        clients_body = self.ui.get("/api/clients").json()
+   196	        cid = clients_body[0]["conversation_ids"][0]
+   197	        conv = self.ui.get(f"/api/conversations/{cid}").json()
+   198	        auth = conv["exchanges"][0]["client_request"]["headers"].get("authorization")
+   199	        self.assertIsNotNone(auth)
+   200	        self.assertIn("***", auth)
+   201	        self.assertNotIn("sk-secret-test-key-123", auth)
+   202	
+   203	    def test_user_agent_splits_clients_on_shared_ip(self):
+   204	        # Same source IP, different user agents -> separate conversations;
+   205	        # repeated agent -> same conversation. The UA's "/" is sanitized out of
+   206	        # the id (ids are REST path segments). The TestClient's host is
+   207	        # "testclient", so clients are matched by id suffix, not full value.
+   208	        for ua in ("curl/8.5.0", "zed/1.0.0", "curl/8.5.0"):
+   209	            self.llm.post(CHAT, json=_payload(stream=False), headers={"User-Agent": ua})
+   210	
+   211	        clients_body = self.ui.get("/api/clients").json()
+   212	        by_ua = {c["id"].rsplit("::", 1)[-1]: c for c in clients_body}
+   213	        self.assertEqual(set(by_ua), {"curl_8.5.0", "zed_1.0.0"})
+   214	
+   215	        conv_curl = self.ui.get(
+   216	            "/api/conversations/" + quote(by_ua["curl_8.5.0"]["conversation_ids"][0])
+   217	        ).json()
+   218	        self.assertEqual(conv_curl["exchange_count"], 2)
+   219	        conv_zed = self.ui.get(
+   220	            "/api/conversations/" + quote(by_ua["zed_1.0.0"]["conversation_ids"][0])
+   221	        ).json()
+   222	        self.assertEqual(conv_zed["exchange_count"], 1)
+   223	
+   224	    def test_user_agent_and_key_combined_id(self):
+   225	        self.llm.post(
+   226	            CHAT,
+   227	            json=_payload(stream=False),
+   228	            headers={"User-Agent": "curl/8.5.0", "Authorization": "Bearer sk-test"},
+   229	        )
+   230	        clients_body = self.ui.get("/api/clients").json()
+   231	        self.assertEqual(len(clients_body), 1)
+   232	        self.assertTrue(clients_body[0]["id"].endswith("::curl_8.5.0::sk-test"))
+   233	
+   234	
+   235	if __name__ == "__main__":
+   236	    unittest.main()
+
+```
+
+
+## Assistant
+
+<thinking>
+Now I'll read the other files. test_m1.py (partially confirmed), test_m2.py, test_m3.py, test_m5.py, test_m6.py, test_client_removal.py, test_exchange_removal.py, test_inflight.py, test_shutdown.py, helpers.py. Let's read them in a parallel batch.
+
+</thinking>
+
+**Tool Call: Read file `tests/test_m1.py` (lines 1-70)**
+Status: Completed
+
+```llm-proxy/tests/test_m1.py
+     1	"""M1 tests: live UI fan-out over /ws (per-chunk delta events, dock activity, new-client broadcast)."""
+     2	
+     3	from __future__ import annotations
+     4	
+     5	import logging
+     6	import threading
+     7	import time
+     8	import unittest
+     9	
+    10	from fastapi.testclient import TestClient
+    11	
+    12	try:  # package form (unittest discover)
+    13	    from .helpers import clients, close
+    14	    from .mock_upstream import start_mock, stop_mock
+    15	except ImportError:  # direct execution fallback
+    16	    from helpers import clients, close  # type: ignore
+    17	    from mock_upstream import start_mock, stop_mock  # type: ignore
+    18	
+    19	from llm_proxy.config import Settings
+    20	
+    21	# Settings for the app under test: the local mock upstream, quiet logs (tests
+    22	# that assert on logs capture their own handler).
+    23	BASE = Settings(upstream_base_url="http://127.0.0.1:8082", log_level="critical")
+    24	
+    25	MOCK_PORT = 8082
+    26	CHAT = "/v1/chat/completions"
+    27	CID = "testclient"  # the source host Starlette's TestClient presents to the proxy
+    28	
+    29	
+    30	def _payload(stream: bool) -> dict:
+    31	    return {"model": "local-model", "stream": stream, "messages": [{"role": "user", "content": "hi"}]}
+    32	
+    33	
+    34	def _receive_json(ws, timeout: float = 3.0) -> dict:
+    35	    """Bounded WS receive. A starlette TestClient read blocks forever when the
+    36	    expected event never arrives, which would hang the whole suite on a bug."""
+    37	    outcome: dict = {}
+    38	
+    39	    def _read() -> None:
+    40	        try:
+    41	            outcome["ev"] = ws.receive_json()
+    42	        except BaseException as exc:  # noqa: BLE001 - re-raised on the test thread
+    43	            outcome["exc"] = exc
+    44	
+    45	    worker = threading.Thread(target=_read, daemon=True)
+    46	    worker.start()
+    47	    worker.join(timeout)
+    48	    if worker.is_alive():
+    49	        raise AssertionError(f"no WS event within {timeout:.0f}s")
+    50	    if "exc" in outcome:
+    51	        raise outcome["exc"]
+    52	    return outcome["ev"]
+    53	
+    54	
+    55	def _read_until_completed(ws, timeout: float = 5.0) -> list[dict]:
+    56	    events = []
+    57	    deadline = time.monotonic() + timeout
+    58	    while True:
+    59	        try:
+    60	            ev = _receive_json(ws, max(0.1, deadline - time.monotonic()))
+    61	        except AssertionError:
+    62	            raise AssertionError(
+    63	                f"exchange_completed not seen within {timeout:.0f}s; got {[e['type'] for e in events]}"
+    64	            ) from None
+    65	        events.append(ev)
+    66	        if ev["type"] == "exchange_completed":
+    67	            return events
+    68	
+    69	
+    70	class TestLiveFanOut(unittest.TestCase):
+
+```
+
+
+**Tool Call: Read file `tests/test_m2.py`**
+Status: Completed
+
+```llm-proxy/tests/test_m2.py
+     1	"""M2 tests: replay (re-send a captured client request upstream) and single-exchange export."""
+     2	
+     3	from __future__ import annotations
+     4	
+     5	import unittest
+     6	
+     7	try:  # package form (unittest discover)
+     8	    from . import mock_upstream
+     9	    from .helpers import clients, close
+    10	    from .mock_upstream import start_mock, stop_mock
+    11	except ImportError:  # direct execution fallback
+    12	    import mock_upstream  # type: ignore
+    13	    from helpers import clients, close  # type: ignore
+    14	    from mock_upstream import start_mock, stop_mock  # type: ignore
+    15	
+    16	from llm_proxy.config import Settings
+    17	
+    18	# Settings for the app under test: the local mock upstream, quiet logs.
+    19	BASE = Settings(upstream_base_url="http://127.0.0.1:8082", log_level="critical")
+    20	
+    21	MOCK_PORT = 8082
+    22	CHAT = "/v1/chat/completions"
+    23	CID = "testclient"  # the source host Starlette's TestClient presents to the proxy
+    24	
+    25	
+    26	def _payload(stream: bool) -> dict:
+    27	    return {"model": "local-model", "stream": stream, "messages": [{"role": "user", "content": "hi"}]}
+    28	
+    29	
+    30	def _replay_path(cid: str, seq: int) -> str:
+    31	    return f"/api/conversations/{cid}/exchanges/{seq}/replay"
+    32	
+    33	
+    34	class TestReplayAndExport(unittest.TestCase):
+    35	    """Each test uses a fresh shared Context (isolated store) against the shared mock."""
+    36	
+    37	    @classmethod
+    38	    def setUpClass(cls):
+    39	        start_mock(MOCK_PORT)
+    40	
+    41	    @classmethod
+    42	    def tearDownClass(cls):
+    43	        try:
+    44	            stop_mock()
+    45	        except Exception:  # noqa: BLE001
+    46	            pass
+    47	
+    48	    def setUp(self):
+    49	        self.ctx, self.llm, self.ui = clients(BASE)
+    50	
+    51	    def tearDown(self):
+    52	        close(self.llm, self.ui)
+    53	
+    54	    def test_replay_as_is(self):
+    55	        self.llm.post(CHAT, json=_payload(stream=False))
+    56	        original = mock_upstream.REQUESTS[-1]
+    57	
+    58	        r = self.ui.post(_replay_path(CID, 0), json={})
+    59	        self.assertEqual(r.status_code, 200)
+    60	        self.assertEqual(r.json()["choices"][0]["message"]["content"], "Hello, world!")
+    61	
+    62	        # The upstream received the captured body again, verbatim.
+    63	        self.assertEqual(mock_upstream.REQUESTS[-1], original)
+    64	
+    65	        conv = self.ui.get(f"/api/conversations/{CID}").json()
+    66	        self.assertEqual(conv["exchange_count"], 2)
+    67	        replayed = conv["exchanges"][-1]
+    68	        self.assertTrue(replayed["is_replay"])
+    69	        self.assertEqual(replayed["sequence"], 1)
+    70	        self.assertEqual(replayed["client_request"]["body_json"], original)
+    71	
+    72	    def test_replay_replaces_body(self):
+    73	        self.llm.post(CHAT, json=_payload(stream=False))
+    74	
+    75	        edited = {**_payload(stream=False), "model": "thinker", "temperature": 0.2}
+    76	        r = self.ui.post(_replay_path(CID, 0), json=edited)
+    77	        self.assertEqual(r.status_code, 200)
+    78	
+    79	        # The upstream received exactly the edited body: the model and the new
+    80	        # parameter are present, nothing was merged over the captured request.
+    81	        self.assertEqual(mock_upstream.REQUESTS[-1], edited)
+    82	
+    83	        conv = self.ui.get(f"/api/conversations/{CID}").json()
+    84	        replayed = conv["exchanges"][-1]
+    85	        self.assertTrue(replayed["is_replay"])
+    86	        self.assertEqual(replayed["client_request"]["body_json"]["model"], "thinker")
+    87	
+    88	        # The replayed exchange is exportable and carries the replay flag.
+    89	        exp = self.ui.get(f"/api/conversations/{CID}/exchanges/{replayed['sequence']}/export").json()
+    90	        self.assertEqual(exp["format"], "llm-proxy/exchange")
+    91	        self.assertTrue(exp["exchange"]["is_replay"])
+    92	
+    93	    def test_replay_streaming(self):
+    94	        self.llm.post(CHAT, json=_payload(stream=True))
+    95	
+    96	        r = self.ui.post(_replay_path(CID, 0), json={})
+    97	        self.assertEqual(r.status_code, 200)
+    98	        self.assertIn("text/event-stream", r.headers.get("content-type", ""))
+    99	        self.assertIn("[DONE]", r.text)
+   100	        self.assertIn('"Hello"', r.text)  # the answer streams in pieces
+   101	
+   102	        conv = self.ui.get(f"/api/conversations/{CID}").json()
+   103	        replayed = conv["exchanges"][-1]
+   104	        self.assertTrue(replayed["is_replay"])
+   105	        self.assertTrue(replayed["server_response"]["streaming"])
+   106	        self.assertEqual(
+   107	            replayed["server_response"]["reassembled"]["choices"][0]["message"]["content"], "Hello, world!"
+   108	        )
+   109	
+   110	    def test_replay_unknown_seq_and_conversation_404(self):
+   111	        self.llm.post(CHAT, json=_payload(stream=False))
+   112	        self.assertEqual(self.ui.post(_replay_path(CID, 99), json={}).status_code, 404)
+   113	        self.assertEqual(self.ui.post(_replay_path("nope", 0), json={}).status_code, 404)
+   114	        self.assertEqual(self.ui.get("/api/conversations/nope/exchanges/0/export").status_code, 404)
+   115	        self.assertEqual(self.ui.get(f"/api/conversations/{CID}/exchanges/99/export").status_code, 404)
+   116	
+   117	    def test_single_exchange_export(self):
+   118	        self.llm.post(CHAT, json=_payload(stream=False))
+   119	
+   120	        r = self.ui.get(f"/api/conversations/{CID}/exchanges/0/export")
+   121	        self.assertEqual(r.status_code, 200)
+   122	        self.assertEqual(r.headers.get("content-disposition"), f'attachment; filename="{CID}-ex0.json"')
+   123	        exp = r.json()
+   124	        self.assertEqual(exp["format"], "llm-proxy/exchange")
+   125	        self.assertEqual(exp["version"], 1)
+   126	        self.assertEqual(exp["exchange"]["sequence"], 0)
+   127	        self.assertFalse(exp["exchange"]["is_replay"])
+   128	        self.assertEqual(
+   129	            exp["exchange"]["server_response"]["body_json"]["choices"][0]["message"]["content"],
+   130	            "Hello, world!",
+   131	        )
+   132	
+   133	    def test_conversation_export_redacts_secrets(self):
+   134	        self.llm.post(
+   135	            CHAT, json=_payload(stream=False), headers={"Authorization": "Bearer sk-export-secret-123"}
+   136	        )
+   137	        clients_body = self.ui.get("/api/clients").json()
+   138	        cid = clients_body[0]["conversation_ids"][0]
+   139	
+   140	        r = self.ui.get(f"/api/conversations/{cid}/export")
+   141	        self.assertEqual(r.status_code, 200)
+   142	        exp = r.json()
+   143	        self.assertEqual(exp["format"], "llm-proxy/conversation")
+   144	        self.assertEqual(exp["version"], 1)
+   145	        self.assertIn("stats", exp)
+   146	        self.assertGreaterEqual(len(exp["exchanges"]), 1)
+   147	        # The authorization header is masked in the dump (the client id may still
+   148	        # contain the key by design, since the key is part of client identity).
+   149	        auth = exp["exchanges"][0]["client_request"]["headers"]["authorization"]
+   150	        self.assertIn("***", auth)
+   151	        self.assertNotIn("sk-export-secret-123", auth)
+   152	
+   153	
+   154	if __name__ == "__main__":
+   155	    unittest.main()
+
+```
+
+
+## Assistant
+
+<thinking>
+Read the rest: the remainder of test_m1.py (lines 70–380), test_m3.py, test_m5.py, test_m6.py, test_client_removal.py, test_exchange_removal.py, test_inflight.py, test_shutdown.py, helpers.py.
+
+</thinking>
+
+**Tool Call: Read file `tests/test_m1.py` (lines 70-300)**
+Status: Completed
+
+```llm-proxy/tests/test_m1.py
+    70	class TestLiveFanOut(unittest.TestCase):
+    71	    """Each test uses a fresh shared Context (isolated store + hub) against the shared mock."""
+    72	
+    73	    @classmethod
+    74	    def setUpClass(cls):
+    75	        start_mock(MOCK_PORT)
+    76	
+    77	    @classmethod
+    78	    def tearDownClass(cls):
+    79	        try:
+    80	            stop_mock()
+    81	        except Exception:  # noqa: BLE001
+    82	            pass
+    83	
+    84	    def setUp(self):
+    85	        self.ctx, self.llm, self.ui = clients(BASE)
+    86	
+    87	    def tearDown(self):
+    88	        close(self.llm, self.ui)
+    89	
+    90	    def test_streaming_fan_out_is_live(self):
+    91	        with self.ui.websocket_connect("/ws") as ws:
+    92	            ws.send_json({"type": "subscribe", "conversation_id": CID})
+    93	            self.llm.post(CHAT, json=_payload(stream=True))
+    94	            events = _read_until_completed(ws)
+    95	
+    96	        types = [e["type"] for e in events]
+    97	        self.assertEqual(types[0], "client_seen")
+    98	        self.assertIn("exchange_started", types)
+    99	        self.assertIn("delta", types)
+   100	        self.assertEqual(types[-1], "exchange_completed")
+   101	
+   102	        # Deltas are live content pieces that reassemble to the full answer.
+   103	        deltas = "".join(e["delta"] for e in events if e["type"] == "delta")
+   104	        self.assertEqual(deltas, "Hello, world!")
+   105	
+   106	        # Every event is scoped to the same conversation/exchange.
+   107	        self.assertTrue(all(e["conversation_id"] == CID for e in events))
+   108	        ex_ids = {
+   109	            e.get("exchange_id")
+   110	            for e in events
+   111	            if e["type"] in ("exchange_started", "delta", "exchange_completed")
+   112	        }
+   113	        self.assertEqual(len(ex_ids), 1)
+   114	
+   115	        # The completed exchange carries the reassembled answer.
+   116	        comp = events[-1]["exchange"]
+   117	        self.assertEqual(
+   118	            comp["server_response"]["reassembled"]["choices"][0]["message"]["content"], "Hello, world!"
+   119	        )
+   120	        self.assertTrue(comp["server_response"]["streaming"])
+   121	
+   122	    def test_non_streaming_fan_out_has_no_deltas(self):
+   123	        with self.ui.websocket_connect("/ws") as ws:
+   124	            ws.send_json({"type": "subscribe", "conversation_id": CID})
+   125	            self.llm.post(CHAT, json=_payload(stream=False))
+   126	            events = _read_until_completed(ws)
+   127	
+   128	        types = [e["type"] for e in events]
+   129	        self.assertIn("exchange_started", types)
+   130	        self.assertNotIn("delta", types)
+   131	        self.assertEqual(types[-1], "exchange_completed")
+   132	
+   133	        comp = events[-1]["exchange"]
+   134	        self.assertEqual(
+   135	            comp["server_response"]["body_json"]["choices"][0]["message"]["content"], "Hello, world!"
+   136	        )
+   137	
+   138	    def test_exchange_started_carries_server_sequence(self):
+   139	        """Regression: exchange_started must carry the server-assigned sequence.
+   140	
+   141	                The UI used to guess the pending card's sequence (lastSeq + 1), which
+   142	        desyncs from the real sequence once a slow in-flight request sits behind
+   143	        completed ones. A replay from such a pending card then re-sends to the wrong
+   144	        exchange's endpoint. The server assigns the sequence at begin_exchange, so
+   145	        forwarding it in the event makes the pending card (and any replay from it)
+   146	        target the right exchange.
+   147	        """
+   148	        slow_payload = {
+   149	            "model": "slow",
+   150	            "stream": False,
+   151	            "messages": [{"role": "user", "content": "hi"}],
+   152	        }
+   153	        with self.ui.websocket_connect("/ws") as ws:
+   154	            ws.send_json({"type": "subscribe", "conversation_id": CID})
+   155	            # A fast request completes first (real sequence 0).
+   156	            self.llm.get("/v1/models")
+   157	            # A slow request stays in flight long enough to observe its placeholder.
+   158	            slow = threading.Thread(
+   159	                target=self.llm.post, kwargs={"url": CHAT, "json": slow_payload}, daemon=True
+   160	            )
+   161	            slow.start()
+   162	            time.sleep(0.3)  # let the fast exchange complete and the slow one go in flight
+   163	            exchanges = self.ui.get(f"/api/conversations/{CID}").json()["exchanges"]
+   164	            in_flight = next(e for e in exchanges if e["in_flight"])
+   165	            stored_seq, slow_id = in_flight["sequence"], in_flight["id"]
+   166	            for _ in range(20):
+   167	                ev = _receive_json(ws, 3.0)
+   168	                if ev["type"] == "exchange_started" and ev["exchange_id"] == slow_id:
+   169	                    break
+   170	            else:
+   171	                self.fail("exchange_started for the in-flight exchange never arrived")
+   172	            self.assertEqual(ev["sequence"], stored_seq)
+   173	            slow.join(timeout=5)
+   174	
+   175	    def test_completed_sequence_matches_stored_order(self):
+   176	        """Regression: exchange_completed must carry each request's real sequence.
+   177	
+   178	        _capture used to build the completed exchange with sequence=0, so every
+   179	        completed card showed "#0" and a replay from it resolved to sequence 0 (the
+   180	        first request). The store finalizes the in-flight placeholder in place and
+   181	        returns it; the pipeline must emit that copy so the sequence stays the one
+   182	        assigned at begin_exchange. Models the exact repro: models, chat, models.
+   183	        """
+   184	        with self.ui.websocket_connect("/ws") as ws:
+   185	            ws.send_json({"type": "subscribe", "conversation_id": CID})
+   186	            self.llm.get("/v1/models")  # sequence 0
+   187	            self.llm.post(CHAT, json=_payload(stream=False))  # sequence 1
+   188	            self.llm.get("/v1/models")  # sequence 2
+   189	            completed = []
+   190	            while len(completed) < 3:
+   191	                ev = _receive_json(ws)
+   192	                if ev["type"] == "exchange_completed":
+   193	                    completed.append(ev["exchange"])
+   194	        self.assertEqual([e["sequence"] for e in completed], [0, 1, 2])
+   195	        self.assertEqual(
+   196	            [(e["client_request"] or {}).get("path") for e in completed],
+   197	            ["/v1/models", CHAT, "/v1/models"],
+   198	        )
+   199	
+   200	    def test_unfocused_client_gets_dock_activity_only(self):
+   201	        with self.ui.websocket_connect("/ws") as ws:
+   202	            # No subscribe -> this socket is a dock-only observer.
+   203	            self.llm.post(CHAT, json=_payload(stream=True))
+   204	            # The observer receives exactly three events: the global client_seen
+   205	            # broadcast, then lightweight activity pings for exchange_started and
+   206	            # exchange_completed (deltas are focus-only). TestClient buffers all of
+   207	            # these by the time post() returns, so read the known complete set.
+   208	            seen = [_receive_json(ws) for _ in range(3)]
+   209	
+   210	        # A dock observer receives global broadcasts (client_seen) + lightweight
+   211	        # activity pings, but never full per-exchange events.
+   212	        self.assertEqual(seen[0]["type"], "client_seen")
+   213	        allowed = {"activity", "client_seen"}
+   214	        self.assertTrue(
+   215	            all(e["type"] in allowed for e in seen), f"unexpected types: {[e['type'] for e in seen]}"
+   216	        )
+   217	        self.assertNotIn("exchange_started", [e["type"] for e in seen])
+   218	        self.assertNotIn("delta", [e["type"] for e in seen])
+   219	        self.assertNotIn("exchange_completed", [e["type"] for e in seen])
+   220	        self.assertTrue(any(e["conversation_id"] == CID for e in seen))
+   221	
+   222	    def test_new_client_seen_reaches_unfocused_dock(self):
+   223	        # Regression: a brand-new client must appear in the dock live. client_seen
+   224	        # is global, so an unfocused (dock-only) socket receives it even though it
+   225	        # is not focused on the new conversation (previously it was dropped).
+   226	        with self.ui.websocket_connect("/ws") as ws:
+   227	            # No subscribe -> dock-only observer.
+   228	            self.llm.post(CHAT, json=_payload(stream=True))
+   229	            ev = _receive_json(ws)
+   230	            self.assertEqual(ev["type"], "client_seen")
+   231	            self.assertEqual(ev["conversation_id"], CID)
+   232	
+   233	    def test_ui_assets_served(self):
+   234	        # The M1 SPA is served from the UI listener's static mount.
+   235	        r = self.ui.get("/")
+   236	        self.assertEqual(r.status_code, 200)
+   237	        self.assertIn('src="/app.js"', r.text)
+   238	        self.assertIn('href="/styles.css"', r.text)
+   239	        for asset in ("/app.js", "/styles.css"):
+   240	            r = self.ui.get(asset)
+   241	            self.assertEqual(r.status_code, 200, asset)
+   242	            self.assertTrue(len(r.content) > 0, asset)
+   243	            # UI assets must not be heuristically cached by browsers, or a proxy
+   244	            # restart can leave a tab running stale JS against the new process.
+   245	            self.assertEqual(r.headers.get("cache-control"), "no-cache", asset)
+   246	
+   247	    def test_focus_switch_routes_events(self):
+   248	        with self.ui.websocket_connect("/ws") as ws:
+   249	            # Focus a conversation we will not use -> must receive no full events for CID.
+   250	            ws.send_json({"type": "subscribe", "conversation_id": "somebody-else"})
+   251	            self.llm.post(CHAT, json=_payload(stream=False))
+   252	            # Then switch focus and confirm live events arrive for CID.
+   253	            ws.send_json({"type": "subscribe", "conversation_id": CID})
+   254	            time.sleep(0.05)  # let the app loop process the focus change before emitting
+   255	            self.llm.post(CHAT, json=_payload(stream=True))
+   256	            events = _read_until_completed(ws)
+   257	
+   258	        # After the focus switch we should get the CID exchange's full events.
+   259	        self.assertTrue(all(e["conversation_id"] == CID for e in events))
+   260	        self.assertEqual(events[-1]["type"], "exchange_completed")
+   261	
+   262	    def test_reasoning_streams_before_content(self):
+   263	        with self.ui.websocket_connect("/ws") as ws:
+   264	            ws.send_json({"type": "subscribe", "conversation_id": CID})
+   265	            payload = {"model": "thinker", "stream": True, "messages": [{"role": "user", "content": "hi"}]}
+   266	            self.llm.post(CHAT, json=payload)
+   267	            events = _read_until_completed(ws)
+   268	
+   269	        deltas = [e for e in events if e["type"] == "delta"]
+   270	        self.assertTrue(deltas)
+   271	        first_content = next(i for i, e in enumerate(deltas) if e["delta"])
+   272	        # Reasoning deltas must arrive before the first content delta.
+   273	        self.assertTrue(any(e["reasoning_delta"] for e in deltas[:first_content]))
+   274	        self.assertEqual("".join(e["delta"] for e in deltas), "Hi!")
+   275	        self.assertEqual("".join(e.get("reasoning_delta", "") for e in deltas), "Let me think...")
+   276	
+   277	        comp = events[-1]["exchange"]
+   278	        msg = comp["server_response"]["reassembled"]["choices"][0]["message"]
+   279	        self.assertEqual(msg["content"], "Hi!")
+   280	        self.assertEqual(msg["reasoning_content"], "Let me think...")
+   281	        self.assertIsNotNone(comp["timings"]["t_first_content"])
+   282	        self.assertEqual(comp["timings"]["gen_tok_per_sec"], 200.0)
+   283	
+   284	    def test_tool_calls_reassembled(self):
+   285	        # Agentic replies: fragmented delta.tool_calls must reassemble into the
+   286	        # message (id/type/name from the first fragment, arguments concatenated).
+   287	        with self.ui.websocket_connect("/ws") as ws:
+   288	            ws.send_json({"type": "subscribe", "conversation_id": CID})
+   289	            payload = {"model": "tooler", "stream": True, "messages": [{"role": "user", "content": "hi"}]}
+   290	            self.llm.post(CHAT, json=payload)
+   291	            events = _read_until_completed(ws)
+   292	
+   293	        comp = events[-1]["exchange"]
+   294	        msg = comp["server_response"]["reassembled"]["choices"][0]["message"]
+   295	        self.assertEqual(msg["content"], "Let me check.")
+   296	        self.assertEqual(comp["server_response"]["reassembled"]["choices"][0]["finish_reason"], "tool_calls")
+   297	        (tc,) = msg["tool_calls"]
+   298	        self.assertEqual(tc["id"], "call_1")
+   299	        self.assertEqual(tc["type"], "function")
+   300	        self.assertEqual(tc["function"]["name"], "bash")
+
+```
+
+
+## Assistant
+
+<thinking>
+(Thought memo) I've already seen the tail portion of test_m1.py (lines 300–418) from the previous read. What it contains:
+- test_upstream_gen_rate_captured_stream_and_non_stream (lines 303–318)
+- test_client_registered_before_client_seen_broadcast (approximately lines 351–381)
+- test_ws_lifecycle_is_logged (approximately lines 383–414)
+
+Next, read the remaining files: test_m3.py, test_m5.py, test_m6.py, test_client_removal.py, test_exchange_removal.py, test_inflight.py, test_shutdown.py, helpers.py.
+
+</thinking>
+
+**Tool Call: Read file `tests/test_m3.py`**
+Status: Completed
+
+```llm-proxy/tests/test_m3.py
+     1	"""M3 tests: WS liveness (ping/pong + dead-socket pruning), upstream timeout policy."""
+     2	
+     3	from __future__ import annotations
+     4	
+     5	import json
+     6	import time
+     7	import unittest
+     8	
+     9	from fastapi.testclient import TestClient
+    10	
+    11	from llm_proxy.app import Context, create_ui_app
+    12	from llm_proxy.config import Settings
+    13	
+    14	# Settings for the app under test: the local mock upstream (no M3 test makes an
+    15	# upstream call, but the app factory reads the value at startup), quiet logs.
+    16	BASE = Settings(upstream_base_url="http://127.0.0.1:8082", log_level="critical")
+    17	
+    18	
+    19	def _fresh_client(**overrides) -> TestClient:
+    20	    """An entered UI TestClient with a fresh Context; ``overrides`` are Settings fields."""
+    21	    ctx = Context(BASE.model_copy(update=overrides))
+    22	    client = TestClient(create_ui_app(ctx))
+    23	    client.__enter__()
+    24	    return client
+    25	
+    26	
+    27	def _close_client(client: TestClient) -> None:
+    28	    client.__exit__(None, None, None)
+    29	
+    30	
+    31	class TestUpstreamTimeouts(unittest.TestCase):
+    32	    def test_upstream_timeout_policy_reaches_the_client(self):
+    33	        """connect/pool settings reach the pooled client, and read is intentionally
+    34	        unbounded: a gap cap would kill silent persistent streams (/models/sse)
+    35	        and long prefill/think phases, so timeout policy belongs to the client."""
+    36	        client = _fresh_client(
+    37	            upstream_connect_timeout=1.5,
+    38	            upstream_pool_timeout=2.5,
+    39	        )
+    40	        try:
+    41	            t = client.app.state.http.timeout
+    42	            self.assertEqual(t.connect, 1.5)
+    43	            self.assertIsNone(t.read)
+    44	            self.assertEqual(t.pool, 2.5)
+    45	        finally:
+    46	            _close_client(client)
+    47	
+    48	
+    49	class TestWsLiveness(unittest.TestCase):
+    50	    """Liveness with fast pings (0.3s interval/timeout): a ponging socket keeps
+    51	    receiving pings, a silent one is closed with 1011 and pruned from the hub.
+    52	
+    53	    With interval=timeout=0.3 the pinger checks at ~0.3s, ~0.6s, ~0.9s: a
+    54	    silent socket is closed at the first check where silence > 0.6s (~0.9s),
+    55	    and a ponging socket survives because its last_pong stays fresh.
+    56	    """
+    57	
+    58	    def setUp(self):
+    59	        self.client = _fresh_client(ws_ping_interval=0.3, ws_ping_timeout=0.3)
+    60	
+    61	    def tearDown(self):
+    62	        _close_client(self.client)
+    63	
+    64	    def _receive_ping(self, ws) -> dict:
+    65	        """Block for the next frame and assert it is a liveness ping, not a close.
+    66	
+    67	        (Raw ASGI app->client text frames are typed ``websocket.send``.)
+    68	        """
+    69	        msg = ws.receive()
+    70	        self.assertEqual(msg["type"], "websocket.send")
+    71	        ev = json.loads(msg["text"])
+    72	        self.assertEqual(ev["type"], "ping")
+    73	        self.assertIn("ts", ev)
+    74	        return ev
+    75	
+    76	    def test_ws_ping_pong_keeps_socket_alive(self):
+    77	        hub = self.client.app.state.hub
+    78	        with self.client.websocket_connect("/ws") as ws:
+    79	            ping1 = self._receive_ping(ws)
+    80	            ws.send_json({"type": "pong", "ts": ping1["ts"]})
+    81	            ping2 = self._receive_ping(ws)
+    82	            ws.send_json({"type": "pong", "ts": ping2["ts"]})
+    83	            # A socket that never pongs is closed at this check; a ponging one
+    84	            # still receives the next ping.
+    85	            self._receive_ping(ws)
+    86	            self.assertEqual(len(hub._conns), 1)
+    87	
+    88	    def test_ws_silent_socket_pruned(self):
+    89	        hub = self.client.app.state.hub
+    90	        with self.client.websocket_connect("/ws") as ws:
+    91	            self.assertEqual(len(hub._conns), 1)
+    92	            # No pong at all: the pinger sends pings until silence exceeds
+    93	            # interval + timeout, then must close the socket with 1011.
+    94	            # Bounded: the close arrives within ~3 intervals.
+    95	            msg = ws.receive()
+    96	            while msg["type"] == "websocket.send":  # skip liveness pings
+    97	                msg = ws.receive()
+    98	            self.assertEqual(msg["type"], "websocket.close")
+    99	            self.assertEqual(msg.get("code"), 1011)
+   100	        time.sleep(0.1)  # the endpoint's finally() runs hub.disconnect after the close
+   101	        self.assertEqual(len(hub._conns), 0)
+   102	
+   103	
+   104	if __name__ == "__main__":
+   105	    unittest.main()
+
+```
+
+
+**Tool Call: Read file `tests/test_m5.py`**
+Status: Completed
+
+```llm-proxy/tests/test_m5.py
+     1	"""M5 end-to-end tests: the transparent catch-all proxy and the two-port split.
+     2	
+     3	The LLM listener forwards *every* method/path verbatim (query string included)
+     4	and taps the response opaquely; the UI listener serves no proxy routes at all.
+     5	"""
+     6	
+     7	from __future__ import annotations
+     8	
+     9	import unittest
+    10	
+    11	try:  # package form (unittest discover)
+    12	    from .helpers import clients, close
+    13	    from .mock_upstream import start_mock, stop_mock
+    14	except ImportError:  # direct execution fallback
+    15	    from helpers import clients, close  # type: ignore
+    16	    from mock_upstream import start_mock, stop_mock  # type: ignore
+    17	
+    18	from llm_proxy.app import cli_overrides
+    19	from llm_proxy.config import Settings
+    20	
+    21	BASE = Settings(upstream_base_url="http://127.0.0.1:8082", log_level="critical")
+    22	
+    23	MOCK_PORT = 8082
+    24	CID = "testclient"  # the source host Starlette's TestClient presents to the proxy
+    25	
+    26	
+    27	class TestCliPorts(unittest.TestCase):
+    28	    """--llm-port/--ui-port map onto the two listener ports."""
+    29	
+    30	    def test_two_port_overrides(self):
+    31	        self.assertEqual(
+    32	            cli_overrides(["http://x", "--llm-port", "8081", "--ui-port", "9091"]),
+    33	            {"upstream_base_url": "http://x", "llm_port": 8081, "ui_port": 9091},
+    34	        )
+    35	
+    36	
+    37	class TestTransparent(unittest.TestCase):
+    38	    """Each test uses a fresh shared Context (isolated store) against the shared mock."""
+    39	
+    40	    @classmethod
+    41	    def setUpClass(cls):
+    42	        start_mock(MOCK_PORT)
+    43	
+    44	    @classmethod
+    45	    def tearDownClass(cls):
+    46	        try:
+    47	            stop_mock()
+    48	        except Exception:
+    49	            pass
+    50	
+    51	    def setUp(self):
+    52	        self.ctx, self.llm, self.ui = clients(BASE)
+    53	
+    54	    def tearDown(self):
+    55	        close(self.llm, self.ui)
+    56	
+    57	    def _exchanges(self) -> list[dict]:
+    58	        """The (single) testclient's exchanges, read back through the UI API."""
+    59	        body = self.ui.get("/api/clients").json()
+    60	        c = next(x for x in body if x["id"] == CID)
+    61	        conv = self.ui.get(f"/api/conversations/{c['conversation_ids'][0]}").json()
+    62	        return conv["exchanges"]
+    63	
+    64	    def test_query_string_forwarded_verbatim(self):
+    65	        # The proxy must not drop the query string: /props?model=... is how
+    66	        # llama.cpp clients probe the upstream (the Zed case that motivated M5).
+    67	        r = self.llm.get("/props", params={"model": "m"})
+    68	        self.assertEqual(r.status_code, 200)
+    69	        self.assertEqual(r.json(), {"n_ctx": 4096, "model": "m"})
+    70	
+    71	    def test_upstream_404_passthrough(self):
+    72	        # The proxy never 404s a client request itself; the upstream's own 404
+    73	        # is what the client sees.
+    74	        r = self.llm.get("/nope")
+    75	        self.assertEqual(r.status_code, 404)
+    76	
+    77	    def test_opaque_capture_with_query(self):
+    78	        self.llm.get("/props", params={"model": "m"})
+    79	        (ex,) = self._exchanges()
+    80	        cr = ex["client_request"]
+    81	        self.assertEqual(cr["method"], "GET")
+    82	        self.assertEqual(cr["path"], "/props?model=m")
+    83	        sr = ex["server_response"]
+    84	        self.assertEqual(sr["status"], 200)
+    85	        self.assertEqual(sr["body_json"], {"n_ctx": 4096, "model": "m"})
+    86	        self.assertFalse(sr["streaming"])
+    87	
+    88	    def test_non_json_response_captured_as_text(self):
+    89	        r = self.llm.get("/plain")
+    90	        self.assertEqual(r.status_code, 200)
+    91	        self.assertEqual(r.text, "hello")
+    92	        (ex,) = self._exchanges()
+    93	        sr = ex["server_response"]
+    94	        self.assertEqual(sr["body_text"], "hello")
+    95	        self.assertIsNone(sr["body_json"])
+    96	
+    97	    def test_undecoded_sse_captured_raw(self):
+    98	        r = self.llm.get("/sse")
+    99	        self.assertEqual(r.status_code, 200)
+   100	        self.assertIn("text/event-stream", r.headers.get("content-type", ""))
+   101	        self.assertIn("tick", r.text)
+   102	        self.assertIn("[DONE]", r.text)
+   103	        (ex,) = self._exchanges()
+   104	        sr = ex["server_response"]
+   105	        self.assertTrue(sr["streaming"])
+   106	        self.assertIn("tick", sr["body_text"])
+   107	        # Not a decoded OpenAI stream: there is no reassembled chat body.
+   108	        self.assertNotIn("reassembled", sr)
+   109	
+   110	    def test_ports_do_not_overlap(self):
+   111	        # The UI port serves no proxy routes...
+   112	        self.assertEqual(self.ui.get("/v1/models").status_code, 404)
+   113	        # ...and the LLM port serves no UI routes (both are forwarded to the
+   114	        # upstream, which does not have them).
+   115	        self.assertEqual(self.llm.get("/api/clients").status_code, 404)
+   116	        self.assertEqual(self.llm.get("/").status_code, 404)
+   117	
+   118	
+   119	if __name__ == "__main__":
+   120	    unittest.main()
+
+```
+
+
+## Assistant
+
+<thinking>
+Note: test_m5 has `test_ports_do_not_overlap` — this is a two-port (UI listener) test, and could arguably be said to belong in test_ui_api or test_proxy. It's testing the port split. Hmm, "two-port split" — I'd say this belongs in test_proxy (listener configuration) or test_ui_api (UI routes not on the LLM port, proxy routes not on the UI port). I'll put this in test_proxy as part of the transparent/listener configuration. No wait, let me think about the final layout:
+
+**test_cli.py**: TestPackaging (m0), TestCli (m0), TestCliPorts (m5). No mock needed.
+
+**test_proxy.py**: TestProxy (m0), TestTransparent (m5), TestUpstreamTimeouts (m3), TestInFlight (test_inflight). All need the mock upstream (TestUpstreamTimeouts doesn't make upstream calls, but it uses a new UI client — either way it's fine within the file).
+
+**test_ws.py**: TestLiveFanOut (m1), TestWsLiveness (m3).
+
+**test_ui_api.py**: TestReplayAndExport (m2), TestClientRemoval (test_client_removal), TestExchangeRemoval (test_exchange_removal), plus m0's tests for UI serving? Hmm — `test_serves_ui_and_favicon` (m0) tests static UI serving — that's more of a UI/app configuration test. It could go in test_ui_api.py (the UI listener). And `test_ui_assets_served` (m1) is similar. Both are about the UI listener serving assets.
+
+What about **test_store.py**? The plan lists it, but where are the store tests? Let me check the remaining files: test_client_removal, test_exchange_removal, test_inflight, test_shutdown, test_m6, helpers. Maybe there are store/retention tests somewhere (the ring buffer cap). I'll read those.
+
+</thinking>
+
+**Tool Call: Read file `tests/test_client_removal.py`**
+Status: Completed
+
+```llm-proxy/tests/test_client_removal.py
+     1	"""Client removal: DELETE /api/clients/{id} drops a client and all of its
+     2	conversations; a new request re-registers the client from scratch."""
+     3	
+     4	from __future__ import annotations
+     5	
+     6	import unittest
+     7	
+     8	try:  # package form (unittest discover)
+     9	    from .helpers import clients, close
+    10	    from .mock_upstream import start_mock, stop_mock
+    11	except ImportError:  # direct execution fallback
+    12	    from helpers import clients, close  # type: ignore
+    13	    from mock_upstream import start_mock, stop_mock  # type: ignore
+    14	
+    15	from llm_proxy.config import Settings
+    16	
+    17	BASE = Settings(upstream_base_url="http://127.0.0.1:8082", log_level="critical")
+    18	
+    19	MOCK_PORT = 8082
+    20	CHAT = "/v1/chat/completions"
+    21	CID = "testclient"  # the source host Starlette's TestClient presents to the proxy
+    22	
+    23	
+    24	class TestClientRemoval(unittest.TestCase):
+    25	    """Each test uses a fresh proxy app (isolated in-memory store) against the shared mock."""
+    26	
+    27	    @classmethod
+    28	    def setUpClass(cls):
+    29	        start_mock(MOCK_PORT)
+    30	
+    31	    @classmethod
+    32	    def tearDownClass(cls):
+    33	        try:
+    34	            stop_mock()
+    35	        except Exception:  # noqa: BLE001
+    36	            pass
+    37	
+    38	    def setUp(self):
+    39	        self.ctx, self.llm, self.ui = clients(BASE)
+    40	
+    41	    def tearDown(self):
+    42	        close(self.llm, self.ui)
+    43	
+    44	    def _register(self):
+    45	        r = self.llm.post(
+    46	            CHAT,
+    47	            json={"model": "local-model", "stream": False, "messages": [{"role": "user", "content": "hi"}]},
+    48	        )
+    49	        self.assertEqual(r.status_code, 200)
+    50	
+    51	    def _client_ids(self) -> list[str]:
+    52	        return [c["id"] for c in self.ui.get("/api/clients").json()]
+    53	
+    54	    def test_remove_client(self):
+    55	        self._register()
+    56	        clients = self.ui.get("/api/clients").json()
+    57	        c = next(x for x in clients if x["id"] == CID)
+    58	        cids = c["conversation_ids"]
+    59	        self.assertEqual(len(cids), 1)
+    60	
+    61	        r = self.ui.delete(f"/api/clients/{CID}")
+    62	        self.assertEqual(r.status_code, 200)
+    63	        self.assertEqual(r.json(), {"ok": True})
+    64	
+    65	        self.assertNotIn(CID, self._client_ids())
+    66	        self.assertEqual(self.ui.get(f"/api/conversations/{cids[0]}").status_code, 404)
+    67	        self.assertEqual(self.ui.delete(f"/api/clients/{CID}").status_code, 404)
+    68	
+    69	    def test_removed_client_reregisters(self):
+    70	        self._register()
+    71	        self.assertEqual(self.ui.delete(f"/api/clients/{CID}").status_code, 200)
+    72	        self._register()
+    73	        self.assertIn(CID, self._client_ids())
+    74	        conv = self.ui.get(f"/api/conversations/{CID}").json()
+    75	        self.assertEqual(len(conv["exchanges"]), 1)
+
+```
+
+
+**Tool Call: Read file `tests/test_exchange_removal.py`**
+Status: Completed
+
+```llm-proxy/tests/test_exchange_removal.py
+     1	"""Removing individual exchanges from a conversation via the UI API.
+     2	
+     3	Exchanges are removed by sequence. In-flight ones may be removed too: the
+     4	upstream call continues but its finalization is dropped, so the exchange is
+     5	never re-appended. Removal leaves the remaining exchanges' sequences intact.
+     6	"""
+     7	
+     8	from __future__ import annotations
+     9	
+    10	import threading
+    11	import time
+    12	import unittest
+    13	
+    14	try:  # package form (unittest discover)
+    15	    from .helpers import clients, close
+    16	    from .mock_upstream import start_mock, stop_mock
+    17	except ImportError:  # direct execution fallback
+    18	    from helpers import clients, close  # type: ignore
+    19	    from mock_upstream import start_mock, stop_mock  # type: ignore
+    20	
+    21	from llm_proxy.config import Settings
+    22	
+    23	BASE = Settings(upstream_base_url="http://127.0.0.1:8082", log_level="critical")
+    24	
+    25	MOCK_PORT = 8082
+    26	CHAT = "/v1/chat/completions"
+    27	CID = "testclient"  # the source host Starlette's TestClient presents to the proxy
+    28	
+    29	
+    30	class TestExchangeRemoval(unittest.TestCase):
+    31	    """Each test uses a fresh proxy app (isolated in-memory store) against the shared mock."""
+    32	
+    33	    @classmethod
+    34	    def setUpClass(cls):
+    35	        start_mock(MOCK_PORT)
+    36	
+    37	    @classmethod
+    38	    def tearDownClass(cls):
+    39	        try:
+    40	            stop_mock()
+    41	        except Exception:  # noqa: BLE001
+    42	            pass
+    43	
+    44	    def setUp(self):
+    45	        self.ctx, self.llm, self.ui = clients(BASE)
+    46	
+    47	    def tearDown(self):
+    48	        close(self.llm, self.ui)
+    49	
+    50	    def _chat(self, model: str = "local-model") -> None:
+    51	        self.llm.post(
+    52	            CHAT, json={"model": model, "stream": False, "messages": [{"role": "user", "content": "hi"}]}
+    53	        ).raise_for_status()
+    54	
+    55	    def _exchanges(self) -> list[dict]:
+    56	        return self.ui.get(f"/api/conversations/{CID}").json()["exchanges"]
+    57	
+    58	    def _remove(self, seq: int):
+    59	        return self.ui.request("DELETE", f"/api/conversations/{CID}/exchanges/{seq}")
+    60	
+    61	    def test_remove_completed_exchange(self):
+    62	        self._chat()
+    63	        self._chat()
+    64	        self.assertEqual(len(self._exchanges()), 2)
+    65	        self.assertEqual(self._remove(0).status_code, 200)
+    66	        exs = self._exchanges()
+    67	        self.assertEqual(len(exs), 1)
+    68	        self.assertEqual(exs[0]["sequence"], 1)  # sequences are not renumbered
+    69	
+    70	    def test_remove_missing_exchange(self):
+    71	        self._chat()
+    72	        self.assertEqual(self._remove(99).status_code, 404)
+    73	        self.assertEqual(self._remove(0).status_code, 200)
+    74	        self.assertEqual(self._remove(0).status_code, 404)  # already gone
+    75	
+    76	    def test_remove_unknown_conversation(self):
+    77	        self.assertEqual(self.ui.request("DELETE", "/api/conversations/nope/exchanges/0").status_code, 404)
+    78	
+    79	    def test_in_flight_exchange_removed_is_not_readded(self):
+    80	        t = threading.Thread(target=lambda: self._chat(model="slow"), daemon=True)
+    81	        t.start()
+    82	        time.sleep(0.3)  # inside the mock's 0.8s hold
+    83	        self.assertEqual(self._remove(0).status_code, 200)
+    84	        self.assertEqual(len(self._exchanges()), 0)
+    85	        t.join(timeout=5)
+    86	        self.assertFalse(t.is_alive())
+    87	        self.assertEqual(len(self._exchanges()), 0)
+
+```
+
+
+## Assistant
+
+<thinking>
+Next up are test_inflight.py, test_m6.py, test_shutdown.py, and helpers.py.
+
+</thinking>
+
+**Tool Call: Read file `tests/test_inflight.py`**
+Status: Completed
+
+```llm-proxy/tests/test_inflight.py
+     1	"""In-flight exchange visibility: REST shows a pending exchange while the upstream
+     2	call is still running, and finalizes it in place (same sequence) on completion.
+     3	
+     4	This is what keeps a conversation from appearing empty when a client's first
+     5	request is long-running: the exchange_started WS event is focus-scoped and is
+     6	lost to a UI that only now focuses the conversation, so REST must carry the
+     7	pending state.
+     8	"""
+     9	
+    10	from __future__ import annotations
+    11	
+    12	import threading
+    13	import time
+    14	import unittest
+    15	
+    16	try:  # package form (unittest discover)
+    17	    from .helpers import clients, close
+    18	    from .mock_upstream import start_mock, stop_mock
+    19	except ImportError:  # direct execution fallback
+    20	    from helpers import clients, close  # type: ignore
+    21	    from mock_upstream import start_mock, stop_mock  # type: ignore
+    22	
+    23	from llm_proxy.config import Settings
+    24	
+    25	BASE = Settings(upstream_base_url="http://127.0.0.1:8082", log_level="critical")
+    26	
+    27	MOCK_PORT = 8082
+    28	CHAT = "/v1/chat/completions"
+    29	CID = "testclient"  # the source host Starlette's TestClient presents to the proxy
+    30	
+    31	
+    32	class TestInFlight(unittest.TestCase):
+    33	    """Each test uses a fresh proxy app (isolated in-memory store) against the shared mock."""
+    34	
+    35	    @classmethod
+    36	    def setUpClass(cls):
+    37	        start_mock(MOCK_PORT)
+    38	
+    39	    @classmethod
+    40	    def tearDownClass(cls):
+    41	        try:
+    42	            stop_mock()
+    43	        except Exception:  # noqa: BLE001
+    44	            pass
+    45	
+    46	    def setUp(self):
+    47	        self.ctx, self.llm, self.ui = clients(BASE)
+    48	
+    49	    def tearDown(self):
+    50	        close(self.llm, self.ui)
+    51	
+    52	    def _slow_post(self, stream: bool) -> threading.Thread:
+    53	        t = threading.Thread(
+    54	            target=lambda: self.llm.post(
+    55	                CHAT,
+    56	                json={"model": "slow", "stream": stream, "messages": [{"role": "user", "content": "hi"}]},
+    57	            ),
+    58	            daemon=True,
+    59	        )
+    60	        t.start()
+    61	        return t
+    62	
+    63	    def _exchanges(self) -> list[dict]:
+    64	        return self.ui.get(f"/api/conversations/{CID}").json()["exchanges"]
+    65	
+    66	    def test_in_flight_visible_in_rest_then_finalized(self):
+    67	        """A slow non-stream request is visible as in_flight in REST, and completes
+    68	        in place: same id/sequence, response filled in, in_flight cleared."""
+    69	        t = self._slow_post(stream=False)
+    70	        time.sleep(0.3)  # inside the mock's 0.8s hold
+    71	        exs = self._exchanges()
+    72	        self.assertEqual(len(exs), 1)
+    73	        pending = exs[0]
+    74	        self.assertTrue(pending["in_flight"])
+    75	        self.assertIsNone(pending["server_response"])
+    76	        self.assertFalse(pending["streaming"])
+    77	        self.assertEqual(pending["client_request"]["method"], "POST")
+    78	        self.assertEqual(pending["client_request"]["body_json"]["model"], "slow")
+    79	        seq = pending["sequence"]
+    80	
+    81	        t.join(timeout=5)
+    82	        self.assertFalse(t.is_alive())
+    83	        exs = self._exchanges()
+    84	        self.assertEqual(len(exs), 1)
+    85	        done = exs[0]
+    86	        self.assertFalse(done["in_flight"])
+    87	        self.assertEqual(done["id"], pending["id"])
+    88	        self.assertEqual(done["sequence"], seq)
+    89	        self.assertEqual(done["server_response"]["status"], 200)
+    90	
+    91	    def test_in_flight_carries_streaming_flag(self):
+    92	        """A slow streaming request is visible as in_flight with streaming set, so
+    93	        the UI can render the pending card as a stream."""
+    94	        t = self._slow_post(stream=True)
+    95	        time.sleep(0.3)
+    96	        exs = self._exchanges()
+    97	        self.assertEqual(len(exs), 1)
+    98	        self.assertTrue(exs[0]["in_flight"])
+    99	        self.assertTrue(exs[0]["streaming"])
+   100	        t.join(timeout=5)
+   101	        self.assertFalse(t.is_alive())
+
+```
+
+
+**Tool Call: Read file `tests/test_m6.py`**
+Status: Completed
+
+```llm-proxy/tests/test_m6.py
+     1	"""M6 tests: per-request decode. Chat is decoded by the openai dissector;
+     2	everything else falls back to the generic raw capture (per-exchange marker)."""
+     3	
+     4	from __future__ import annotations
+     5	
+     6	import unittest
+     7	
+     8	try:  # package form (unittest discover)
+     9	    from .helpers import clients, close
+    10	    from .mock_upstream import start_mock, stop_mock
+    11	except ImportError:  # direct execution fallback
+    12	    from helpers import clients, close  # type: ignore
+    13	    from mock_upstream import start_mock, stop_mock  # type: ignore
+    14	
+    15	from llm_proxy.config import Settings
+    16	from llm_proxy.dissectors.openai import _last_user_preview
+    17	
+    18	BASE = Settings(upstream_base_url="http://127.0.0.1:8082", log_level="critical")
+    19	
+    20	MOCK_PORT = 8082
+    21	CHAT = "/v1/chat/completions"
+    22	CID = "testclient"  # the source host Starlette's TestClient presents to the proxy
+    23	
+    24	
+    25	def _payload(stream: bool, model: str = "local-model") -> dict:
+    26	    return {"model": model, "stream": stream, "messages": [{"role": "user", "content": "hi"}]}
+    27	
+    28	
+    29	class TestDecode(unittest.TestCase):
+    30	    """Per-request decode: chat -> openai decoder, non-chat -> generic fallback."""
+    31	
+    32	    @classmethod
+    33	    def setUpClass(cls):
+    34	        start_mock(MOCK_PORT)
+    35	
+    36	    @classmethod
+    37	    def tearDownClass(cls):
+    38	        try:
+    39	            stop_mock()
+    40	        except Exception:
+    41	            pass
+    42	
+    43	    def setUp(self):
+    44	        self.ctx, self.llm, self.ui = clients(BASE)
+    45	
+    46	    def tearDown(self):
+    47	        close(self.llm, self.ui)
+    48	
+    49	    def _exchanges(self) -> list[dict]:
+    50	        """The testclient's exchanges, read back through the UI API."""
+    51	        return self.ui.get(f"/api/conversations/{CID}").json()["exchanges"]
+    52	
+    53	    def test_chat_decoded_as_openai(self):
+    54	        self.llm.post(CHAT, json=_payload(stream=True))
+    55	        (ex,) = self._exchanges()
+    56	        self.assertEqual(ex["dissector"], "openai")
+    57	        self.assertEqual(
+    58	            ex["server_response"]["reassembled"]["choices"][0]["message"]["content"], "Hello, world!"
+    59	        )
+    60	
+    61	    def test_nonchat_falls_back_to_generic(self):
+    62	        self.llm.get("/props", params={"model": "m"})
+    63	        self.llm.get("/v1/models")
+    64	        self.llm.get("/nope")
+    65	        exs = self._exchanges()
+    66	        for ex in exs:
+    67	            self.assertEqual(ex["dissector"], "generic")
+    68	        self.assertEqual(exs[0]["server_response"]["body_json"], {"n_ctx": 4096, "model": "m"})
+    69	        self.assertEqual(exs[1]["server_response"]["body_json"]["object"], "list")
+    70	        self.assertEqual(exs[2]["server_response"]["status"], 404)
+    71	
+    72	    def test_mixed_conversation(self):
+    73	        self.llm.post(CHAT, json=_payload(stream=True))
+    74	        self.llm.get("/props", params={"model": "m"})
+    75	        exs = self._exchanges()
+    76	        self.assertEqual(exs[0]["dissector"], "openai")
+    77	        self.assertIn("reassembled", exs[0]["server_response"])
+    78	        self.assertEqual(exs[1]["dissector"], "generic")
+    79	        self.assertEqual(exs[1]["server_response"]["body_json"], {"n_ctx": 4096, "model": "m"})
+    80	
+    81	
+    82	class TestPreview(unittest.TestCase):
+    83	    """The last-user preview is capped and always marks truncation."""
+    84	
+    85	    def test_short_string_untouched(self):
+    86	        body = {"messages": [{"role": "user", "content": "hi"}]}
+    87	        self.assertEqual(_last_user_preview(body), "hi")
+    88	
+    89	    def test_long_string_truncated_with_ellipsis(self):
+    90	        body = {"messages": [{"role": "user", "content": "x" * 600}]}
+    91	        p = _last_user_preview(body)
+    92	        self.assertEqual(len(p), 501)  # 500 + ellipsis
+    93	        self.assertTrue(p.endswith("…"))
+    94	
+    95	    def test_list_content_truncated_with_ellipsis(self):
+    96	        body = {"messages": [{"role": "user", "content": [{"type": "text", "text": "y" * 600}]}]}
+    97	        p = _last_user_preview(body)
+    98	        self.assertTrue(p.endswith("…"))
+    99	        self.assertEqual(len(p), 501)
+   100	
+   101	    def test_skips_non_user_roles(self):
+   102	        body = {"messages": [{"role": "tool", "content": "z" * 600}]}
+   103	        self.assertIsNone(_last_user_preview(body))
+   104	
+   105	
+   106	if __name__ == "__main__":
+   107	    unittest.main()
+
+```
+
+
+## Assistant
+
+<thinking>
+Next up is helpers.py, test_shutdown.py, and mock_upstream.py (I'm going to keep the latter, so I don't necessarily need to read the whole thing, but I'll skim through it to understand its interface).
+
+</thinking>
+
+**Tool Call: Read file `tests/helpers.py`**
+Status: Completed
+
+```llm-proxy/tests/helpers.py
+     1	"""Shared test helpers: build a fresh shared Context + LLM and UI TestClients.
+     2	
+     3	The proxy runs one process with two listeners (LLM proxy + UI). Tests build both
+     4	apps against the *same* Context so the store and hub are shared (the point of a
+     5	single process); each listener builds its own upstream client + pipeline in its
+     6	lifespan. The LLM client blanks the User-Agent so its id stays "testclient"; the
+     7	UI client makes no proxy calls.
+     8	"""
+     9	
+    10	from __future__ import annotations
+    11	
+    12	from fastapi.testclient import TestClient
+    13	
+    14	from llm_proxy.app import Context, create_llm_app, create_ui_app
+    15	from llm_proxy.config import Settings
+    16	
+    17	
+    18	def clients(settings: Settings) -> tuple[Context, TestClient, TestClient]:
+    19	    """A fresh shared Context plus entered LLM and UI TestClients.
+    20	
+    21	    Returns ``(ctx, llm, ui)``. Call :func:`close` in ``tearDown`` (each client
+    22	    closes its own upstream client via its lifespan).
+    23	    """
+    24	    ctx = Context(settings)
+    25	    llm = TestClient(create_llm_app(ctx), headers={"User-Agent": ""})
+    26	    ui = TestClient(create_ui_app(ctx))
+    27	    llm.__enter__()
+    28	    ui.__enter__()
+    29	    return ctx, llm, ui
+    30	
+    31	
+    32	def close(llm: TestClient, ui: TestClient) -> None:
+    33	    llm.__exit__(None, None, None)
+    34	    ui.__exit__(None, None, None)
+
+```
+
+
+**Tool Call: Read file `tests/test_shutdown.py`**
+Status: Completed
+
+```llm-proxy/tests/test_shutdown.py
+     1	"""SIGTERM shutdown must be bounded even with a request stuck in flight.
+     2	
+     3	Reproduces the production hang: the proxy forwards a request to an upstream that
+     4	never answers (persistent /models/sse feeds, long chat streams), so the client
+     5	connection lingers past graceful shutdown. The uvicorn wait was unbounded
+     6	(``timeout_graceful_shutdown`` unset), so ``docker compose down`` hit its 10s
+     7	grace period and SIGKILLed. The wait is now capped at ``SHUTDOWN_GRACE``.
+     8	"""
+     9	
+    10	from __future__ import annotations
+    11	
+    12	import http.client
+    13	import json
+    14	import signal
+    15	import socket
+    16	import subprocess
+    17	import sys
+    18	import threading
+    19	import time
+    20	import unittest
+    21	from pathlib import Path
+    22	
+    23	from llm_proxy.app import SHUTDOWN_GRACE
+    24	
+    25	
+    26	def _free_port() -> int:
+    27	    with socket.socket() as sock:
+    28	        sock.bind(("127.0.0.1", 0))
+    29	        return sock.getsockname()[1]
+    30	
+    31	
+    32	class _HangingUpstream:
+    33	    """Accepts connections and never answers, like a stalled model stream."""
+    34	
+    35	    def __init__(self, port: int) -> None:
+    36	        self._sock = socket.socket()
+    37	        self._sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    38	        self._sock.bind(("127.0.0.1", port))
+    39	        self._sock.listen(8)
+    40	        threading.Thread(target=self._run, daemon=True).start()
+    41	
+    42	    def _run(self) -> None:
+    43	        while True:
+    44	            conn, _ = self._sock.accept()
+    45	            conn.recv(4096)  # swallow the request head, then hold it forever
+    46	
+    47	    def close(self) -> None:
+    48	        self._sock.close()
+    49	
+    50	
+    51	def _tcp_up(port: int) -> bool:
+    52	    try:
+    53	        with socket.create_connection(("127.0.0.1", port), timeout=1.0):
+    54	            return True
+    55	    except OSError:
+    56	        return False
+    57	
+    58	
+    59	@unittest.skipUnless(sys.platform != "win32", "needs SIGTERM")
+    60	class ShutdownBoundedTest(unittest.TestCase):
+    61	    def test_sigterm_exits_quickly_while_request_in_flight(self) -> None:
+    62	        exe = Path(sys.executable).with_name("llm-proxy")
+    63	        if not exe.is_file():
+    64	            self.skipTest(f"console script not found: {exe}")
+    65	        llm_port, ui_port, up_port = _free_port(), _free_port(), _free_port()
+    66	        upstream = _HangingUpstream(up_port)
+    67	        proc = subprocess.Popen(
+    68	            [
+    69	                str(exe),
+    70	                f"http://127.0.0.1:{up_port}",
+    71	                "--host",
+    72	                "127.0.0.1",
+    73	                "--llm-port",
+    74	                str(llm_port),
+    75	                "--ui-port",
+    76	                str(ui_port),
+    77	            ],
+    78	            stdout=subprocess.PIPE,
+    79	            stderr=subprocess.STDOUT,
+    80	            text=True,
+    81	        )
+    82	        client: http.client.HTTPConnection | None = None
+    83	        try:
+    84	            deadline = time.monotonic() + 10.0
+    85	            while not _tcp_up(ui_port):
+    86	                self.assertLess(time.monotonic(), deadline, "proxy did not start within 10s")
+    87	                time.sleep(0.1)
+    88	            # A proxied request the upstream never answers: in flight forever.
+    89	            client = http.client.HTTPConnection("127.0.0.1", llm_port)
+    90	            body = json.dumps({"model": "m", "stream": True, "messages": [{"role": "user", "content": "hi"}]})
+    91	            client.request(
+    92	                "POST", "/v1/chat/completions", body=body, headers={"Content-Type": "application/json"}
+    93	            )
+    94	            time.sleep(0.3)  # let it reach the proxy and hang on the upstream
+    95	            t0 = time.monotonic()
+    96	            proc.send_signal(signal.SIGTERM)
+    97	            try:
+    98	                proc.communicate(timeout=8.0)
+    99	            except subprocess.TimeoutExpired:
+   100	                proc.kill()
+   101	                out, _ = proc.communicate(timeout=5.0)
+   102	                tail = "\n".join(out.splitlines()[-40:])
+   103	                self.fail(f"shutdown exceeded 8s (grace={SHUTDOWN_GRACE}s);\nlog tail:\n{tail}")
+   104	            elapsed = time.monotonic() - t0
+   105	            self.assertEqual(proc.returncode, 0, f"proxy exited with {proc.returncode}")
+   106	            self.assertLess(elapsed, SHUTDOWN_GRACE + 2.0, f"shutdown took {elapsed:.1f}s")
+   107	        finally:
+   108	            if client is not None:
+   109	                try:
+   110	                    client.close()
+   111	                except OSError:
+   112	                    pass
+   113	            if proc.poll() is None:
+   114	                proc.kill()
+   115	                proc.wait(timeout=5.0)
+   116	            upstream.close()
+
+```
+
+
+## Assistant
+
+<thinking>
+Okay, I now have the full picture. Current state: 10 test files (8 milestone-named + 2 already subject-named + shutdown). Plan M7 target: `test_store.py`, `test_proxy.py`, `test_dissectors.py`, `test_ui_api.py`, `test_ws.py`, `test_cli.py`, plus keep `mock_upstream.py` (and helpers.py).
+
+Mapping:
+
+**test_cli.py** (no mock needed):
+- TestPackaging (m0)
+- TestCli (m0)
+- TestCliPorts (m5)
+
+**test_proxy.py** (mock needed):
+- TestProxy (m0) — passthrough, health, capture, redaction, client-ID splitting
+- TestTransparent (m5) — catch-all, query strings, opaque capture, port split
+- TestUpstreamTimeouts (m3) — timeout policy
+- TestInFlight (test_inflight) — in-flight visibility/finalization
+
+Wait — TestInFlight is about in-flight exchange visibility via REST... is that "proxy" or "ui_api" or "store"? It verifies that the pipeline's begin/finalize appears in the store via REST. The plan says test_proxy.py = "(forwarding/streaming/timings/client-id)". In-flight visibility is part of the capture pipeline behavior. Hmm. Or test_ui_api? The test name says "In-flight exchange visibility: REST shows pending exchanges...". It's about proxy capture behavior verified via REST. I'll put it in test_proxy.py (capture lifecycle).
+
+**test_ws.py** (mock needed):
+- TestLiveFanOut (m1)
+- TestWsLiveness (m3)
+
+**test_ui_api.py** (mock needed):
+- TestReplayAndExport (m2)
+- TestClientRemoval (test_client_removal)
+- TestExchangeRemoval (test_exchange_removal)
+- test_serves_ui_and_favicon (m0) — hmm, static asset serving. This is UI listener behavior. Could go in test_ui_api.py as part of a class like TestUiServing. Or keep it in test_proxy as part of TestProxy? No — this tests the UI listener. I'll move it into test_ui_api.py.
+- test_ui_assets_served (m1) — same, UI asset serving. Also test_ui_api.py.
+
+Hmm, wait. Where do the "store" tests go? Plan lists test_store.py. Currently, no tests test the store directly (the store's ring buffer / retention). All store behavior is tested through the API. So test_store.py would be empty. Options: (a) skip test_store.py (the plan's list is illustrative: "reorganize tests/ by subject, not milestone: test_store.py, test_proxy.py (…)..." — that's a suggested list); (b) extract store-related tests into test_store.py (e.g., retention? not tested). I think the correct call is to not create an empty file; the plan's list is a suggestion, and the subject-based split is the essence. I'll note this deviation in the final message. Actually — hmm, is there anything store-specific? test_capture_and_export (m0 TestProxy) — capture + export via API; that's fine in test_proxy (capture is pipeline behavior) or test_ui_api (export endpoint). test_secret_redaction (m0) — redaction on capture — pipeline behavior. test_user_agent_* (m0) — client ID — the plan explicitly says client-id → test_proxy.
+
+**test_dissectors.py** (mock needed):
+- TestDecode (m6)
+- TestPreview (m6) — pure unit tests of the openai dissector helpers
+
+**test_shutdown.py** — keep as is (already subject-named).
+
+So the final files: test_cli.py, test_proxy.py, test_ws.py, test_ui_api.py, test_dissectors.py, test_shutdown.py, helpers.py, mock_upstream.py, __init__.py.
+
+Next, per-file fixture structure. The dominant pattern (5 classes): setUpClass start_mock / tearDownClass stop_mock / setUp clients(BASE) / tearDown close. The BASE, MOCK_PORT, CHAT, CID, _payload constants are duplicated across m0/m1/m2/m5/m6/inflight/removal files. I can centralize them:
+
+helpers.py can host the shared constants + a mixin for the mock-lifecycle fixture:
+
+```python
+BASE = Settings(upstream_base_url="http://127.0.0.1:8082", log_level="critical")
+MOCK_PORT = 8082
+CHAT = "/v1/chat/completions"
+CID = "testclient"
+
+def _payload(stream: bool, model: str = "local-model") -> dict: ...
+```
+
+And a `MockUpstreamTests(unittest.TestCase)` mixin/base that does start/stop mock + clients lifecycle:
+
+```python
+class MockedCase(unittest.TestCase):
+    """Fresh shared Context against the shared mock upstream."""
+
+    @classmethod
+    def setUpClass(cls):
+        start_mock(MOCK_PORT)
+
+    @classmethod
+    def tearDownClass(cls):
+        try:
+            stop_mock()
+        except Exception:
+            pass
+
+    def setUp(self):
+        self.ctx, self.llm, self.ui = clients(BASE)
+
+    def tearDown(self):
+        close(self.llm, self.ui)
+```
+
+This would be a nice simplification — every subject file would use `class TestX(MockedCase)`. It removes ~20 lines of duplication per file. But is it over-engineering? The user prefers minimal changes... but M7 is explicitly a reorganization task, and deduplicating the fixture is squarely in scope ("reorganize tests/ by subject"). The mixin approach keeps the diff clean and shrinks each file. I'll do it — this is the standard unittest pattern (a base class in helpers.py).
+
+Hmm, wait, one caveat: `unittest` discovery + class inheritance from a base in helpers.py is fine.
+
+But a caveat: TestWsLiveness (m3) uses the `_fresh_client` pattern (UI-only client, no mock calls, no LLM client). It doesn't use clients(BASE) — it builds a UI TestClient with overridden settings. So it shouldn't inherit from MockedCase. And TestUpstreamTimeouts similarly uses _fresh_client. So:
+
+- test_proxy.py: TestUpstreamTimeouts (uses _fresh_client UI-only), TestProxy, TestTransparent, TestInFlight.
+- test_ws.py: TestLiveFanOut (MockedCase), TestWsLiveness (UI-only client).
+
+_fresh_client/_close_client are m3-local helpers — they'll move to test_proxy.py and test_ws.py. Both files will need them. Put them in helpers.py? They're generic (fresh UI client with overrides). I'll move them to helpers.py as `ui_client(**overrides)` / reuse `close`? close(llm, ui) takes two. I'll add a small helper:
+
+```python
+def ui_client(settings: Settings) -> TestClient:
+    """An entered UI TestClient with a fresh Context."""
+    client = TestClient(create_ui_app(Context(settings)))
+    client.__enter__()
+    return client
+```
+
+And `_close_client` = just client.__exit__ — could also add `close_ui(client)`. Hmm, the existing close() takes both. Simplest: in helpers, `close(llm, ui)` already does both __exit__s, so I could call `close(None, client)`? Ugly. I'll add:
+
+```python
+def close_ui(ui: TestClient) -> None:
+    ui.__exit__(None, None, None)
+```
+
+Actually, m3's `_close_client(client)` is exactly that. OK.
+
+Now — the WS helpers `_receive_json` and `_read_until_completed` (m1) — used in test_ws.py. Also used in other files? Let me grep: _read_until_completed appears in test_m1 (tests). Anywhere else? test_exchange_removal uses threading/time but no WS reads. Let me grep _receive_json across tests... from what I read, only test_m1.py. So they move to test_ws.py. (Could go in helpers, but test_ws is the only consumer; keep local. Hmm — actually, if I'm consolidating, helpers.py is the natural home for shared test utilities. But single consumer → keep local to test_ws.py.)
+
+Per-file module docstrings: update to describe the subject.
+
+Now, let me plan the exact file contents.
+
+**helpers.py** (extended):
+```python
+"""Shared test helpers: app/client builders, the shared mock-upstream fixture,
+and constants used across the suite."""
+
+from __future__ import annotations
+
+from fastapi.testclient import TestClient
+
+try:  # package form (unittest discover)
+    from .mock_upstream import start_mock, stop_mock
+except ImportError:  # direct execution fallback
+    from mock_upstream import start_mock, stop_mock  # type: ignore
+
+from llm_proxy.app import Context, create_llm_app, create_ui_app
+from llm_proxy.config import Settings
+
+# Settings for the apps under test: the local mock upstream, quiet logs (tests
+# that assert on logs capture their own handler).
+BASE = Settings(upstream_base_url="http://127.0.0.1:8082", log_level="critical")
+
+MOCK_PORT = 8082
+CHAT = "/v1/chat/completions"
+CID = "testclient"  # the source host Starlette's TestClient presents to the proxy
+
+
+def clients(settings: Settings) -> tuple[Context, TestClient, TestClient]:
+    ... (as is)
+
+
+def close(llm: TestClient, ui: TestClient) -> None:
+    ... (as is)
+
+
+def ui_client(settings: Settings) -> TestClient:
+    """An entered UI TestClient with a fresh Context (no LLM listener, no proxy calls)."""
+    client = TestClient(create_ui_app(Context(settings)))
+    client.__enter__()
+    return client
+
+
+def close_ui(ui: TestClient) -> None:
+    ui.__exit__(None, None, None)
+
+
+def payload(stream: bool, model: str = "local-model") -> dict:
+    """A minimal chat-completions body; the mock answers per model name."""
+    return {"model": model, "stream": stream, "messages": [{"role": "user", "content": "hi"}]}
+
+
+class MockedCase(unittest.TestCase):
+    """A fresh shared Context (isolated store + hub) per test, against the shared mock upstream."""
+
+    @classmethod
+    def setUpClass(cls):
+        start_mock(MOCK_PORT)
+
+    @classmethod
+    def tearDownClass(cls):
+        try:
+            stop_mock()
+        except Exception:
+            pass
+
+    def setUp(self):
+        self.ctx, self.llm, self.ui = clients(BASE)
+
+    def tearDown(self):
+        close(self.llm, self.ui)
+```
+
+Wait — the per-file `try/except ImportError` fallback: this exists for "direct execution" (running `python tests/test_m1.py` without the package context). With unittest discover from the project root, the package form works. If I put the start_mock import in helpers.py, I need the same try/except there. OK.
+
+Hmm, actually — do I need to name the `payload` helper in helpers? Files that use `_payload`: m0, m1, m2, m5 (no — m5 doesn't define _payload... wait, m5 has no _payload; TestTransparent uses params GET, not chat... correct, m5 has no _payload), m6 (with a model parameter), inflight (inline), removal files (inline). The signatures differ: m6 is `_payload(stream, model="local-model")`, the others are `_payload(stream)`. Unifying as `payload(stream, model="local-model")` in helpers — compatible with both.
+
+Next, `MockedCase` — one concern: unittest discovery + inherited classmethods, no issue.
+
+Another consideration: currently each file starts/stops its own mock in setUpClass/tearDownClass per test class. With multiple classes per file each inheriting MockedCase, each class will start/stop its own mock — same as today (each class was doing that in its own file). start_mock must be idempotent/restartable — it already is (classes in the same file already do this? no, each file had 1-2 classes... test_m0 has TestProxy (mock) + TestPackaging + TestCli (no mock). test_m3: 2 classes, neither starting the mock. So actually no file currently has 2 classes starting the mock. After the reorg: test_proxy.py will have TestProxy, TestTransparent, TestInFlight (3 classes each start/stop mock) + TestUpstreamTimeouts (no mock). test_ws.py: TestLiveFanOut (mock) + TestWsLiveness (no mock). test_ui_api.py: 4 classes all starting mock.
+
+So start_mock/stop_mock will be called sequentially many times — already the case across files (each file's class starts the mock after the previous file's class stops it). Order: unittest runs files alphabetically: test_cli, test_dissectors, test_exchange... — after reorg: test_cli, test_dissectors, test_proxy, test_shutdown, test_ui_api, test_ws. Sequential per class. start_mock binds to 8082 — SO_REUSEADDR? Let me check mock_upstream to confirm restart works (it already works across classes today — e.g., test_m0.TestProxy starts/stops, then test_m1.TestLiveFanOut starts again. So it's proven).
+
+But wait — one risk: test classes running in parallel? No, unittest is sequential. Fine.
+
+Now let me check mock_upstream.py to confirm its interface (REQUESTS list, models: local-model, slow (0.8s hold), thinker, tooler, boom→404, /props, /plain, /sse, /v1/models).
+
+</thinking>
+
+Now `mock_upstream.py` to confirm the fixture interface before reorganizing.
+
+
+
+**Tool Call: Read file `tests/mock_upstream.py`**
+Status: Completed
+
+```llm-proxy/tests/mock_upstream.py
+     1	"""A tiny in-process stand-in for a local llama.cpp ``/v1`` server."""
+     2	
+     3	from __future__ import annotations
+     4	
+     5	import asyncio
+     6	import json
+     7	import threading
+     8	import time
+     9	import urllib.request
+    10	
+    11	import uvicorn
+    12	from fastapi import FastAPI, Request
+    13	from fastapi.responses import JSONResponse, PlainTextResponse, StreamingResponse
+    14	
+    15	mock = FastAPI()
+    16	
+    17	# llama.cpp embeds generation timings in the final stream chunk / non-stream body;
+    18	# 3 tokens in 30ms -> 100 tok/s. Lets tests assert the proxy surfaces them.
+    19	TIMINGS = {"prompt_n": 45, "prompt_ms": 1150.0, "predicted_n": 3, "predicted_ms": 30.0}
+    20	
+    21	# Bodies of every chat request received, in order. Lets tests assert replay
+    22	# re-sends the captured request (or the replacing body) verbatim to the upstream.
+    23	REQUESTS: list[dict] = []
+    24	
+    25	
+    26	@mock.get("/v1/models")
+    27	async def models() -> dict:
+    28	    return {"object": "list", "data": [{"id": "local-model", "object": "model"}]}
+    29	
+    30	
+    31	@mock.get("/props")
+    32	async def props(request: Request) -> dict:
+    33	    """llama.cpp server-properties probe (a non-OpenAI path the proxy must pass through)."""
+    34	    return {"n_ctx": 4096, "model": request.query_params.get("model", "")}
+    35	
+    36	
+    37	@mock.get("/plain")
+    38	async def plain() -> PlainTextResponse:
+    39	    """A non-JSON response body (exercises the raw-text capture path)."""
+    40	    return PlainTextResponse("hello")
+    41	
+    42	
+    43	@mock.get("/models/sse")
+    44	async def models_sse() -> StreamingResponse:
+    45	    """llama.cpp's model-load progress stream: a non-chat SSE (raw capture, never
+    46	    reassembled as a chat completion)."""
+    47	
+    48	    async def gen():
+    49	        for i in range(3):
+    50	            yield f"data: {json.dumps({'status': 'loading', 'i': i})}\n\n"
+    51	        yield "data: [DONE]\n\n"
+    52	
+    53	    return StreamingResponse(gen(), media_type="text/event-stream")
+    54	
+    55	
+    56	@mock.get("/sse")
+    57	async def sse() -> StreamingResponse:
+    58	    """A non-OpenAI SSE stream (exercises the undecoded-SSE raw capture path)."""
+    59	
+    60	    async def gen():
+    61	        for i in range(3):
+    62	            yield f"data: {json.dumps({'event': 'tick', 'i': i})}\n\n"
+    63	        yield "data: [DONE]\n\n"
+    64	
+    65	    return StreamingResponse(gen(), media_type="text/event-stream")
+    66	
+    67	
+    68	def _sse_line(
+    69	    model: str, delta: dict, finish: str | None = None, usage: dict | None = None, timings: dict | None = None
+    70	) -> str:
+    71	    obj: dict = {
+    72	        "id": "c1",
+    73	        "object": "chat.completion.chunk",
+    74	        "model": model,
+    75	        "choices": [{"index": 0, "delta": delta, "finish_reason": finish}],
+    76	    }
+    77	    if usage:
+    78	        obj["usage"] = usage
+    79	    if timings:
+    80	        obj["timings"] = timings
+    81	    return f"data: {json.dumps(obj)}\n\n"
+    82	
+    83	
+    84	@mock.post("/v1/chat/completions")
+    85	async def chat(request: Request):
+    86	    body = await request.json()
+    87	    REQUESTS.append(body)
+    88	    stream = bool(body.get("stream", False))
+    89	    model = body.get("model", "local-model")
+    90	    if model == "boom":
+    91	        return JSONResponse({"error": {"message": "model not found"}}, status_code=404)
+    92	
+    93	    # "thinker" mirrors real reasoning models (e.g. llama.cpp --reasoning-preserve):
+    94	    # thinking streams first in delta.reasoning_content, content afterwards.
+    95	    if stream and model == "thinker":
+    96	
+    97	        async def gen_think():
+    98	            for piece in ["Let", " me", " think", "..."]:
+    99	                yield _sse_line(model, {"reasoning_content": piece})
+   100	                await asyncio.sleep(0.005)
+   101	            for piece in ["Hi", "!"]:
+   102	                yield _sse_line(model, {"content": piece})
+   103	                await asyncio.sleep(0.005)
+   104	            yield _sse_line(
+   105	                model,
+   106	                {},
+   107	                finish="stop",
+   108	                usage={"prompt_tokens": 4, "completion_tokens": 2, "total_tokens": 6},
+   109	                timings={"prompt_n": 4, "prompt_ms": 100.0, "predicted_n": 2, "predicted_ms": 10.0},
+   110	            )
+   111	            yield "data: [DONE]\n\n"
+   112	
+   113	        return StreamingResponse(gen_think(), media_type="text/event-stream")
+   114	
+   115	    if stream and model == "tooler":
+   116	        # Agentic reply: content plus fragmented delta.tool_calls (id/name in
+   117	        # the first fragment, arguments appended across later ones).
+   118	
+   119	        async def gen_tool():
+   120	            yield _sse_line(model, {"content": "Let me check."})
+   121	            yield _sse_line(
+   122	                model,
+   123	                {
+   124	                    "tool_calls": [
+   125	                        {
+   126	                            "index": 0,
+   127	                            "id": "call_1",
+   128	                            "type": "function",
+   129	                            "function": {"name": "bash", "arguments": ""},
+   130	                        }
+   131	                    ]
+   132	                },
+   133	            )
+   134	            for frag in ('{"com', 'mand": "ls"}'):
+   135	                yield _sse_line(model, {"tool_calls": [{"index": 0, "function": {"arguments": frag}}]})
+   136	                await asyncio.sleep(0.005)
+   137	            yield _sse_line(
+   138	                model,
+   139	                {},
+   140	                finish="tool_calls",
+   141	                usage={"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
+   142	                timings=TIMINGS,
+   143	            )
+   144	            yield "data: [DONE]\n\n"
+   145	
+   146	        return StreamingResponse(gen_tool(), media_type="text/event-stream")
+   147	
+   148	    if model == "slow":
+   149	        # Holds the request open so tests can observe the in-flight exchange in REST.
+   150	        await asyncio.sleep(0.8)
+   151	
+   152	    async def gen():
+   153	        for piece in ["Hello", ", ", "world", "!"]:
+   154	            chunk = {
+   155	                "id": "c1",
+   156	                "object": "chat.completion.chunk",
+   157	                "model": model,
+   158	                "choices": [{"index": 0, "delta": {"content": piece}, "finish_reason": None}],
+   159	            }
+   160	            yield f"data: {json.dumps(chunk)}\n\n"
+   161	            await asyncio.sleep(0.01)
+   162	        final = {
+   163	            "id": "c1",
+   164	            "object": "chat.completion.chunk",
+   165	            "model": model,
+   166	            "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}],
+   167	            "usage": {"prompt_tokens": 5, "completion_tokens": 3, "total_tokens": 8},
+   168	            "timings": TIMINGS,
+   169	        }
+   170	        yield f"data: {json.dumps(final)}\n\n"
+   171	        yield "data: [DONE]\n\n"
+   172	
+   173	    if stream:
+   174	        return StreamingResponse(gen(), media_type="text/event-stream")
+   175	    return JSONResponse(
+   176	        {
+   177	            "id": "c1",
+   178	            "object": "chat.completion",
+   179	            "model": model,
+   180	            "choices": [
+   181	                {
+   182	                    "index": 0,
+   183	                    "message": {"role": "assistant", "content": "Hello, world!"},
+   184	                    "finish_reason": "stop",
+   185	                }
+   186	            ],
+   187	            "usage": {"prompt_tokens": 5, "completion_tokens": 3, "total_tokens": 8},
+   188	            "timings": TIMINGS,
+   189	        }
+   190	    )
+   191	
+   192	
+   193	_server: uvicorn.Server | None = None
+   194	_thread: threading.Thread | None = None
+   195	
+   196	
+   197	def start_mock(port: int = 8082) -> None:
+   198	    """Start the mock upstream on ``127.0.0.1:port`` and block until it accepts."""
+   199	    global _server, _thread
+   200	    config = uvicorn.Config(mock, host="127.0.0.1", port=port, log_level="error")
+   201	    _server = uvicorn.Server(config)
+   202	    _thread = threading.Thread(target=_server.run, daemon=True)
+   203	    _thread.start()
+   204	    for _ in range(100):
+   205	        try:
+   206	            urllib.request.urlopen(f"http://127.0.0.1:{port}/v1/models", timeout=0.2)
+   207	            return
+   208	        except Exception:
+   209	            time.sleep(0.05)
+   210	    raise RuntimeError("mock upstream did not start")
+   211	
+   212	
+   213	def stop_mock() -> None:
+   214	    """Signal the mock upstream to shut down (best-effort)."""
+   215	    global _server, _thread
+   216	    if _server is not None:
+   217	        _server.should_exit = True
+   218	        if _thread is not None:
+   219	            _thread.join(timeout=3)
+   220	    _server = None
+   221	    _thread = None
+
+```
+
+
+## Assistant
+
+<thinking>
+Got the full picture. Final layout:
+
+**helpers.py** — extended: constants (BASE, MOCK_PORT, CHAT, CID), `payload()`, `clients()`, `close()`, `ui_client()`, `close_ui()`, `MockedCase` base class.
+
+**test_cli.py** — TestPackaging, TestCli, TestCliPorts. Docstring: "CLI and packaging: __version__ via setuptools_scm, console scripts, cli_overrides argument mapping (including the two-port split)."
+
+**test_proxy.py** — TestProxy (m0), TestTransparent (m5), TestInFlight, TestUpstreamTimeouts. Docstring: "Transparent LLM proxy: pass-through, streaming tap, error/timeout policy, opaque capture, in-flight visibility, client identity, port split."
+
+Wait — `test_ports_do_not_overlap` (m5's TestTransparent) is about the port split → keep it inside TestTransparent (which moves wholesale).
+
+**test_ws.py** — TestLiveFanOut, TestWsLiveness + local `_receive_json`/`_read_until_completed`. Docstring: "WebSocket live UI: per-chunk fan-out, focus routing, dock activity, liveness ping/pong."
+
+**test_ui_api.py** — TestReplayAndExport, TestClientRemoval, TestExchangeRemoval, TestUiServing (m0's test_serves_ui_and_favicon + m1's test_ui_assets_served).
+
+Hmm — about the two UI-serving tests: making a `TestUiServing` class (inheriting MockedCase) that holds both methods. test_serves_ui_and_favicon uses self.ui only; test_ui_assets_served uses self.ui only. Both fine with MockedCase (needs mock? doesn't make upstream calls, but /health does… these don't call /health. MockedCase starts the mock anyway — harmless, and keeps the fixture uniform. Actually wait: does the UI app's lifespan call upstream at startup? M3's tests said "no M3 test makes an upstream call, but the app factory reads the value at startup" — so no upstream call at startup. So TestUiServing could skip the mock. But uniformity via MockedCase is simpler; the mock start/stop cost is small (~50ms). Hmm — but each MockedCase class start/stop of the mock adds a bit of suite time. Currently 8 classes start/stop the mock; after reorg: TestProxy, TestTransparent, TestInFlight (proxy), TestLiveFanOut (ws), TestReplayAndExport, TestClientRemoval, TestExchangeRemoval, TestUiServing (ui_api), TestDecode (dissectors) = 9 start/stops. Roughly the same as before (m0, m1, m2, m5, m6, inflight, client_removal, exchange_removal = 8). +1 is fine.
+
+Actually — should TestUiServing inherit MockedCase or use plain TestCase + ui-only? Simpler to inherit MockedCase for uniformity. OK.
+
+**test_dissectors.py** — TestDecode, TestPreview.
+
+**test_shutdown.py** — no change.
+
+Deletions: test_m0.py, test_m1.py, test_m2.py, test_m3.py, test_m5.py, test_m6.py, test_client_removal.py, test_exchange_removal.py, test_inflight.py.
+
+Now, details to be careful about:
+
+1. **Import style**: files use try/except relative imports. In the new files, import from `.helpers` (with the same fallback). `mock_upstream` is imported directly in test_m2 (`from . import mock_upstream`) for REQUESTS — test_ui_api.py needs `from . import mock_upstream` (fallback `import mock_upstream`).
+
+2. **Per-file imports** — build each file with only what it uses.
+
+**test_cli.py**:
+```python
+"""CLI and packaging: __version__ from installed metadata (setuptools_scm), the
+llm-proxy console script, and cli_overrides() argument mapping (incl. the
+two-port split). No mock upstream needed."""
+
+from __future__ import annotations
+
+import contextlib
+import importlib
+import io
+import unittest
+
+from llm_proxy.app import cli_overrides
+
+
+class TestPackaging(unittest.TestCase):
+    ... (from m0, unchanged)
+
+
+class TestCli(unittest.TestCase):
+    ... (from m0, unchanged)
+
+
+class TestCliPorts(unittest.TestCase):
+    """--llm-port/--ui-port map onto the two listener ports."""
+    ... (from m5)
+```
+Wait, m0's TestCli is named "TestCli" — keep the name. m5's TestCliPorts stays as-is. m0's imports: contextlib, importlib, io, unittest — TestPackaging uses importlib; TestCli uses contextlib, io. No socket, no quote, no TestClient, no Settings, no helpers, no mock.
+
+3. **test_proxy.py**:
+Imports: unittest, socket (for the dead-port test in TestProxy), quote (test_user_agent_splits_clients), TestClient (test_health dead upstream + 502 test), helpers: MockedCase, BASE, CHAT, CID, payload, ui_client/close_ui (for TestUpstreamTimeouts).
+
+Wait, TestUpstreamTimeouts uses m3's `_fresh_client(**overrides)` = BASE.model_copy(update=overrides). New helper `ui_client(settings)` takes a full Settings. So in the test: `ui_client(BASE.model_copy(update={"upstream_connect_timeout": 1.5, ...}))`. Hmm, or have ui_client take overrides? Let me design:
+
+```python
+def ui_client(**overrides) -> TestClient:
+    """An entered UI TestClient with a fresh Context; ``overrides`` are Settings fields."""
+    client = TestClient(create_ui_app(Context(BASE.model_copy(update=overrides))))
+    client.__enter__()
+    return client
+```
+
+This matches m3's _fresh_client semantics exactly and is generic. But m3's _fresh_client uses BASE (m3's module constant). If helpers defines BASE, this works. TestWsLiveness: `self.client = ui_client(ws_ping_interval=0.3, ws_ping_timeout=0.3)`.
+
+And close: `close_ui(client)`.
+
+Hmm — one issue: helpers.BASE now lives in helpers, and files that needed BASE (m0/m1/m2/etc.) imported it from helpers. TestProxy in test_proxy uses BASE for the dead-upstream copy: `BASE.model_copy(update=...)`. Good.
+
+**test_proxy.py** classes:
+- `class TestProxy(MockedCase)` — methods: test_health, test_health_reports_upstream_error_when_unreachable, test_non_streaming_passthrough, test_streaming_tap_and_forward, test_streaming_upstream_error_status_passthrough, test_streaming_upstream_unreachable_returns_502, test_capture_and_export, test_secret_redaction, test_user_agent_splits_clients_on_shared_ip, test_user_agent_and_key_combined_id. (Remove test_serves_ui_and_favicon → test_ui_api.)
+- `class TestTransparent(MockedCase)` — all 6 methods + the _exchanges helper.
+- `class TestInFlight(MockedCase)` — 2 methods + _slow_post/_exchanges.
+- `class TestUpstreamTimeouts(unittest.TestCase)` — 1 method, uses ui_client/close_ui.
+
+Module docstring: "The transparent LLM proxy: verbatim passthrough (query strings, errors,
+non-JSON, undecoded SSE), streaming tap-and-forward, upstream timeout policy,
+in-flight visibility, client identity, and the two-port split."
+
+`_payload` usages → `payload`. In TestProxy's methods, `_payload(stream=False)` → `payload(stream=False)`.
+
+4. **test_ws.py**:
+Imports: json (TestWsLiveness's ping parsing), logging (lifecycle test), threading, time, unittest, helpers (MockedCase, BASE? — not directly needed? TestLiveFanOut uses CID, CHAT, payload via helpers; BASE is used only via MockedCase. But wait — m1's TestLiveFanOut used BASE in setUp — that's now in MockedCase. So test_ws imports: CID, CHAT, payload, MockedCase, ui_client, close_ui from helpers).
+Local: _receive_json, _read_until_completed.
+Classes: TestLiveFanOut(MockedCase), TestWsLiveness(unittest.TestCase with ui_client).
+
+m1 docstring → "WebSocket live UI: per-chunk delta fan-out, focus routing, dock activity,
+new-client broadcast, liveness ping/pong and dead-socket pruning."
+
+5. **test_ui_api.py**:
+Imports: threading, time, unittest, mock_upstream (module), helpers (MockedCase, CHAT, CID, payload).
+Classes:
+- `class TestReplayAndExport(MockedCase)` — with local `_replay_path` helper (or make it a module-level function — module-level is fine).
+- `class TestClientRemoval(MockedCase)`.
+- `class TestExchangeRemoval(MockedCase)`.
+- `class TestUiServing(MockedCase)` — test_serves_ui_and_favicon (m0) + test_ui_assets_served (m1).
+
+6. **test_dissectors.py**:
+Imports: unittest, helpers (MockedCase, CHAT, CID, payload), `from llm_proxy.dissectors.openai import _last_user_preview`.
+Classes: TestDecode(MockedCase), TestPreview(unittest.TestCase).
+m6's local `_payload(stream, model)` → helpers' `payload(stream, model=...)`. TestDecode calls `_payload(stream=True)` → `payload(stream=True)`.
+
+7. **helpers.py** new version (as drafted above), with try/except imports for mock_upstream.
+
+Order of definitions in helpers: imports, BASE/MOCK_PORT/CHAT/CID, payload, clients, close, ui_client, close_ui, MockedCase.
+
+One design question: should MockedCase live in helpers.py? The direct-execution fallback (`python tests/test_proxy.py`) — helpers' try/except handles it. OK.
+
+Also, each new file keeps the trailing `if __name__ == "__main__": unittest.main()`.
+
+Now — a subtlety about unittest class naming collisions: no, classes are separate per file.
+
+Another subtlety: **TestClient's host header "testclient" and CID** — no change.
+
+Now, count: total tests should stay at 61.
+
+Let me count the current test count per class:
+- m0: TestPackaging 2, TestCli 3, TestProxy 11 (health, health_err, non_stream, streaming_tap, streaming_err, 502, capture_export, serves_ui, redaction, ua_split, ua_key) = 16
+- m1: TestLiveFanOut: streaming_fan, non_stream_fan, exchange_started_seq, completed_seq, unfocused_dock, new_client_seen, ui_assets, focus_switch, reasoning, tool_calls, gen_rate, client_registered, ws_lifecycle = 13
+- m2: TestReplayAndExport 6
+- m3: TestUpstreamTimeouts 1, TestWsLiveness 2 = 3
+- m5: TestCliPorts 1, TestTransparent 6 = 7
+- m6: TestDecode 3, TestPreview 4 = 7
+- client_removal 2, exchange_removal 4, inflight 2, shutdown 1
+Total: 16+13+6+3+7+7+2+4+2+1 = 61 ✓
+
+After the move (all tests retained, none lost):
+- test_cli: 2+3+1 = 6
+- test_proxy: TestProxy 10 (11 minus serves_ui) + TestTransparent 6 + TestInFlight 2 + TestUpstreamTimeouts 1 = 19
+- test_ws: TestLiveFanOut 12 (13 minus ui_assets) + TestWsLiveness 2 = 14
+- test_ui_api: TestReplayAndExport 6 + TestClientRemoval 2 + TestExchangeRemoval 4 + TestUiServing 2 = 14
+- test_dissectors: 7
+- test_shutdown: 1
+Total: 6+19+14+14+7+1 = 61 ✓
+
+Implementation steps:
+1. Rewrite helpers.py (write_file).
+2. Create test_cli.py, test_proxy.py, test_ws.py, test_ui_api.py, test_dissectors.py (write_file).
+3. Delete the 9 old files (delete_path ×9).
+4. isort + black.
+5. Run unittest discover.
+6. Update PLAN.md M7 → done, and the README status.
+
+Wait — README status: currently "M6 — dissector framework (this tree; awaiting commit)" with M6 marked done (awaiting commit). Hmm, the user committed M6 (they said "Ok I committed M1. Continue with M2" pattern… actually, the handoff says M0–M6 are committed by the user, and the README says M6 "(this tree; awaiting commit)" — that may be stale, or the user may have committed. The handoff says "Milestones M0–M6 are done and committed by the user". So the README's "(this tree; awaiting commit)" is stale. In M7, the status header should become "M7 — test reorganization (this tree; awaiting commit)", with M7 added to the list as "done (awaiting commit)"…
+
+Let me be careful: update the Status section:
+- Header: "**M7 — test reorganization** (this tree; awaiting commit). ..." — but the body text describes M6's dissector framework. Hmm. The status paragraph describes the current state of the project, and the M6 paragraph is still the best description of the product. Keep the description and just change the header line? That's weird.
+
+Simplest, most honest update: keep the paragraph, but the first line "**M6 — dissector framework** (this tree; awaiting commit)" — the user has already committed M6 (per handoff). So that "awaiting commit" is stale. After M7: the tree contains M7 work awaiting commit. Change the first line to "**M7 — test reorganization** (this tree; awaiting commit): tests reorganized by subject (cli/proxy/ws/ui-api/dissectors/shutdown) instead of milestone; coverage unchanged. The product state is unchanged since M6: ..." Hmm, that rewrites a lot.
+
+Minimal:
+```
+**M7 — test reorganization** (this tree; awaiting commit). The proxy stays a
+transparent catch-all: ... [rest unchanged]
+```
+And list:
+```
+- M6 — per-request decode (openai chat decoder + generic fallback, tool-calls UI) — done
+- M7 — test reorganization (by subject: cli, proxy, ws, ui-api, dissectors, shutdown) — done (awaiting commit)
+```
+Wait, the current list already says "M6 ... done (awaiting commit)". Since the user committed M6, drop the "(awaiting commit)" from M6 and attach it to M7.
+
+And PLAN.md §14 M7: mark as done? The milestones in the plan don't have an explicit "done" marker… let me check how prior milestones are marked in PLAN. The §14 text I read has no "done" markers — the plan is just a description. The README's Status tracks completion. So just the README. OK — though I could add a note to the plan. Keep it minimal: README only.
+
+Also, the Tests section of the README — does it mention the file layout? Let me check lines 99–109 of the README. Let me read it.
+
+</thinking>
+
+I have the full picture. Before writing, let me check the README's Tests section (it may reference the milestone-named files).
+
+
+
+**Tool Call: Read file `README.md` (lines 99-127)**
+Status: Completed
+
+````llm-proxy/README.md
+    99	## Tests
+   100	
+   101	Install the package, then run the end-to-end suite (M0–M6; it spins up a
+   102	mock llama.cpp upstream on `127.0.0.1:8082`):
+   103	
+   104	```bash
+   105	pip install -e ".[dev]"
+   106	python -m unittest discover -v
+   107	```
+   108	
+   109	## Development (style)
+   110	
+   111	Python is formatted with **isort + black** (configured in `pyproject.toml`):
+   112	
+   113	```bash
+   114	pip install -e ".[dev]"
+   115	isort llm_proxy tests
+   116	black llm_proxy tests
+   117	```
+   118	
+   119	JS is verified with **`node --check` + ESLint** (flat config in `eslint.config.mjs`;
+   120	the UI itself has no build step — plain JS served from `ui/`):
+   121	
+   122	```bash
+   123	npm install
+   124	npm run verify:js
+   125	```
+   126	
+   127	## Dev container
+
+````
+
+
+## Assistant
+
+<thinking>
+OK, the README tests don't reference any specific filenames.
+
+Alright, let's implement. Layout decisions (to be noted in the final message):
+- `test_cli.py` ← TestPackaging + TestCli (m0), TestCliPorts (m5)
+- `test_proxy.py` ← TestProxy (m0, minus UI asset tests), TestTransparent (m5), TestInFlight, TestUpstreamTimeouts (m3)
+- `test_ws.py` ← TestLiveFanOut (m1, minus UI asset tests), TestWsLiveness (m3)
+- `test_ui_api.py` ← TestReplayAndExport (m2), TestClientRemoval, TestExchangeRemoval, TestUiServing (m0+m1 asset tests)
+- `test_dissectors.py` ← TestDecode + TestPreview (m6)
+- `test_shutdown.py` stays as is
+- `helpers.py` is extended: shared constants, `payload`, `ui_client`, `close_ui`, and the `MockedCase` fixture base class
+- `test_store.py` is not created: there are no store-specific tests (the store is verified via the API) — the plan's file list was just an example.
+
+Writing the new helpers.py:
+
+</thinking>
+
+I'm reorganizing the test suite by subject area—CLI, proxy, WebSocket, UI API, and dissectors—while keeping the shutdown tests as-is and consolidating shared fixtures into helpers.
+
+
+
+**Tool Call: tests/helpers.py**
+Status: Completed
+
+Diff: tests/helpers.py
+```
+"""Shared test helpers: app/client builders, the shared mock-upstream fixture,
+and constants used across the suite.
+
+The proxy runs one process with two listeners (LLM proxy + UI). Tests build both
+apps against the *same* Context so the store and hub are shared (the point of a
+single process); each listener builds its own upstream client + pipeline in its
+lifespan. The LLM client blanks the User-Agent so its id stays "testclient"; the
+UI client makes no proxy calls.
+"""
+
+from __future__ import annotations
+
+import unittest
+
+from fastapi.testclient import TestClient
+
+try:  # package form (unittest discover)
+    from .mock_upstream import start_mock, stop_mock
+except ImportError:  # direct execution fallback
+    from mock_upstream import start_mock, stop_mock  # type: ignore
+
+from llm_proxy.app import Context, create_llm_app, create_ui_app
+from llm_proxy.config import Settings
+
+# Settings for the apps under test: the local mock upstream, quiet logs (tests
+# that assert on logs capture their own handler).
+BASE = Settings(upstream_base_url="http://127.0.0.1:8082", log_level="critical")
+
+MOCK_PORT = 8082
+CHAT = "/v1/chat/completions"
+CID = "testclient"  # the source host Starlette's TestClient presents to the proxy
+
+
+def payload(stream: bool, model: str = "local-model") -> dict:
+    """A minimal chat-completions body; the mock answers per model name."""
+    return {"model": model, "stream": stream, "messages": [{"role": "user", "content": "hi"}]}
+
+
+def clients(settings: Settings) -> tuple[Context, TestClient, TestClient]:
+    """A fresh shared Context plus entered LLM and UI TestClients.
+
+    Returns ``(ctx, llm, ui)``. Call :func:`close` in ``tearDown`` (each client
+    closes its own upstream client via its lifespan).
+    """
+    ctx = Context(settings)
+    llm = TestClient(create_llm_app(ctx), headers={"User-Agent": ""})
+    ui = TestClient(create_ui_app(ctx))
+    llm.__enter__()
+    ui.__enter__()
+    return ctx, llm, ui
+
+
+def close(llm: TestClient, ui: TestClient) -> None:
+    llm.__exit__(None, None, None)
+    ui.__exit__(None, None, None)
+
+
+def ui_client(**overrides) -> TestClient:
+    """An entered UI TestClient with a fresh Context; ``overrides`` are Settings
+    fields on top of :data:`BASE` (no LLM listener, no proxy calls)."""
+    client = TestClient(create_ui_app(Context(BASE.model_copy(update=overrides))))
+    client.__enter__()
+    return client
+
+
+def close_ui(ui: TestClient) -> None:
+    ui.__exit__(None, None, None)
+
+
+class MockedCase(unittest.TestCase):
+    """A fresh shared Context (isolated store + hub) per test, against the shared
+    mock upstream (started/stopped once per test class)."""
+
+    @classmethod
+    def setUpClass(cls):
+        start_mock(MOCK_PORT)
+
+    @classmethod
+    def tearDownClass(cls):
+        try:
+            stop_mock()
+        except Exception:
+            pass
+
+    def setUp(self):
+        self.ctx, self.llm, self.ui = clients(BASE)
+
+    def tearDown(self):
+        close(self.llm, self.ui)
+
+```
+
+
+## Assistant
+
+<thinking>
+Currently on test_cli.py:
+
+</thinking>
+
+**Tool Call: tests/test\_cli.py**
+Status: Completed
+
+Diff: tests/test_cli.py
+```
+"""CLI and packaging: __version__ from installed metadata (setuptools_scm), the
+llm-proxy console script, and cli_overrides() argument mapping (incl. the
+two-port split). No mock upstream needed."""
+
+from __future__ import annotations
+
+import contextlib
+import importlib
+import io
+import unittest
+
+from llm_proxy.app import cli_overrides
+
+
+class TestPackaging(unittest.TestCase):
+    """__version__ must come from the installed package metadata (setuptools_scm), not a fallback."""
+
+    def test_version_matches_installed_metadata(self):
+        from importlib.metadata import version as pkg_version
+
+        from llm_proxy import __version__
+
+        self.assertEqual(__version__, pkg_version("llm-proxy"))
+
+    def test_console_script_resolves(self):
+        """The llm-proxy console script must resolve to a callable in the package."""
+        from importlib.metadata import distribution
+
+        eps = [ep for ep in distribution("llm-proxy").entry_points if ep.name == "llm-proxy"]
+        self.assertEqual(len(eps), 1)
+        module_name, _, attr = eps[0].value.partition(":")
+        module = importlib.import_module(module_name)
+        self.assertTrue(callable(getattr(module, attr)))
+
+
+class TestCli(unittest.TestCase):
+    """cli_overrides() maps command-line args onto Settings field names."""
+
+    def test_no_args_no_overrides(self):
+        self.assertEqual(cli_overrides([]), {})
+
+    def test_positional_upstream_and_flags(self):
+        self.assertEqual(
+            cli_overrides(["http://127.0.0.1:8080", "--host", "0.0.0.0", "--ui-port", "9091"]),
+            {"upstream_base_url": "http://127.0.0.1:8080", "listen_host": "0.0.0.0", "ui_port": 9091},
+        )
+
+    def test_help_exits_zero(self):
+        with contextlib.redirect_stdout(io.StringIO()):
+            with self.assertRaises(SystemExit) as cm:
+                cli_overrides(["--help"])
+        self.assertEqual(cm.exception.code, 0)
+
+
+class TestCliPorts(unittest.TestCase):
+    """--llm-port/--ui-port map onto the two listener ports."""
+
+    def test_two_port_overrides(self):
+        self.assertEqual(
+            cli_overrides(["http://x", "--llm-port", "8081", "--ui-port", "9091"]),
+            {"upstream_base_url": "http://x", "llm_port": 8081, "ui_port": 9091},
+        )
+
+
+if __name__ == "__main__":
+    unittest.main()
+
+```
+
+
+## Assistant
+
+<thinking>
+Next up is test_proxy.py. Classes: TestProxy (10 methods), TestTransparent (6 methods + _exchanges), TestInFlight (2 methods + helpers), TestUpstreamTimeouts (1 method).
+
+Imports:
+- `from __future__ import annotations`
+- socket (dead-port test), unittest, `from urllib.parse import quote`
+- `from fastapi.testclient import TestClient` (for creating TestClient against the dead upstream in TestProxy)
+- helpers: `from .helpers import BASE, CHAT, CID, MockedCase, close_ui, payload, ui_client` (with a fallback)
+- `from llm_proxy.app import Context, create_llm_app, create_ui_app` (for the dead-upstream test in TestProxy)
+
+TestProxy's dead-upstream test:
+```python
+dead = BASE.model_copy(update={"upstream_base_url": f"http://127.0.0.1:{dead_port}"})
+with TestClient(create_ui_app(Context(dead))) as c:
+```
+Needs Context, create_ui_app, create_llm_app, TestClient.
+
+The order of methods within TestProxy — keep the original order, but exclude test_serves_ui_and_favicon.
+
+</thinking>
+
+**Tool Call: tests/test\_proxy.py**
+Status: Completed
+
+Diff: tests/test_proxy.py
+```
+"""The transparent LLM proxy: verbatim passthrough (query strings, upstream
+errors, non-JSON bodies, undecoded SSE), streaming tap-and-forward, upstream
+timeout policy, in-flight exchange visibility, client identity, and the
+two-port split. Each test uses a fresh shared Context (isolated store) against
+the shared mock upstream."""
+
+from __future__ import annotations
+
+import socket
+import unittest
+from urllib.parse import quote
+
+from fastapi.testclient import TestClient
+
+try:  # package form (unittest discover)
+    from .helpers import BASE, CHAT, CID, MockedCase, close_ui, payload, ui_client
+except ImportError:  # direct execution fallback
+    from helpers import BASE, CHAT, CID, MockedCase, close_ui, payload, ui_client  # type: ignore
+
+from llm_proxy.app import Context, create_llm_app, create_ui_app
+
+
+class TestProxy(MockedCase):
+    def test_health(self):
+        r = self.ui.get("/health")
+        self.assertEqual(r.status_code, 200)
+        body = r.json()
+        self.assertEqual(body["status"], "ok")
+        self.assertEqual(body["upstream"], "ok")
+        self.assertEqual(body["upstream_url"], BASE.upstream_base_url)
+
+    def test_health_reports_upstream_error_when_unreachable(self):
+        # /health must report the *link* state, not just the proxy process: a
+        # dead upstream shows up as upstream=error (the UI pill turns red).
+        s = socket.socket()
+        s.bind(("127.0.0.1", 0))
+        dead_port = s.getsockname()[1]
+        s.close()
+
+        dead = BASE.model_copy(update={"upstream_base_url": f"http://127.0.0.1:{dead_port}"})
+        with TestClient(create_ui_app(Context(dead))) as c:
+            body = c.get("/health").json()
+            self.assertEqual(body["status"], "ok")
+            self.assertEqual(body["upstream"], "error")
+
+    def test_non_streaming_passthrough(self):
+        r = self.llm.post(CHAT, json=payload(stream=False))
+        self.assertEqual(r.status_code, 200)
+        body = r.json()
+        self.assertEqual(body["choices"][0]["message"]["content"], "Hello, world!")
+        self.assertEqual(body["usage"]["total_tokens"], 8)
+
+    def test_streaming_tap_and_forward(self):
+        r = self.llm.post(CHAT, json=payload(stream=True))
+        self.assertEqual(r.status_code, 200)
+        self.assertIn("text/event-stream", r.headers.get("content-type", ""))
+        self.assertIn("[DONE]", r.text)
+        self.assertIn("Hello", r.text)
+
+    def test_streaming_upstream_error_status_passthrough(self):
+        # Upstream returns a JSON error (not SSE) for a stream request; the proxy
+        # must surface the upstream's status, not a premature 200.
+        r = self.llm.post(CHAT, json=payload(stream=True, model="boom"))
+        self.assertEqual(r.status_code, 404)
+        self.assertIn("model not found", r.json()["error"]["message"])
+
+    def test_streaming_upstream_unreachable_returns_502(self):
+        # Upstream unreachable (connection refused) -> a clean 502, not a phantom 200.
+        s = socket.socket()
+        s.bind(("127.0.0.1", 0))
+        dead_port = s.getsockname()[1]
+        s.close()
+
+        dead = BASE.model_copy(update={"upstream_base_url": f"http://127.0.0.1:{dead_port}"})
+        with TestClient(create_llm_app(Context(dead))) as c:
+            r = c.post(CHAT, json=payload(stream=True))
+            self.assertEqual(r.status_code, 502)
+            self.assertIn("upstream error", r.json()["error"]["message"])
+
+    def test_capture_and_export(self):
+        self.llm.post(CHAT, json=payload(stream=False))
+        self.llm.post(CHAT, json=payload(stream=True))
+
+        clients_body = self.ui.get("/api/clients").json()
+        self.assertTrue(clients_body)
+        cid = clients_body[0]["conversation_ids"][0]
+
+        conv = self.ui.get(f"/api/conversations/{cid}").json()
+        self.assertGreaterEqual(conv["exchange_count"], 2)
+
+        stream_ex = [ex for ex in conv["exchanges"] if ex["server_response"]["streaming"]]
+        self.assertTrue(stream_ex)
+        content = stream_ex[0]["server_response"]["reassembled"]["choices"][0]["message"]["content"]
+        self.assertEqual(content, "Hello, world!")
+        self.assertEqual(stream_ex[0]["usage"]["total_tokens"], 8)
+
+        exp = self.ui.get(f"/api/conversations/{cid}/export").json()
+        self.assertEqual(exp["format"], "llm-proxy/conversation")
+        self.assertEqual(exp["version"], 1)
+        self.assertGreaterEqual(len(exp["exchanges"]), 2)
+        self.assertGreaterEqual(exp["stats"]["total_completion_tokens"], 3)
+
+    def test_secret_redaction(self):
+        self.llm.post(CHAT, json=payload(stream=False), headers={"Authorization": "Bearer sk-secret-test-key-123"})
+        clients_body = self.ui.get("/api/clients").json()
+        cid = clients_body[0]["conversation_ids"][0]
+        conv = self.ui.get(f"/api/conversations/{cid}").json()
+        auth = conv["exchanges"][0]["client_request"]["headers"].get("authorization")
+        self.assertIsNotNone(auth)
+        self.assertIn("***", auth)
+        self.assertNotIn("sk-secret-test-key-123", auth)
+
+    def test_user_agent_splits_clients_on_shared_ip(self):
+        # Same source IP, different user agents -> separate conversations;
+        # repeated agent -> same conversation. The UA's "/" is sanitized out of
+        # the id (ids are REST path segments). The TestClient's host is
+        # "testclient", so clients are matched by id suffix, not full value.
+        for ua in ("curl/8.5.0", "zed/1.0.0", "curl/8.5.0"):
+            self.llm.post(CHAT, json=payload(stream=False), headers={"User-Agent": ua})
+
+        clients_body = self.ui.get("/api/clients").json()
+        by_ua = {c["id"].rsplit("::", 1)[-1]: c for c in clients_body}
+        self.assertEqual(set(by_ua), {"curl_8.5.0", "zed_1.0.0"})
+
+        conv_curl = self.ui.get("/api/conversations/" + quote(by_ua["curl_8.5.0"]["conversation_ids"][0])).json()
+        self.assertEqual(conv_curl["exchange_count"], 2)
+        conv_zed = self.ui.get("/api/conversations/" + quote(by_ua["zed_1.0.0"]["conversation_ids"][0])).json()
+        self.assertEqual(conv_zed["exchange_count"], 1)
+
+    def test_user_agent_and_key_combined_id(self):
+        self.llm.post(
+            CHAT,
+            json=payload(stream=False),
+            headers={"User-Agent": "curl/8.5.0", "Authorization": "Bearer sk-test"},
+        )
+        clients_body = self.ui.get("/api/clients").json()
+        self.assertEqual(len(clients_body), 1)
+        self.assertTrue(clients_body[0]["id"].endswith("::curl_8.5.0::sk-test"))
+
+
+class TestTransparent(MockedCase):
+    """The LLM listener forwards every method/path verbatim and taps the response
+    opaquely; the UI listener serves no proxy routes at all."""
+
+    def _exchanges(self) -> list[dict]:
+        """The (single) testclient's exchanges, read back through the UI API."""
+        body = self.ui.get("/api/clients").json()
+        c = next(x for x in body if x["id"] == CID)
+        conv = self.ui.get(f"/api/conversations/{c['conversation_ids'][0]}").json()
+        return conv["exchanges"]
+
+    def test_query_string_forwarded_verbatim(self):
+        # The proxy must not drop the query string: /props?model=... is how
+        # llama.cpp clients probe the upstream (the Zed case that motivated the
+        # two-port split).
+        r = self.llm.get("/props", params={"model": "m"})
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.json(), {"n_ctx": 4096, "model": "m"})
+
+    def test_upstream_404_passthrough(self):
+        # The proxy never 404s a client request itself; the upstream's own 404
+        # is what the client sees.
+        r = self.llm.get("/nope")
+        self.assertEqual(r.status_code, 404)
+
+    def test_opaque_capture_with_query(self):
+        self.llm.get("/props", params={"model": "m"})
+        (ex,) = self._exchanges()
+        cr = ex["client_request"]
+        self.assertEqual(cr["method"], "GET")
+        self.assertEqual(cr["path"], "/props?model=m")
+        sr = ex["server_response"]
+        self.assertEqual(sr["status"], 200)
+        self.assertEqual(sr["body_json"], {"n_ctx": 4096, "model": "m"})
+        self.assertFalse(sr["streaming"])
+
+    def test_non_json_response_captured_as_text(self):
+        r = self.llm.get("/plain")
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.text, "hello")
+        (ex,) = self._exchanges()
+        sr = ex["server_response"]
+        self.assertEqual(sr["body_text"], "hello")
+        self.assertIsNone(sr["body_json"])
+
+    def test_undecoded_sse_captured_raw(self):
+        r = self.llm.get("/sse")
+        self.assertEqual(r.status_code, 200)
+        self.assertIn("text/event-stream", r.headers.get("content-type", ""))
+        self.assertIn("tick", r.text)
+        self.assertIn("[DONE]", r.text)
+        (ex,) = self._exchanges()
+        sr = ex["server_response"]
+        self.assertTrue(sr["streaming"])
+        self.assertIn("tick", sr["body_text"])
+        # Not a decoded OpenAI stream: there is no reassembled chat body.
+        self.assertNotIn("reassembled", sr)
+
+    def test_ports_do_not_overlap(self):
+        # The UI port serves no proxy routes...
+        self.assertEqual(self.ui.get("/v1/models").status_code, 404)
+        # ...and the LLM port serves no UI routes (both are forwarded to the
+        # upstream, which does not have them).
+        self.assertEqual(self.llm.get("/api/clients").status_code, 404)
+        self.assertEqual(self.llm.get("/").status_code, 404)
+
+
+class TestInFlight(MockedCase):
+    """A slow upstream call is visible as an in-flight exchange in REST and is
+    finalized in place (same id/sequence) on completion. This is what keeps a
+    conversation from appearing empty when a client's first request is
+    long-running."""
+
+    def _slow_post(self, stream: bool) -> threading.Thread:
+        t = threading.Thread(
+            target=lambda: self.llm.post(CHAT, json=payload(stream=stream, model="slow")),
+            daemon=True,
+        )
+        t.start()
+        return t
+
+    def _exchanges(self) -> list[dict]:
+        return self.ui.get(f"/api/conversations/{CID}").json()["exchanges"]
+
+    def test_in_flight_visible_in_rest_then_finalized(self):
+        """A slow non-stream request is visible as in_flight in REST, and completes
+        in place: same id/sequence, response filled in, in_flight cleared."""
+        t = self._slow_post(stream=False)
+        time.sleep(0.3)  # inside the mock's 0.8s hold
+        exs = self._exchanges()
+        self.assertEqual(len(exs), 1)
+        pending = exs[0]
+        self.assertTrue(pending["in_flight"])
+        self.assertIsNone(pending["server_response"])
+        self.assertFalse(pending["streaming"])
+        self.assertEqual(pending["client_request"]["method"], "POST")
+        self.assertEqual(pending["client_request"]["body_json"]["model"], "slow")
+        seq = pending["sequence"]
+
+        t.join(timeout=5)
+        self.assertFalse(t.is_alive())
+        exs = self._exchanges()
+        self.assertEqual(len(exs), 1)
+        done = exs[0]
+        self.assertFalse(done["in_flight"])
+        self.assertEqual(done["id"], pending["id"])
+        self.assertEqual(done["sequence"], seq)
+        self.assertEqual(done["server_response"]["status"], 200)
+
+    def test_in_flight_carries_streaming_flag(self):
+        """A slow streaming request is visible as in_flight with streaming set, so
+        the UI can render the pending card as a stream."""
+        t = self._slow_post(stream=True)
+        time.sleep(0.3)
+        exs = self._exchanges()
+        self.assertEqual(len(exs), 1)
+        self.assertTrue(exs[0]["in_flight"])
+        self.assertTrue(exs[0]["streaming"])
+        t.join(timeout=5)
+        self.assertFalse(t.is_alive())
+
+
+class TestUpstreamTimeouts(unittest.TestCase):
+    def test_upstream_timeout_policy_reaches_the_client(self):
+        """connect/pool settings reach the pooled client, and read is intentionally
+        unbounded: a gap cap would kill silent persistent streams (/models/sse)
+        and long prefill/think phases, so timeout policy belongs to the client."""
+        client = ui_client(upstream_connect_timeout=1.5, upstream_pool_timeout=2.5)
+        try:
+            t = client.app.state.http.timeout
+            self.assertEqual(t.connect, 1.5)
+            self.assertIsNone(t.read)
+            self.assertEqual(t.pool, 2.5)
+        finally:
+            close_ui(client)
+
+
+if __name__ == "__main__":
+    unittest.main()
+
+```
+
+
+## Assistant
+
+<thinking>
+I forgot the `import threading` and `import time` in test_proxy.py (TestInFlight uses them). Let's fix the imports.
+
+</thinking>
+
+Missing `threading`/`time` imports in test_proxy.py — fixing.
+
+
+
+**Tool Call: tests/test\_proxy.py**
+Status: Completed
+
+Diff: tests/test_proxy.py
+```
+"""The transparent LLM proxy: verbatim passthrough (query strings, upstream
+errors, non-JSON bodies, undecoded SSE), streaming tap-and-forward, upstream
+timeout policy, in-flight exchange visibility, client identity, and the
+two-port split. Each test uses a fresh shared Context (isolated store) against
+the shared mock upstream."""
+
+from __future__ import annotations
+
+import socket
+import threading
+import time
+import unittest
+from urllib.parse import quote
+
+from fastapi.testclient import TestClient
+
+try:  # package form (unittest discover)
+    from .helpers import BASE, CHAT, CID, MockedCase, close_ui, payload, ui_client
+except ImportError:  # direct execution fallback
+    from helpers import BASE, CHAT, CID, MockedCase, close_ui, payload, ui_client  # type: ignore
+
+from llm_proxy.app import Context, create_llm_app, create_ui_app
+
+
+class TestProxy(MockedCase):
+    def test_health(self):
+        r = self.ui.get("/health")
+        self.assertEqual(r.status_code, 200)
+        body = r.json()
+        self.assertEqual(body["status"], "ok")
+        self.assertEqual(body["upstream"], "ok")
+        self.assertEqual(body["upstream_url"], BASE.upstream_base_url)
+
+    def test_health_reports_upstream_error_when_unreachable(self):
+        # /health must report the *link* state, not just the proxy process: a
+        # dead upstream shows up as upstream=error (the UI pill turns red).
+        s = socket.socket()
+        s.bind(("127.0.0.1", 0))
+        dead_port = s.getsockname()[1]
+        s.close()
+
+        dead = BASE.model_copy(update={"upstream_base_url": f"http://127.0.0.1:{dead_port}"})
+        with TestClient(create_ui_app(Context(dead))) as c:
+            body = c.get("/health").json()
+            self.assertEqual(body["status"], "ok")
+            self.assertEqual(body["upstream"], "error")
+
+    def test_non_streaming_passthrough(self):
+        r = self.llm.post(CHAT, json=payload(stream=False))
+        self.assertEqual(r.status_code, 200)
+        body = r.json()
+        self.assertEqual(body["choices"][0]["message"]["content"], "Hello, world!")
+        self.assertEqual(body["usage"]["total_tokens"], 8)
+
+    def test_streaming_tap_and_forward(self):
+        r = self.llm.post(CHAT, json=payload(stream=True))
+        self.assertEqual(r.status_code, 200)
+        self.assertIn("text/event-stream", r.headers.get("content-type", ""))
+        self.assertIn("[DONE]", r.text)
+        self.assertIn("Hello", r.text)
+
+    def test_streaming_upstream_error_status_passthrough(self):
+        # Upstream returns a JSON error (not SSE) for a stream request; the proxy
+        # must surface the upstream's status, not a premature 200.
+        r = self.llm.post(CHAT, json=payload(stream=True, model="boom"))
+        self.assertEqual(r.status_code, 404)
+        self.assertIn("model not found", r.json()["error"]["message"])
+
+    def test_streaming_upstream_unreachable_returns_502(self):
+        # Upstream unreachable (connection refused) -> a clean 502, not a phantom 200.
+        s = socket.socket()
+        s.bind(("127.0.0.1", 0))
+        dead_port = s.getsockname()[1]
+        s.close()
+
+        dead = BASE.model_copy(update={"upstream_base_url": f"http://127.0.0.1:{dead_port}"})
+        with TestClient(create_llm_app(Context(dead))) as c:
+            r = c.post(CHAT, json=payload(stream=True))
+            self.assertEqual(r.status_code, 502)
+            self.assertIn("upstream error", r.json()["error"]["message"])
+
+    def test_capture_and_export(self):
+        self.llm.post(CHAT, json=payload(stream=False))
+        self.llm.post(CHAT, json=payload(stream=True))
+
+        clients_body = self.ui.get("/api/clients").json()
+        self.assertTrue(clients_body)
+        cid = clients_body[0]["conversation_ids"][0]
+
+        conv = self.ui.get(f"/api/conversations/{cid}").json()
+        self.assertGreaterEqual(conv["exchange_count"], 2)
+
+        stream_ex = [ex for ex in conv["exchanges"] if ex["server_response"]["streaming"]]
+        self.assertTrue(stream_ex)
+        content = stream_ex[0]["server_response"]["reassembled"]["choices"][0]["message"]["content"]
+        self.assertEqual(content, "Hello, world!")
+        self.assertEqual(stream_ex[0]["usage"]["total_tokens"], 8)
+
+        exp = self.ui.get(f"/api/conversations/{cid}/export").json()
+        self.assertEqual(exp["format"], "llm-proxy/conversation")
+        self.assertEqual(exp["version"], 1)
+        self.assertGreaterEqual(len(exp["exchanges"]), 2)
+        self.assertGreaterEqual(exp["stats"]["total_completion_tokens"], 3)
+
+    def test_secret_redaction(self):
+        self.llm.post(CHAT, json=payload(stream=False), headers={"Authorization": "Bearer sk-secret-test-key-123"})
+        clients_body = self.ui.get("/api/clients").json()
+        cid = clients_body[0]["conversation_ids"][0]
+        conv = self.ui.get(f"/api/conversations/{cid}").json()
+        auth = conv["exchanges"][0]["client_request"]["headers"].get("authorization")
+        self.assertIsNotNone(auth)
+        self.assertIn("***", auth)
+        self.assertNotIn("sk-secret-test-key-123", auth)
+
+    def test_user_agent_splits_clients_on_shared_ip(self):
+        # Same source IP, different user agents -> separate conversations;
+        # repeated agent -> same conversation. The UA's "/" is sanitized out of
+        # the id (ids are REST path segments). The TestClient's host is
+        # "testclient", so clients are matched by id suffix, not full value.
+        for ua in ("curl/8.5.0", "zed/1.0.0", "curl/8.5.0"):
+            self.llm.post(CHAT, json=payload(stream=False), headers={"User-Agent": ua})
+
+        clients_body = self.ui.get("/api/clients").json()
+        by_ua = {c["id"].rsplit("::", 1)[-1]: c for c in clients_body}
+        self.assertEqual(set(by_ua), {"curl_8.5.0", "zed_1.0.0"})
+
+        conv_curl = self.ui.get("/api/conversations/" + quote(by_ua["curl_8.5.0"]["conversation_ids"][0])).json()
+        self.assertEqual(conv_curl["exchange_count"], 2)
+        conv_zed = self.ui.get("/api/conversations/" + quote(by_ua["zed_1.0.0"]["conversation_ids"][0])).json()
+        self.assertEqual(conv_zed["exchange_count"], 1)
+
+    def test_user_agent_and_key_combined_id(self):
+        self.llm.post(
+            CHAT,
+            json=payload(stream=False),
+            headers={"User-Agent": "curl/8.5.0", "Authorization": "Bearer sk-test"},
+        )
+        clients_body = self.ui.get("/api/clients").json()
+        self.assertEqual(len(clients_body), 1)
+        self.assertTrue(clients_body[0]["id"].endswith("::curl_8.5.0::sk-test"))
+
+
+class TestTransparent(MockedCase):
+    """The LLM listener forwards every method/path verbatim and taps the response
+    opaquely; the UI listener serves no proxy routes at all."""
+
+    def _exchanges(self) -> list[dict]:
+        """The (single) testclient's exchanges, read back through the UI API."""
+        body = self.ui.get("/api/clients").json()
+        c = next(x for x in body if x["id"] == CID)
+        conv = self.ui.get(f"/api/conversations/{c['conversation_ids'][0]}").json()
+        return conv["exchanges"]
+
+    def test_query_string_forwarded_verbatim(self):
+        # The proxy must not drop the query string: /props?model=... is how
+        # llama.cpp clients probe the upstream (the Zed case that motivated the
+        # two-port split).
+        r = self.llm.get("/props", params={"model": "m"})
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.json(), {"n_ctx": 4096, "model": "m"})
+
+    def test_upstream_404_passthrough(self):
+        # The proxy never 404s a client request itself; the upstream's own 404
+        # is what the client sees.
+        r = self.llm.get("/nope")
+        self.assertEqual(r.status_code, 404)
+
+    def test_opaque_capture_with_query(self):
+        self.llm.get("/props", params={"model": "m"})
+        (ex,) = self._exchanges()
+        cr = ex["client_request"]
+        self.assertEqual(cr["method"], "GET")
+        self.assertEqual(cr["path"], "/props?model=m")
+        sr = ex["server_response"]
+        self.assertEqual(sr["status"], 200)
+        self.assertEqual(sr["body_json"], {"n_ctx": 4096, "model": "m"})
+        self.assertFalse(sr["streaming"])
+
+    def test_non_json_response_captured_as_text(self):
+        r = self.llm.get("/plain")
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.text, "hello")
+        (ex,) = self._exchanges()
+        sr = ex["server_response"]
+        self.assertEqual(sr["body_text"], "hello")
+        self.assertIsNone(sr["body_json"])
+
+    def test_undecoded_sse_captured_raw(self):
+        r = self.llm.get("/sse")
+        self.assertEqual(r.status_code, 200)
+        self.assertIn("text/event-stream", r.headers.get("content-type", ""))
+        self.assertIn("tick", r.text)
+        self.assertIn("[DONE]", r.text)
+        (ex,) = self._exchanges()
+        sr = ex["server_response"]
+        self.assertTrue(sr["streaming"])
+        self.assertIn("tick", sr["body_text"])
+        # Not a decoded OpenAI stream: there is no reassembled chat body.
+        self.assertNotIn("reassembled", sr)
+
+    def test_ports_do_not_overlap(self):
+        # The UI port serves no proxy routes...
+        self.assertEqual(self.ui.get("/v1/models").status_code, 404)
+        # ...and the LLM port serves no UI routes (both are forwarded to the
+        # upstream, which does not have them).
+        self.assertEqual(self.llm.get("/api/clients").status_code, 404)
+        self.assertEqual(self.llm.get("/").status_code, 404)
+
+
+class TestInFlight(MockedCase):
+    """A slow upstream call is visible as an in-flight exchange in REST and is
+    finalized in place (same id/sequence) on completion. This is what keeps a
+    conversation from appearing empty when a client's first request is
+    long-running."""
+
+    def _slow_post(self, stream: bool) -> threading.Thread:
+        t = threading.Thread(
+            target=lambda: self.llm.post(CHAT, json=payload(stream=stream, model="slow")),
+            daemon=True,
+        )
+        t.start()
+        return t
+
+    def _exchanges(self) -> list[dict]:
+        return self.ui.get(f"/api/conversations/{CID}").json()["exchanges"]
+
+    def test_in_flight_visible_in_rest_then_finalized(self):
+        """A slow non-stream request is visible as in_flight in REST, and completes
+        in place: same id/sequence, response filled in, in_flight cleared."""
+        t = self._slow_post(stream=False)
+        time.sleep(0.3)  # inside the mock's 0.8s hold
+        exs = self._exchanges()
+        self.assertEqual(len(exs), 1)
+        pending = exs[0]
+        self.assertTrue(pending["in_flight"])
+        self.assertIsNone(pending["server_response"])
+        self.assertFalse(pending["streaming"])
+        self.assertEqual(pending["client_request"]["method"], "POST")
+        self.assertEqual(pending["client_request"]["body_json"]["model"], "slow")
+        seq = pending["sequence"]
+
+        t.join(timeout=5)
+        self.assertFalse(t.is_alive())
+        exs = self._exchanges()
+        self.assertEqual(len(exs), 1)
+        done = exs[0]
+        self.assertFalse(done["in_flight"])
+        self.assertEqual(done["id"], pending["id"])
+        self.assertEqual(done["sequence"], seq)
+        self.assertEqual(done["server_response"]["status"], 200)
+
+    def test_in_flight_carries_streaming_flag(self):
+        """A slow streaming request is visible as in_flight with streaming set, so
+        the UI can render the pending card as a stream."""
+        t = self._slow_post(stream=True)
+        time.sleep(0.3)
+        exs = self._exchanges()
+        self.assertEqual(len(exs), 1)
+        self.assertTrue(exs[0]["in_flight"])
+        self.assertTrue(exs[0]["streaming"])
+        t.join(timeout=5)
+        self.assertFalse(t.is_alive())
+
+
+class TestUpstreamTimeouts(unittest.TestCase):
+    def test_upstream_timeout_policy_reaches_the_client(self):
+        """connect/pool settings reach the pooled client, and read is intentionally
+        unbounded: a gap cap would kill silent persistent streams (/models/sse)
+        and long prefill/think phases, so timeout policy belongs to the client."""
+        client = ui_client(upstream_connect_timeout=1.5, upstream_pool_timeout=2.5)
+        try:
+            t = client.app.state.http.timeout
+            self.assertEqual(t.connect, 1.5)
+            self.assertIsNone(t.read)
+            self.assertEqual(t.pool, 2.5)
+        finally:
+            close_ui(client)
+
+
+if __name__ == "__main__":
+    unittest.main()
+
+```
+
+
+## Assistant
+
+<thinking>
+Next up is test_ws.py. Classes: TestLiveFanOut (12 methods from m1, excluding test_ui_assets_served), TestWsLiveness (2 methods from m3). Local helpers: _receive_json, _read_until_completed.
+
+Required imports: json, logging, threading, time, unittest; helpers: CHAT, CID, MockedCase, close_ui, payload, ui_client.
+
+Note: m1's TestLiveFanOut setUpClass/tearDownClass/setUp/tearDown are now inherited from MockedCase.
+
+m3's TestWsLiveness uses `_fresh_client(ws_ping_interval=0.3, ws_ping_timeout=0.3)` → `ui_client(ws_ping_interval=0.3, ws_ping_timeout=0.3)`, and `_close_client` → `close_ui`.
+
+</thinking>
+
+**Tool Call: tests/test\_ws.py**
+Status: Completed
+
+Diff: tests/test_ws.py
+```
+"""WebSocket live UI: per-chunk delta fan-out, focus routing, dock activity,
+new-client broadcast, and liveness (ping/pong + dead-socket pruning). Each fan-out
+test uses a fresh shared Context (isolated store + hub) against the shared mock
+upstream; liveness tests build a UI-only client with fast pings."""
+
+from __future__ import annotations
+
+import json
+import logging
+import threading
+import time
+import unittest
+
+try:  # package form (unittest discover)
+    from .helpers import CHAT, CID, MockedCase, close_ui, payload, ui_client
+except ImportError:  # direct execution fallback
+    from helpers import CHAT, CID, MockedCase, close_ui, payload, ui_client  # type: ignore
+
+
+def _receive_json(ws, timeout: float = 3.0) -> dict:
+    """Bounded WS receive. A starlette TestClient read blocks forever when the
+    expected event never arrives, which would hang the whole suite on a bug."""
+    outcome: dict = {}
+
+    def _read() -> None:
+        try:
+            outcome["ev"] = ws.receive_json()
+        except BaseException as exc:  # noqa: BLE001 - re-raised on the test thread
+            outcome["exc"] = exc
+
+    worker = threading.Thread(target=_read, daemon=True)
+    worker.start()
+    worker.join(timeout)
+    if worker.is_alive():
+        raise AssertionError(f"no WS event within {timeout:.0f}s")
+    if "exc" in outcome:
+        raise outcome["exc"]
+    return outcome["ev"]
+
+
+def _read_until_completed(ws, timeout: float = 5.0) -> list[dict]:
+    events = []
+    deadline = time.monotonic() + timeout
+    while True:
+        try:
+            ev = _receive_json(ws, max(0.1, deadline - time.monotonic()))
+        except AssertionError:
+            raise AssertionError(
+                f"exchange_completed not seen within {timeout:.0f}s; got {[e['type'] for e in events]}"
+            ) from None
+        events.append(ev)
+        if ev["type"] == "exchange_completed":
+            return events
+
+
+class TestLiveFanOut(MockedCase):
+    def test_streaming_fan_out_is_live(self):
+        with self.ui.websocket_connect("/ws") as ws:
+            ws.send_json({"type": "subscribe", "conversation_id": CID})
+            self.llm.post(CHAT, json=payload(stream=True))
+            events = _read_until_completed(ws)
+
+        types = [e["type"] for e in events]
+        self.assertEqual(types[0], "client_seen")
+        self.assertIn("exchange_started", types)
+        self.assertIn("delta", types)
+        self.assertEqual(types[-1], "exchange_completed")
+
+        # Deltas are live content pieces that reassemble to the full answer.
+        deltas = "".join(e["delta"] for e in events if e["type"] == "delta")
+        self.assertEqual(deltas, "Hello, world!")
+
+        # Every event is scoped to the same conversation/exchange.
+        self.assertTrue(all(e["conversation_id"] == CID for e in events))
+        ex_ids = {
+            e.get("exchange_id")
+            for e in events
+            if e["type"] in ("exchange_started", "delta", "exchange_completed")
+        }
+        self.assertEqual(len(ex_ids), 1)
+
+        # The completed exchange carries the reassembled answer.
+        comp = events[-1]["exchange"]
+        self.assertEqual(
+            comp["server_response"]["reassembled"]["choices"][0]["message"]["content"], "Hello, world!"
+        )
+        self.assertTrue(comp["server_response"]["streaming"])
+
+    def test_non_streaming_fan_out_has_no_deltas(self):
+        with self.ui.websocket_connect("/ws") as ws:
+            ws.send_json({"type": "subscribe", "conversation_id": CID})
+            self.llm.post(CHAT, json=payload(stream=False))
+            events = _read_until_completed(ws)
+
+        types = [e["type"] for e in events]
+        self.assertIn("exchange_started", types)
+        self.assertNotIn("delta", types)
+        self.assertEqual(types[-1], "exchange_completed")
+
+        comp = events[-1]["exchange"]
+        self.assertEqual(
+            comp["server_response"]["body_json"]["choices"][0]["message"]["content"], "Hello, world!"
+        )
+
+    def test_exchange_started_carries_server_sequence(self):
+        """Regression: exchange_started must carry the server-assigned sequence.
+
+        The UI used to guess the pending card's sequence (lastSeq + 1), which
+        desyncs from the real sequence once a slow in-flight request sits behind
+        completed ones. A replay from such a pending card then re-sends to the wrong
+        exchange's endpoint. The server assigns the sequence at begin_exchange, so
+        forwarding it in the event makes the pending card (and any replay from it)
+        target the right exchange.
+        """
+        slow_payload = payload(stream=False, model="slow")
+        with self.ui.websocket_connect("/ws") as ws:
+            ws.send_json({"type": "subscribe", "conversation_id": CID})
+            # A fast request completes first (real sequence 0).
+            self.llm.get("/v1/models")
+            # A slow request stays in flight long enough to observe its placeholder.
+            slow = threading.Thread(
+                target=self.llm.post, kwargs={"url": CHAT, "json": slow_payload}, daemon=True
+            )
+            slow.start()
+            time.sleep(0.3)  # let the fast exchange complete and the slow one go in flight
+            exchanges = self.ui.get(f"/api/conversations/{CID}").json()["exchanges"]
+            in_flight = next(e for e in exchanges if e["in_flight"])
+            stored_seq, slow_id = in_flight["sequence"], in_flight["id"]
+            for _ in range(20):
+                ev = _receive_json(ws, 3.0)
+                if ev["type"] == "exchange_started" and ev["exchange_id"] == slow_id:
+                    break
+            else:
+                self.fail("exchange_started for the in-flight exchange never arrived")
+            self.assertEqual(ev["sequence"], stored_seq)
+            slow.join(timeout=5)
+
+    def test_completed_sequence_matches_stored_order(self):
+        """Regression: exchange_completed must carry each request's real sequence.
+
+        _capture used to build the completed exchange with sequence=0, so every
+        completed card showed "#0" and a replay from it resolved to sequence 0 (the
+        first request). The store finalizes the in-flight placeholder in place and
+        returns it; the pipeline must emit that copy so the sequence stays the one
+        assigned at begin_exchange. Models the exact repro: models, chat, models.
+        """
+        with self.ui.websocket_connect("/ws") as ws:
+            ws.send_json({"type": "subscribe", "conversation_id": CID})
+            self.llm.get("/v1/models")  # sequence 0
+            self.llm.post(CHAT, json=payload(stream=False))  # sequence 1
+            self.llm.get("/v1/models")  # sequence 2
+            completed = []
+            while len(completed) < 3:
+                ev = _receive_json(ws)
+                if ev["type"] == "exchange_completed":
+                    completed.append(ev["exchange"])
+        self.assertEqual([e["sequence"] for e in completed], [0, 1, 2])
+        self.assertEqual(
+            [(e["client_request"] or {}).get("path") for e in completed],
+            ["/v1/models", CHAT, "/v1/models"],
+        )
+
+    def test_unfocused_client_gets_dock_activity_only(self):
+        with self.ui.websocket_connect("/ws") as ws:
+            # No subscribe -> this socket is a dock-only observer.
+            self.llm.post(CHAT, json=payload(stream=True))
+            # The observer receives exactly three events: the global client_seen
+            # broadcast, then lightweight activity pings for exchange_started and
+            # exchange_completed (deltas are focus-only). TestClient buffers all of
+            # these by the time post() returns, so read the known complete set.
+            seen = [_receive_json(ws) for _ in range(3)]
+
+        # A dock observer receives global broadcasts (client_seen) + lightweight
+        # activity pings, but never full per-exchange events.
+        self.assertEqual(seen[0]["type"], "client_seen")
+        allowed = {"activity", "client_seen"}
+        self.assertTrue(
+            all(e["type"] in allowed for e in seen), f"unexpected types: {[e['type'] for e in seen]}"
+        )
+        self.assertNotIn("exchange_started", [e["type"] for e in seen])
+        self.assertNotIn("delta", [e["type"] for e in seen])
+        self.assertNotIn("exchange_completed", [e["type"] for e in seen])
+        self.assertTrue(any(e["conversation_id"] == CID for e in seen))
+
+    def test_new_client_seen_reaches_unfocused_dock(self):
+        # Regression: a brand-new client must appear in the dock live. client_seen
+        # is global, so an unfocused (dock-only) socket receives it even though it
+        # is not focused on the new conversation (previously it was dropped).
+        with self.ui.websocket_connect("/ws") as ws:
+            # No subscribe -> dock-only observer.
+            self.llm.post(CHAT, json=payload(stream=True))
+            ev = _receive_json(ws)
+            self.assertEqual(ev["type"], "client_seen")
+            self.assertEqual(ev["conversation_id"], CID)
+
+    def test_focus_switch_routes_events(self):
+        with self.ui.websocket_connect("/ws") as ws:
+            # Focus a conversation we will not use -> must receive no full events for CID.
+            ws.send_json({"type": "subscribe", "conversation_id": "somebody-else"})
+            self.llm.post(CHAT, json=payload(stream=False))
+            # Then switch focus and confirm live events arrive for CID.
+            ws.send_json({"type": "subscribe", "conversation_id": CID})
+            time.sleep(0.05)  # let the app loop process the focus change before emitting
+            self.llm.post(CHAT, json=payload(stream=True))
+            events = _read_until_completed(ws)
+
+        # After the focus switch we should get the CID exchange's full events.
+        self.assertTrue(all(e["conversation_id"] == CID for e in events))
+        self.assertEqual(events[-1]["type"], "exchange_completed")
+
+    def test_reasoning_streams_before_content(self):
+        with self.ui.websocket_connect("/ws") as ws:
+            ws.send_json({"type": "subscribe", "conversation_id": CID})
+            self.llm.post(CHAT, json=payload(stream=True, model="thinker"))
+            events = _read_until_completed(ws)
+
+        deltas = [e for e in events if e["type"] == "delta"]
+        self.assertTrue(deltas)
+        first_content = next(i for i, e in enumerate(deltas) if e["delta"])
+        # Reasoning deltas must arrive before the first content delta.
+        self.assertTrue(any(e["reasoning_delta"] for e in deltas[:first_content]))
+        self.assertEqual("".join(e["delta"] for e in deltas), "Hi!")
+        self.assertEqual("".join(e.get("reasoning_delta", "") for e in deltas), "Let me think...")
+
+        comp = events[-1]["exchange"]
+        msg = comp["server_response"]["reassembled"]["choices"][0]["message"]
+        self.assertEqual(msg["content"], "Hi!")
+        self.assertEqual(msg["reasoning_content"], "Let me think...")
+        self.assertIsNotNone(comp["timings"]["t_first_content"])
+        self.assertEqual(comp["timings"]["gen_tok_per_sec"], 200.0)
+
+    def test_tool_calls_reassembled(self):
+        # Agentic replies: fragmented delta.tool_calls must reassemble into the
+        # message (id/type/name from the first fragment, arguments concatenated).
+        with self.ui.websocket_connect("/ws") as ws:
+            ws.send_json({"type": "subscribe", "conversation_id": CID})
+            self.llm.post(CHAT, json=payload(stream=True, model="tooler"))
+            events = _read_until_completed(ws)
+
+        comp = events[-1]["exchange"]
+        msg = comp["server_response"]["reassembled"]["choices"][0]["message"]
+        self.assertEqual(msg["content"], "Let me check.")
+        self.assertEqual(comp["server_response"]["reassembled"]["choices"][0]["finish_reason"], "tool_calls")
+        (tc,) = msg["tool_calls"]
+        self.assertEqual(tc["id"], "call_1")
+        self.assertEqual(tc["type"], "function")
+        self.assertEqual(tc["function"]["name"], "bash")
+        self.assertEqual(tc["function"]["arguments"], '{"command": "ls"}')
+
+    def test_upstream_gen_rate_captured_stream_and_non_stream(self):
+        # Stream: upstream timings arrive in the final SSE chunk.
+        with self.ui.websocket_connect("/ws") as ws:
+            ws.send_json({"type": "subscribe", "conversation_id": CID})
+            self.llm.post(CHAT, json=payload(stream=True))
+            stream_ex = _read_until_completed(ws)[-1]["exchange"]
+        self.assertEqual(stream_ex["timings"]["gen_tok_per_sec"], 100.0)
+
+        # Non-stream: upstream timings arrive in the JSON body (the byte-level
+        # window is useless here, so this is the only sane tok/s source).
+        with self.ui.websocket_connect("/ws") as ws:
+            ws.send_json({"type": "subscribe", "conversation_id": CID})
+            self.llm.post(CHAT, json=payload(stream=False))
+            non_ex = _read_until_completed(ws)[-1]["exchange"]
+        self.assertEqual(non_ex["timings"]["gen_tok_per_sec"], 100.0)
+        self.assertIsNone(non_ex["timings"]["t_first_content"])
+
+    def test_client_registered_before_client_seen_broadcast(self):
+        """Regression: by the time client_seen is broadcast, the client must
+        already be in the store.
+
+        The UI re-fetches /api/clients the instant it sees client_seen. If the
+        store does not yet contain the client (it used to be registered later,
+        inside _capture after the upstream round-trip), that re-fetch returns an
+        empty dock - and client_seen only fires once, so the dock stays empty
+        until a manual refresh. Registering before the emit closes the window.
+        """
+        store = self.ui.app.state.store
+        hub = self.ui.app.state.hub
+        real_emit = hub.emit
+        violations: list[str] = []
+
+        def spy_emit(conversation_id, event, **kwargs):
+            if event.get("type") == "client_seen" and not store.has_client(event["client_id"]):
+                violations.append(event["client_id"])
+            real_emit(conversation_id, event, **kwargs)
+
+        hub.emit = spy_emit
+        try:
+            with self.ui.websocket_connect("/ws") as ws:
+                ws.send_json({"type": "subscribe", "conversation_id": CID})
+                time.sleep(0.05)  # let the app loop process the focus change before emitting
+                self.llm.post(CHAT, json=payload(stream=False))
+                _read_until_completed(ws)
+        finally:
+            hub.emit = real_emit
+
+        self.assertEqual(violations, [])
+
+    def test_ws_lifecycle_is_logged(self):
+        """Regression: WS connect/focus/disconnect must be visible in the server log.
+
+        The UI's "ws:on but no client in the dock" failure mode is undiagnosable
+        without a connection trace, so capture the llm_proxy.ws logger output and
+        assert the lifecycle lines appear.
+        """
+        logger = logging.getLogger("llm_proxy.ws")
+        records: list[logging.LogRecord] = []
+
+        class _Capture(logging.Handler):
+            def emit(self, record: logging.LogRecord) -> None:
+                records.append(record)
+
+        capture = _Capture()
+        old_level = logger.level
+        logger.addHandler(capture)
+        logger.setLevel(logging.DEBUG)
+        try:
+            with self.ui.websocket_connect("/ws") as ws:
+                ws.send_json({"type": "subscribe", "conversation_id": CID})
+                time.sleep(0.05)  # let the app loop process the focus change
+            time.sleep(0.05)  # TestClient close -> server-side disconnect is racy
+        finally:
+            logger.removeHandler(capture)
+            logger.setLevel(old_level)
+
+        text = "\n".join(r.getMessage() for r in records)
+        self.assertIn("ws connected", text)
+        self.assertIn("ws focus", text)
+        self.assertIn(CID, text)  # focus was set to the test client's conversation
+        self.assertIn("ws disconnected", text)
+
+
+class TestWsLiveness(unittest.TestCase):
+    """Liveness with fast pings (0.3s interval/timeout): a ponging socket keeps
+    receiving pings, a silent one is closed with 1011 and pruned from the hub.
+
+    With interval=timeout=0.3 the pinger checks at ~0.3s, ~0.6s, ~0.9s: a
+    silent socket is closed at the first check where silence > 0.6s (~0.9s),
+    and a ponging socket survives because its last_pong stays fresh.
+    """
+
+    def setUp(self):
+        self.client = ui_client(ws_ping_interval=0.3, ws_ping_timeout=0.3)
+
+    def tearDown(self):
+        close_ui(self.client)
+
+    def _receive_ping(self, ws) -> dict:
+        """Block for the next frame and assert it is a liveness ping, not a close.
+
+        (Raw ASGI app->client text frames are typed ``websocket.send``.)
+        """
+        msg = ws.receive()
+        self.assertEqual(msg["type"], "websocket.send")
+        ev = json.loads(msg["text"])
+        self.assertEqual(ev["type"], "ping")
+        self.assertIn("ts", ev)
+        return ev
+
+    def test_ws_ping_pong_keeps_socket_alive(self):
+        hub = self.client.app.state.hub
+        with self.client.websocket_connect("/ws") as ws:
+            ping1 = self._receive_ping(ws)
+            ws.send_json({"type": "pong", "ts": ping1["ts"]})
+            ping2 = self._receive_ping(ws)
+            ws.send_json({"type": "pong", "ts": ping2["ts"]})
+            # A socket that never pongs is closed at this check; a ponging one
+            # still receives the next ping.
+            self._receive_ping(ws)
+            self.assertEqual(len(hub._conns), 1)
+
+    def test_ws_silent_socket_pruned(self):
+        hub = self.client.app.state.hub
+        with self.client.websocket_connect("/ws") as ws:
+            self.assertEqual(len(hub._conns), 1)
+            # No pong at all: the pinger sends pings until silence exceeds
+            # interval + timeout, then must close the socket with 1011.
+            # Bounded: the close arrives within ~3 intervals.
+            msg = ws.receive()
+            while msg["type"] == "websocket.send":  # skip liveness pings
+                msg = ws.receive()
+            self.assertEqual(msg["type"], "websocket.close")
+            self.assertEqual(msg.get("code"), 1011)
+        time.sleep(0.1)  # the endpoint's finally() runs hub.disconnect after the close
+        self.assertEqual(len(hub._conns), 0)
+
+
+if __name__ == "__main__":
+    unittest.main()
+
+```
+
+
+## Assistant
+
+<thinking>
+Next, test test_ui_api.py. Classes: TestReplayAndExport, TestClientRemoval, TestExchangeRemoval, TestUiServing.
+
+Required imports: threading, time, unittest; `from . import mock_upstream` (for REQUESTS, with fallback); helpers: CHAT, CID, MockedCase, payload.
+
+The `_replay_path` module function. TestUiServing: test_serves_ui_and_favicon (from m0) + test_ui_assets_served (from m1).
+
+</thinking>
+
+**Tool Call: tests/test\_ui\_api.py**
+Status: Completed
+
+Diff: tests/test_ui_api.py
+```
+"""The UI listener's /api/* surface: replay (re-send a captured client request
+upstream), single-exchange and conversation export (secrets redacted), client
+and exchange removal, and static UI serving. Each test uses a fresh shared
+Context (isolated in-memory store) against the shared mock upstream."""
+
+from __future__ import annotations
+
+import threading
+import time
+import unittest
+
+try:  # package form (unittest discover)
+    from . import mock_upstream
+    from .helpers import CHAT, CID, MockedCase, payload
+except ImportError:  # direct execution fallback
+    import mock_upstream  # type: ignore
+    from helpers import CHAT, CID, MockedCase, payload  # type: ignore
+
+
+def _replay_path(cid: str, seq: int) -> str:
+    return f"/api/conversations/{cid}/exchanges/{seq}/replay"
+
+
+class TestReplayAndExport(MockedCase):
+    def test_replay_as_is(self):
+        self.llm.post(CHAT, json=payload(stream=False))
+        original = mock_upstream.REQUESTS[-1]
+
+        r = self.ui.post(_replay_path(CID, 0), json={})
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.json()["choices"][0]["message"]["content"], "Hello, world!")
+
+        # The upstream received the captured body again, verbatim.
+        self.assertEqual(mock_upstream.REQUESTS[-1], original)
+
+        conv = self.ui.get(f"/api/conversations/{CID}").json()
+        self.assertEqual(conv["exchange_count"], 2)
+        replayed = conv["exchanges"][-1]
+        self.assertTrue(replayed["is_replay"])
+        self.assertEqual(replayed["sequence"], 1)
+        self.assertEqual(replayed["client_request"]["body_json"], original)
+
+    def test_replay_replaces_body(self):
+        self.llm.post(CHAT, json=payload(stream=False))
+
+        edited = {**payload(stream=False), "model": "thinker", "temperature": 0.2}
+        r = self.ui.post(_replay_path(CID, 0), json=edited)
+        self.assertEqual(r.status_code, 200)
+
+        # The upstream received exactly the edited body: the model and the new
+        # parameter are present, nothing was merged over the captured request.
+        self.assertEqual(mock_upstream.REQUESTS[-1], edited)
+
+        conv = self.ui.get(f"/api/conversations/{CID}").json()
+        replayed = conv["exchanges"][-1]
+        self.assertTrue(replayed["is_replay"])
+        self.assertEqual(replayed["client_request"]["body_json"]["model"], "thinker")
+
+        # The replayed exchange is exportable and carries the replay flag.
+        exp = self.ui.get(f"/api/conversations/{CID}/exchanges/{replayed['sequence']}/export").json()
+        self.assertEqual(exp["format"], "llm-proxy/exchange")
+        self.assertTrue(exp["exchange"]["is_replay"])
+
+    def test_replay_streaming(self):
+        self.llm.post(CHAT, json=payload(stream=True))
+
+        r = self.ui.post(_replay_path(CID, 0), json={})
+        self.assertEqual(r.status_code, 200)
+        self.assertIn("text/event-stream", r.headers.get("content-type", ""))
+        self.assertIn("[DONE]", r.text)
+        self.assertIn('"Hello"', r.text)  # the answer streams in pieces
+
+        conv = self.ui.get(f"/api/conversations/{CID}").json()
+        replayed = conv["exchanges"][-1]
+        self.assertTrue(replayed["is_replay"])
+        self.assertTrue(replayed["server_response"]["streaming"])
+        self.assertEqual(
+            replayed["server_response"]["reassembled"]["choices"][0]["message"]["content"], "Hello, world!"
+        )
+
+    def test_replay_unknown_seq_and_conversation_404(self):
+        self.llm.post(CHAT, json=payload(stream=False))
+        self.assertEqual(self.ui.post(_replay_path(CID, 99), json={}).status_code, 404)
+        self.assertEqual(self.ui.post(_replay_path("nope", 0), json={}).status_code, 404)
+        self.assertEqual(self.ui.get("/api/conversations/nope/exchanges/0/export").status_code, 404)
+        self.assertEqual(self.ui.get(f"/api/conversations/{CID}/exchanges/99/export").status_code, 404)
+
+    def test_single_exchange_export(self):
+        self.llm.post(CHAT, json=payload(stream=False))
+
+        r = self.ui.get(f"/api/conversations/{CID}/exchanges/0/export")
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.headers.get("content-disposition"), f'attachment; filename="{CID}-ex0.json"')
+        exp = r.json()
+        self.assertEqual(exp["format"], "llm-proxy/exchange")
+        self.assertEqual(exp["version"], 1)
+        self.assertEqual(exp["exchange"]["sequence"], 0)
+        self.assertFalse(exp["exchange"]["is_replay"])
+        self.assertEqual(
+            exp["exchange"]["server_response"]["body_json"]["choices"][0]["message"]["content"],
+            "Hello, world!",
+        )
+
+    def test_conversation_export_redacts_secrets(self):
+        self.llm.post(CHAT, json=payload(stream=False), headers={"Authorization": "Bearer sk-export-secret-123"})
+        clients_body = self.ui.get("/api/clients").json()
+        cid = clients_body[0]["conversation_ids"][0]
+
+        r = self.ui.get(f"/api/conversations/{cid}/export")
+        self.assertEqual(r.status_code, 200)
+        exp = r.json()
+        self.assertEqual(exp["format"], "llm-proxy/conversation")
+        self.assertEqual(exp["version"], 1)
+        self.assertIn("stats", exp)
+        self.assertGreaterEqual(len(exp["exchanges"]), 1)
+        # The authorization header is masked in the dump (the client id may still
+        # contain the key by design, since the key is part of client identity).
+        auth = exp["exchanges"][0]["client_request"]["headers"]["authorization"]
+        self.assertIn("***", auth)
+        self.assertNotIn("sk-export-secret-123", auth)
+
+
+class TestClientRemoval(MockedCase):
+    """DELETE /api/clients/{id} drops a client and all of its conversations; a new
+    request re-registers the client from scratch."""
+
+    def _register(self):
+        r = self.llm.post(CHAT, json=payload(stream=False))
+        self.assertEqual(r.status_code, 200)
+
+    def _client_ids(self) -> list[str]:
+        return [c["id"] for c in self.ui.get("/api/clients").json()]
+
+    def test_remove_client(self):
+        self._register()
+        clients = self.ui.get("/api/clients").json()
+        c = next(x for x in clients if x["id"] == CID)
+        cids = c["conversation_ids"]
+        self.assertEqual(len(cids), 1)
+
+        r = self.ui.delete(f"/api/clients/{CID}")
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.json(), {"ok": True})
+
+        self.assertNotIn(CID, self._client_ids())
+        self.assertEqual(self.ui.get(f"/api/conversations/{cids[0]}").status_code, 404)
+        self.assertEqual(self.ui.delete(f"/api/clients/{CID}").status_code, 404)
+
+    def test_removed_client_reregisters(self):
+        self._register()
+        self.assertEqual(self.ui.delete(f"/api/clients/{CID}").status_code, 200)
+        self._register()
+        self.assertIn(CID, self._client_ids())
+        conv = self.ui.get(f"/api/conversations/{CID}").json()
+        self.assertEqual(len(conv["exchanges"]), 1)
+
+
+class TestExchangeRemoval(MockedCase):
+    """Exchanges are removed by sequence. In-flight ones may be removed too: the
+    upstream call continues but its finalization is dropped, so the exchange is
+    never re-appended. Removal leaves the remaining exchanges' sequences intact."""
+
+    def _chat(self, model: str = "local-model") -> None:
+        self.llm.post(CHAT, json=payload(stream=False, model=model)).raise_for_status()
+
+    def _exchanges(self) -> list[dict]:
+        return self.ui.get(f"/api/conversations/{CID}").json()["exchanges"]
+
+    def _remove(self, seq: int):
+        return self.ui.request("DELETE", f"/api/conversations/{CID}/exchanges/{seq}")
+
+    def test_remove_completed_exchange(self):
+        self._chat()
+        self._chat()
+        self.assertEqual(len(self._exchanges()), 2)
+        self.assertEqual(self._remove(0).status_code, 200)
+        exs = self._exchanges()
+        self.assertEqual(len(exs), 1)
+        self.assertEqual(exs[0]["sequence"], 1)  # sequences are not renumbered
+
+    def test_remove_missing_exchange(self):
+        self._chat()
+        self.assertEqual(self._remove(99).status_code, 404)
+        self.assertEqual(self._remove(0).status_code, 200)
+        self.assertEqual(self._remove(0).status_code, 404)  # already gone
+
+    def test_remove_unknown_conversation(self):
+        self.assertEqual(self.ui.request("DELETE", "/api/conversations/nope/exchanges/0").status_code, 404)
+
+    def test_in_flight_exchange_removed_is_not_readded(self):
+        t = threading.Thread(target=lambda: self._chat(model="slow"), daemon=True)
+        t.start()
+        time.sleep(0.3)  # inside the mock's 0.8s hold
+        self.assertEqual(self._remove(0).status_code, 200)
+        self.assertEqual(len(self._exchanges()), 0)
+        t.join(timeout=5)
+        self.assertFalse(t.is_alive())
+        self.assertEqual(len(self._exchanges()), 0)
+
+
+class TestUiServing(MockedCase):
+    """The WebUI SPA and its assets are served from the UI listener's static
+    mount (no placeholder links, no browser caching, favicon.ico -> SVG)."""
+
+    def test_serves_ui_and_favicon(self):
+        # The status page is served from the ui/ dir and must not contain
+        # placeholder conversation links (literal <id> hrefs -> junk 404s).
+        r = self.ui.get("/")
+        self.assertEqual(r.status_code, 200)
+        self.assertIn('href="/favicon.svg"', r.text)
+        self.assertNotIn('href="/api/conversations', r.text)
+
+        # Browsers probe /favicon.ico even with an SVG icon link; serve the SVG.
+        r = self.ui.get("/favicon.ico")
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.headers["content-type"], "image/svg+xml")
+        self.assertIn("<svg", r.text)
+
+    def test_ui_assets_served(self):
+        # The SPA is served from the UI listener's static mount.
+        r = self.ui.get("/")
+        self.assertEqual(r.status_code, 200)
+        self.assertIn('src="/app.js"', r.text)
+        self.assertIn('href="/styles.css"', r.text)
+        for asset in ("/app.js", "/styles.css"):
+            r = self.ui.get(asset)
+            self.assertEqual(r.status_code, 200, asset)
+            self.assertTrue(len(r.content) > 0, asset)
+            # UI assets must not be heuristically cached by browsers, or a proxy
+            # restart can leave a tab running stale JS against the new process.
+            self.assertEqual(r.headers.get("cache-control"), "no-cache", asset)
+
+
+if __name__ == "__main__":
+    unittest.main()
+
+```
+
+
+## Assistant
+
+<thinking>
+Next is test_dissectors.py:
+
+</thinking>
+
+**Tool Call: tests/test\_dissectors.py**
+Status: Completed
+
+Diff: tests/test_dissectors.py
+```
+"""Dissectors: chat-completions decode (openai) vs the generic raw-capture
+fallback, selected per request; plus the last-user preview helper."""
+
+from __future__ import annotations
+
+import unittest
+
+try:  # package form (unittest discover)
+    from .helpers import CHAT, CID, MockedCase, payload
+except ImportError:  # direct execution fallback
+    from helpers import CHAT, CID, MockedCase, payload  # type: ignore
+
+from llm_proxy.dissectors.openai import _last_user_preview
+
+
+class TestDecode(MockedCase):
+    """Per-request decode: chat -> openai decoder, non-chat -> generic fallback."""
+
+    def _exchanges(self) -> list[dict]:
+        """The testclient's exchanges, read back through the UI API."""
+        return self.ui.get(f"/api/conversations/{CID}").json()["exchanges"]
+
+    def test_chat_decoded_as_openai(self):
+        self.llm.post(CHAT, json=payload(stream=True))
+        (ex,) = self._exchanges()
+        self.assertEqual(ex["dissector"], "openai")
+        self.assertEqual(
+            ex["server_response"]["reassembled"]["choices"][0]["message"]["content"], "Hello, world!"
+        )
+
+    def test_nonchat_falls_back_to_generic(self):
+        self.llm.get("/props", params={"model": "m"})
+        self.llm.get("/v1/models")
+        self.llm.get("/nope")
+        exs = self._exchanges()
+        for ex in exs:
+            self.assertEqual(ex["dissector"], "generic")
+        self.assertEqual(exs[0]["server_response"]["body_json"], {"n_ctx": 4096, "model": "m"})
+        self.assertEqual(exs[1]["server_response"]["body_json"]["object"], "list")
+        self.assertEqual(exs[2]["server_response"]["status"], 404)
+
+    def test_mixed_conversation(self):
+        self.llm.post(CHAT, json=payload(stream=True))
+        self.llm.get("/props", params={"model": "m"})
+        exs = self._exchanges()
+        self.assertEqual(exs[0]["dissector"], "openai")
+        self.assertIn("reassembled", exs[0]["server_response"])
+        self.assertEqual(exs[1]["dissector"], "generic")
+        self.assertEqual(exs[1]["server_response"]["body_json"], {"n_ctx": 4096, "model": "m"})
+
+
+class TestPreview(unittest.TestCase):
+    """The last-user preview is capped and always marks truncation."""
+
+    def test_short_string_untouched(self):
+        body = {"messages": [{"role": "user", "content": "hi"}]}
+        self.assertEqual(_last_user_preview(body), "hi")
+
+    def test_long_string_truncated_with_ellipsis(self):
+        body = {"messages": [{"role": "user", "content": "x" * 600}]}
+        p = _last_user_preview(body)
+        self.assertEqual(len(p), 501)  # 500 + ellipsis
+        self.assertTrue(p.endswith("…"))
+
+    def test_list_content_truncated_with_ellipsis(self):
+        body = {"messages": [{"role": "user", "content": [{"type": "text", "text": "y" * 600}]}]}
+        p = _last_user_preview(body)
+        self.assertTrue(p.endswith("…"))
+        self.assertEqual(len(p), 501)
+
+    def test_skips_non_user_roles(self):
+        body = {"messages": [{"role": "tool", "content": "z" * 600}]}
+        self.assertIsNone(_last_user_preview(body))
+
+
+if __name__ == "__main__":
+    unittest.main()
+
+```
+
+
+--- Context Compacted ---
+
+## Assistant
+
+<thinking>
+Let's start by checking the current state of the test directory, and then delete the old files, run the formatter, and run the tests.
+
+</thinking>
+
+**Tool Call: List the `llm-proxy/tests` directory's contents**
+Status: Completed
+
+# Folders:
+llm-proxy/tests/__pycache__
+
+# Files:
+llm-proxy/tests/__init__.py
+llm-proxy/tests/helpers.py
+llm-proxy/tests/mock_upstream.py
+llm-proxy/tests/test_cli.py
+llm-proxy/tests/test_client_removal.py
+llm-proxy/tests/test_dissectors.py
+llm-proxy/tests/test_exchange_removal.py
+llm-proxy/tests/test_inflight.py
+llm-proxy/tests/test_m0.py
+llm-proxy/tests/test_m1.py
+llm-proxy/tests/test_m2.py
+llm-proxy/tests/test_m3.py
+llm-proxy/tests/test_m5.py
+llm-proxy/tests/test_m6.py
+llm-proxy/tests/test_proxy.py
+llm-proxy/tests/test_shutdown.py
+llm-proxy/tests/test_ui_api.py
+llm-proxy/tests/test_ws.py
+
+
+## Assistant
+
+<thinking>
+As expected: 9 old files are still on disk. Delete them, then run the formatter, and then run the tests.
+
+</thinking>
+
+**Tool Call: Delete `llm-proxy/tests/test_m0.py`**
+Status: Completed
+
+Deleted llm-proxy/tests/test_m0.py
+
+**Tool Call: Delete `llm-proxy/tests/test_m1.py`**
+Status: Completed
+
+Deleted llm-proxy/tests/test_m1.py
+
+**Tool Call: Delete `llm-proxy/tests/test_m2.py`**
+Status: Completed
+
+Deleted llm-proxy/tests/test_m2.py
+
+**Tool Call: Delete `llm-proxy/tests/test_m3.py`**
+Status: Completed
+
+Deleted llm-proxy/tests/test_m3.py
+
+**Tool Call: Delete `llm-proxy/tests/test_m5.py`**
+Status: Completed
+
+Deleted llm-proxy/tests/test_m5.py
+
+**Tool Call: Delete `llm-proxy/tests/test_m6.py`**
+Status: Completed
+
+Deleted llm-proxy/tests/test_m6.py
+
+**Tool Call: Delete `llm-proxy/tests/test_client_removal.py`**
+Status: Completed
+
+Deleted llm-proxy/tests/test_client_removal.py
+
+**Tool Call: Delete `llm-proxy/tests/test_exchange_removal.py`**
+Status: Completed
+
+Deleted llm-proxy/tests/test_exchange_removal.py
+
+**Tool Call: Delete `llm-proxy/tests/test_inflight.py`**
+Status: Completed
+
+Deleted llm-proxy/tests/test_inflight.py
+
+## Assistant
+
+<thinking>
+Old files have been deleted. Next, I'll first run the formatter, then run the tests.
+
+</thinking>
+
+Old files deleted. Running formatters, then tests:
+
+
+
+**Tool Call: .venv/bin/python -m isort llm_proxy tests && .venv/bin/python -m black llm_proxy tests**
+Status: Completed
+
+Terminal:
+```
+Fixing /net/dockbox-vm.lan/mnt/storage/projects/llm-proxy/tests/test_ws.py
+reformatted /net/dockbox-vm.lan/mnt/storage/projects/llm-proxy/tests/test_ui_api.py
+reformatted /net/dockbox-vm.lan/mnt/storage/projects/llm-proxy/tests/test_proxy.py
+
+All done! ✨ 🍰 ✨
+2 files reformatted, 29 files left unchanged.
+
+```
+
+
+## Assistant
+
+<thinking>
+Next, I'll run the tests.
+
+</thinking>
+
+**Tool Call: .venv/bin/python -m unittest discover -v 2>&1**
+Status: Completed
+
+Terminal:
+```
+test_help_exits_zero (tests.test_cli.TestCli.test_help_exits_zero) ... ok
+test_no_args_no_overrides (tests.test_cli.TestCli.test_no_args_no_overrides) ... ok
+test_positional_upstream_and_flags (tests.test_cli.TestCli.test_positional_upstream_and_flags) ... ok
+test_two_port_overrides (tests.test_cli.TestCliPorts.test_two_port_overrides) ... ok
+test_console_script_resolves (tests.test_cli.TestPackaging.test_console_script_resolves)
+The llm-proxy console script must resolve to a callable in the package. ... ok
+test_version_matches_installed_metadata (tests.test_cli.TestPackaging.test_version_matches_installed_metadata) ... ok
+test_chat_decoded_as_openai (tests.test_dissectors.TestDecode.test_chat_decoded_as_openai) ... ok
+test_mixed_conversation (tests.test_dissectors.TestDecode.test_mixed_conversation) ... ok
+test_nonchat_falls_back_to_generic (tests.test_dissectors.TestDecode.test_nonchat_falls_back_to_generic) ... ok
+test_list_content_truncated_with_ellipsis (tests.test_dissectors.TestPreview.test_list_content_truncated_with_ellipsis) ... ok
+test_long_string_truncated_with_ellipsis (tests.test_dissectors.TestPreview.test_long_string_truncated_with_ellipsis) ... ok
+test_short_string_untouched (tests.test_dissectors.TestPreview.test_short_string_untouched) ... ok
+test_skips_non_user_roles (tests.test_dissectors.TestPreview.test_skips_non_user_roles) ... ok
+test_in_flight_carries_streaming_flag (tests.test_proxy.TestInFlight.test_in_flight_carries_streaming_flag)
+A slow streaming request is visible as in_flight with streaming set, so ... ok
+test_in_flight_visible_in_rest_then_finalized (tests.test_proxy.TestInFlight.test_in_flight_visible_in_rest_then_finalized)
+A slow non-stream request is visible as in_flight in REST, and completes ... ok
+test_capture_and_export (tests.test_proxy.TestProxy.test_capture_and_export) ... ok
+test_health (tests.test_proxy.TestProxy.test_health) ... ok
+test_health_reports_upstream_error_when_unreachable (tests.test_proxy.TestProxy.test_health_reports_upstream_error_when_unreachable) ... ok
+test_non_streaming_passthrough (tests.test_proxy.TestProxy.test_non_streaming_passthrough) ... ok
+test_secret_redaction (tests.test_proxy.TestProxy.test_secret_redaction) ... ok
+test_streaming_tap_and_forward (tests.test_proxy.TestProxy.test_streaming_tap_and_forward) ... ok
+test_streaming_upstream_error_status_passthrough (tests.test_proxy.TestProxy.test_streaming_upstream_error_status_passthrough) ... ok
+test_streaming_upstream_unreachable_returns_502 (tests.test_proxy.TestProxy.test_streaming_upstream_unreachable_returns_502) ... ok
+test_user_agent_and_key_combined_id (tests.test_proxy.TestProxy.test_user_agent_and_key_combined_id) ... ok
+test_user_agent_splits_clients_on_shared_ip (tests.test_proxy.TestProxy.test_user_agent_splits_clients_on_shared_ip) ... ok
+test_non_json_response_captured_as_text (tests.test_proxy.TestTransparent.test_non_json_response_captured_as_text) ... ok
+test_opaque_capture_with_query (tests.test_proxy.TestTransparent.test_opaque_capture_with_query) ... ok
+test_ports_do_not_overlap (tests.test_proxy.TestTransparent.test_ports_do_not_overlap) ... ok
+test_query_string_forwarded_verbatim (tests.test_proxy.TestTransparent.test_query_string_forwarded_verbatim) ... ok
+test_undecoded_sse_captured_raw (tests.test_proxy.TestTransparent.test_undecoded_sse_captured_raw) ... ok
+test_upstream_404_passthrough (tests.test_proxy.TestTransparent.test_upstream_404_passthrough) ... ok
+test_upstream_timeout_policy_reaches_the_client (tests.test_proxy.TestUpstreamTimeouts.test_upstream_timeout_policy_reaches_the_client)
+connect/pool settings reach the pooled client, and read is intentionally ... ok
+test_sigterm_exits_quickly_while_request_in_flight (tests.test_shutdown.ShutdownBoundedTest.test_sigterm_exits_quickly_while_request_in_flight) ... ok
+test_remove_client (tests.test_ui_api.TestClientRemoval.test_remove_client) ... ok
+test_removed_client_reregisters (tests.test_ui_api.TestClientRemoval.test_removed_client_reregisters) ... ok
+test_in_flight_exchange_removed_is_not_readded (tests.test_ui_api.TestExchangeRemoval.test_in_flight_exchange_removed_is_not_readded) ... ok
+test_remove_completed_exchange (tests.test_ui_api.TestExchangeRemoval.test_remove_completed_exchange) ... ok
+test_remove_missing_exchange (tests.test_ui_api.TestExchangeRemoval.test_remove_missing_exchange) ... ok
+test_remove_unknown_conversation (tests.test_ui_api.TestExchangeRemoval.test_remove_unknown_conversation) ... ok
+test_conversation_export_redacts_secrets (tests.test_ui_api.TestReplayAndExport.test_conversation_export_redacts_secrets) ... ok
+test_replay_as_is (tests.test_ui_api.TestReplayAndExport.test_replay_as_is) ... ok
+test_replay_replaces_body (tests.test_ui_api.TestReplayAndExport.test_replay_replaces_body) ... ok
+test_replay_streaming (tests.test_ui_api.TestReplayAndExport.test_replay_streaming) ... ok
+test_replay_unknown_seq_and_conversation_404 (tests.test_ui_api.TestReplayAndExport.test_replay_unknown_seq_and_conversation_404) ... ok
+test_single_exchange_export (tests.test_ui_api.TestReplayAndExport.test_single_exchange_export) ... ok
+test_serves_ui_and_favicon (tests.test_ui_api.TestUiServing.test_serves_ui_and_favicon) ... ok
+test_ui_assets_served (tests.test_ui_api.TestUiServing.test_ui_assets_served) ... ok
+test_client_registered_before_client_seen_broadcast (tests.test_ws.TestLiveFanOut.test_client_registered_before_client_seen_broadcast)
+Regression: by the time client_seen is broadcast, the client must ... ok
+test_completed_sequence_matches_stored_order (tests.test_ws.TestLiveFanOut.test_completed_sequence_matches_stored_order)
+Regression: exchange_completed must carry each request's real sequence. ... ok
+test_exchange_started_carries_server_sequence (tests.test_ws.TestLiveFanOut.test_exchange_started_carries_server_sequence)
+Regression: exchange_started must carry the server-assigned sequence. ... ok
+test_focus_switch_routes_events (tests.test_ws.TestLiveFanOut.test_focus_switch_routes_events) ... ok
+test_new_client_seen_reaches_unfocused_dock (tests.test_ws.TestLiveFanOut.test_new_client_seen_reaches_unfocused_dock) ... ok
+test_non_streaming_fan_out_has_no_deltas (tests.test_ws.TestLiveFanOut.test_non_streaming_fan_out_has_no_deltas) ... ok
+test_reasoning_streams_before_content (tests.test_ws.TestLiveFanOut.test_reasoning_streams_before_content) ... ok
+test_streaming_fan_out_is_live (tests.test_ws.TestLiveFanOut.test_streaming_fan_out_is_live) ... ok
+test_tool_calls_reassembled (tests.test_ws.TestLiveFanOut.test_tool_calls_reassembled) ... ok
+test_unfocused_client_gets_dock_activity_only (tests.test_ws.TestLiveFanOut.test_unfocused_client_gets_dock_activity_only) ... ok
+test_upstream_gen_rate_captured_stream_and_non_stream (tests.test_ws.TestLiveFanOut.test_upstream_gen_rate_captured_stream_and_non_stream) ... ok
+test_ws_lifecycle_is_logged (tests.test_ws.TestLiveFanOut.test_ws_lifecycle_is_logged)
+Regression: WS connect/focus/disconnect must be visible in the server log. ... ok
+test_ws_ping_pong_keeps_socket_alive (tests.test_ws.TestWsLiveness.test_ws_ping_pong_keeps_socket_alive) ... ok
+test_ws_silent_socket_pruned (tests.test_ws.TestWsLiveness.test_ws_silent_socket_pruned) ... ok
+
+----------------------------------------------------------------------
+Ran 61 tests in 11.074s
+
+OK
+
+```
+
+
+## Assistant
+
+<thinking>
+61 tests OK, ~11 seconds. Next, update the Status section of the README. Let me read the relevant part of the README.
+
+</thinking>
+
+61/61 in 11.1s. Now the README status section:
+
+
+
+**Tool Call: Read file `README.md` (lines 1-45)**
+Status: Completed
+
+````llm-proxy/README.md
+     1	# LLM Proxy
+     2	
+     3	A low-overhead, **transparent MITM proxy for LLM APIs** with a live
+     4	**"conversation" WebUI** for inspecting, replaying, and exporting client ↔
+     5	server traffic to a **local llama.cpp** upstream.
+     6	
+     7	Think **mitmproxy + the llama.cpp WebUI**: clients on the left dock, the
+     8	conversation in the main pane (client request on the left, server response on the
+     9	right), live tokens, timestamps + deltas, and expandable full wire calls.
+    10	Every request (any method, any path) is forwarded to the upstream verbatim;
+    11	each request is decoded *per request* — chat completions get the full
+    12	conversation view, everything else is captured opaquely (raw, capped) — so
+    13	nothing ever 404s at the proxy.
+    14	
+    15	**See [PLAN.md](./PLAN.md)** for the full design, key decisions, and milestone breakdown.
+    16	
+    17	## Status
+    18	
+    19	**M6 — dissector framework** (this tree; awaiting commit). The proxy stays a
+    20	transparent catch-all: one process, two listeners — the **LLM port (default
+    21	8080)** forwards every method/path (query string included) to the upstream
+    22	verbatim with **no reserved routes**, so clients like Zed work through it with
+    23	zero 404s; the **UI port (default 9090)** serves the WebUI, `/api/*`, `/ws`,
+    24	and `/health` only. Decoding is **per request** (observation-only, never
+    25	rewrites the wire): `POST */chat/completions` is decoded by the `openai`
+    26	dissector into the full conversation view (live tokens, timestamps + timing
+    27	deltas, expandable wire calls, tool calls, **replay** with a bottom-dock
+    28	editor, collapsible thinking block, JSON export with secrets redacted); every
+    29	other request (`/v1/models`, `/props`, unknown paths, …) falls back to the
+    30	`generic` dissector — opaque raw capture (capped), logged at `debug`.
+    31	
+    32	- M0 — foundation (proxy, capture, REST, export) — done
+    33	- M1 — live streaming UI (WebSocket fan-out) + conversation view — done
+    34	- M2 — replay + full JSON export — done
+    35	- M3 — hardening (timeouts, WS liveness, non-root multi-arch image) — done
+    36	- M4 — polish (replay editor dock, collapsible thinking, minimal compose) — done
+    37	- M5 — transparent MITM core (two-port: LLM catch-all 8080, UI 9090) — done
+    38	- M6 — per-request decode (openai chat decoder + generic fallback, tool-calls UI) — done (awaiting commit)
+    39	
+    40	## Quick start (Docker)
+    41	
+    42	```bash
+    43	# Build and run (expects llama.cpp reachable at host.docker.internal:8080)
+    44	docker compose up -d --build
+    45	```
+
+````
+
+
+## Assistant
+
+<thinking>
+I need to investigate this further. Let me check the details.
+
+Updating the status section: changing the header line to "**M7 — Test Reorganization** (this tree, awaiting commit)", keeping the explanatory paragraph, changing the M6 item to "done", and adding a line for M7.
+
+</thinking>
+
+**Tool Call: README.md**
+Status: Completed
+
+Diff: README.md
+```
+# LLM Proxy
+
+A low-overhead, **transparent MITM proxy for LLM APIs** with a live
+**"conversation" WebUI** for inspecting, replaying, and exporting client ↔
+server traffic to a **local llama.cpp** upstream.
+
+Think **mitmproxy + the llama.cpp WebUI**: clients on the left dock, the
+conversation in the main pane (client request on the left, server response on the
+right), live tokens, timestamps + deltas, and expandable full wire calls.
+Every request (any method, any path) is forwarded to the upstream verbatim;
+each request is decoded *per request* — chat completions get the full
+conversation view, everything else is captured opaquely (raw, capped) — so
+nothing ever 404s at the proxy.
+
+**See [PLAN.md](./PLAN.md)** for the full design, key decisions, and milestone breakdown.
+
+## Status
+
+**M7 — test reorganization** (this tree; awaiting commit). The proxy stays a
+transparent catch-all: one process, two listeners — the **LLM port (default
+8080)** forwards every method/path (query string included) to the upstream
+verbatim with **no reserved routes**, so clients like Zed work through it with
+zero 404s; the **UI port (default 9090)** serves the WebUI, `/api/*`, `/ws`,
+and `/health` only. Decoding is **per request** (observation-only, never
+rewrites the wire): `POST */chat/completions` is decoded by the `openai`
+dissector into the full conversation view (live tokens, timestamps + timing
+deltas, expandable wire calls, tool calls, **replay** with a bottom-dock
+editor, collapsible thinking block, JSON export with secrets redacted); every
+other request (`/v1/models`, `/props`, unknown paths, …) falls back to the
+`generic` dissector — opaque raw capture (capped), logged at `debug`.
+
+- M0 — foundation (proxy, capture, REST, export) — done
+- M1 — live streaming UI (WebSocket fan-out) + conversation view — done
+- M2 — replay + full JSON export — done
+- M3 — hardening (timeouts, WS liveness, non-root multi-arch image) — done
+- M4 — polish (replay editor dock, collapsible thinking, minimal compose) — done
+- M5 — transparent MITM core (two-port: LLM catch-all 8080, UI 9090) — done
+- M6 — per-request decode (openai chat decoder + generic fallback, tool-calls UI) — done
+- M7 — test reorganization (by subject: cli, proxy, ws, ui-api, dissectors, shutdown) — done (awaiting commit)
+
+## Quick start (Docker)
+
+```bash
+# Build and run (expects llama.cpp reachable at host.docker.internal:8080)
+docker compose up -d --build
+```
+
+- **LLM API proxy** (point clients here): `http://localhost:8080` — e.g. Zed's
+  base URL is `http://localhost:8080/v1`.
+- **Web UI** (plus the proxy's own `/api/*`, `/ws`, `/health`):
+  `http://localhost:9090/`.
+
+Point the proxy at your llama.cpp server by setting `UPSTREAM_BASE_URL` in
+`docker-compose.yml` (default is `http://host.docker.internal:8080`). If your
+upstream requires a key, set `UPSTREAM_API_KEY` — it is only injected when a
+client sends no key; client-supplied keys are always passed through unchanged.
+The image runs as a non-root user and is
+arch-neutral; for a multi-arch image:
+
+```bash
+docker buildx build --platform linux/amd64,linux/arm64 -t llm-proxy:latest .
+```
+
+## Quick start (local, no Docker)
+
+```bash
+# Python 3.11–3.14 (3.14 preferred; that's what the Docker build image and
+# devcontainer use)
+python3 -m venv .venv && source .venv/bin/activate
+pip install -e .
+
+llm-proxy http://localhost:8080
+```
+
+The upstream base URL is the positional argument (the package reads no
+environment variables — see Configuration below). Both listeners start: the LLM
+proxy on `8080` and the WebUI/API on `9090`. (An ad-hoc `uvicorn
+llm_proxy.app:app` run starts the **UI listener only** with default settings.)
+Chat completions are decoded into the full conversation view; every other
+request is captured opaquely.
+
+Then call it like any OpenAI endpoint — clients hit the LLM port, the proxy's
+own API stays on the UI port:
+
+```bash
+curl http://localhost:8080/v1/chat/completions \
+  -H 'content-type: application/json' \
+  -d '{"model":"local","stream":false,"messages":[{"role":"user","content":"hi"}]}'
+
+curl http://localhost:8080/props?model=local   # any path is forwarded as-is
+curl http://localhost:9090/api/clients
+curl http://localhost:9090/api/conversations/127.0.0.1/export
+
+# Replay the first captured exchange as captured (an empty JSON body re-sends
+# the captured request; a non-empty body replaces it entirely)
+curl -X POST http://localhost:9090/api/conversations/127.0.0.1/exchanges/0/replay \
+  -H 'content-type: application/json' -d '{}'
+```
+
+## Tests
+
+Install the package, then run the end-to-end suite (M0–M6; it spins up a
+mock llama.cpp upstream on `127.0.0.1:8082`):
+
+```bash
+pip install -e ".[dev]"
+python -m unittest discover -v
+```
+
+## Development (style)
+
+Python is formatted with **isort + black** (configured in `pyproject.toml`):
+
+```bash
+pip install -e ".[dev]"
+isort llm_proxy tests
+black llm_proxy tests
+```
+
+JS is verified with **`node --check` + ESLint** (flat config in `eslint.config.mjs`;
+the UI itself has no build step — plain JS served from `ui/`):
+
+```bash
+npm install
+npm run verify:js
+```
+
+## Dev container
+
+The repo includes a [devcontainer](./.devcontainer/devcontainer.json) (Python 3.14 +
+Node LTS). In VS Code: **Dev Containers: Reopen in Container**. On startup it
+installs the package (`.[dev]`) into the image's system Python (no
+`.venv` is created) and runs `npm install`.
+
+Inside the container:
+
+```bash
+python -m unittest discover -v      # Python test suite (M0–M6)
+npm run verify:js                   # node --check + ESLint over ui/
+llm-proxy http://localhost:8080
+```
+
+The WebUI needs a real browser: open the auto-forwarded `http://localhost:9090`
+and point a client at `http://localhost:8080/v1/chat/completions` to see the
+conversation view live (both ports are auto-forwarded).
+
+## Versioning
+
+The package version is derived from **git tags** at install/build time
+(`setuptools_scm`). Tag CalVer-style releases, e.g. `git tag 2026.09.08`;
+untagged checkouts report a `dev` version with the commit id.
+
+- **Local / devcontainer**: `pip install -e .` bakes the current tag into the
+  install; re-run it after creating a tag to refresh.
+- **Docker**: the build stage compiles the wheel from the full context (which
+  includes `.git`), so the current tag is picked up automatically;
+  `docker build --build-arg VERSION=2026.09.08 .` overrides it. The runtime
+  stage is a minimal `alpine` image (wheel installed via `pipx`, non-root).
+
+## Configuration
+
+The package reads **no environment variables** — configuration is explicit.
+`llm-proxy` takes the command-line options below (anything omitted falls back
+to the defaults); the Docker image's `CMD` maps container env vars onto those
+options, so env vars remain a container-layer convenience only.
+
+### Command line
+
+```
+usage: llm-proxy [-h] [--version] [--host HOST] [--llm-port PORT] [--ui-port PORT]
+                 [--upstream-api-key KEY] [--log-level LEVEL] [--ui-dir DIR]
+                 [UPSTREAM_BASE_URL]
+```
+
+| Arg | Notes |
+|---|---|
+| `UPSTREAM_BASE_URL` (positional) | upstream base URL (default `http://host.docker.internal:8080`) |
+| `--host` | listen host for both listeners (default `0.0.0.0`) |
+| `--llm-port` | LLM proxy listener port (default `8080`, the transparent catch-all) |
+| `--ui-port` | WebUI + `/api/*` + `/ws` + `/health` listener port (default `9090`) |
+| `--upstream-api-key` | optional server-side fallback key, injected only when a client sends no key |
+| `--log-level` | app loggers, incl. the `llm_proxy.ws` connection trace at `debug` (connect/focus/disconnect) |
+| `--ui-dir` | static UI directory (default: the package-relative `ui/`; the image passes `/app/ui`) |
+| `--help` / `--version` | usage / package version |
+
+### Docker env vars
+
+The image `CMD` maps these container env vars onto the CLI (unset or empty
+values are skipped, so the defaults apply):
+
+| Var | CLI arg |
+|---|---|
+| `UPSTREAM_BASE_URL` | positional upstream |
+| `UPSTREAM_API_KEY` | `--upstream-api-key` |
+| `LISTEN_HOST` | `--host` |
+| `LLM_PORT` | `--llm-port` |
+| `UI_PORT` | `--ui-port` |
+| `LOG_LEVEL` | `--log-level` |
+
+### WebUI
+
+Browser-side WS tracing (dev-console `[ws] …` lines) is off by default. Enable
+it per-session by opening the WebUI with the `wslog` query parameter, e.g.
+`http://localhost:9090/?wslog` — no server setting or rebuild involved.
+
+### Defaults reference
+
+Settings not exposed on the command line are always their defaults — a
+deliberate tradeoff that keeps the CLI surface minimal; add an option if one of
+these needs to be tunable:
+
+| Setting | Default | Notes |
+|---|---|---|
+| `upstream_connect_timeout` | `10` | Seconds to establish an upstream connection (the dead-link detector; there is deliberately no read timeout - as a transparent proxy, timeout policy belongs to the client) |
+| `upstream_pool_timeout` | `30` | Wait for a free pooled connection |
+| `client_id_header` | *(unset)* | Explicit-identity fallback when the real IP is hidden |
+| `split_conversations` | *(unset)* | `history` = no-key auto-split (off by default) |
+| `retention_max_exchanges` | `500` | Per-client ring buffer cap |
+| `retention_max_age_hours` | `24` | Age cap for captured exchanges |
+| `include_raw_chunks` | `false` | Keep raw SSE chunks in the store (memory-heavy) |
+| `ws_ping_interval` / `ws_ping_timeout` | `20` / `20` | Liveness: the hub pings each UI socket every interval and closes it if no pong arrives within interval + timeout. The WebUI answers automatically; other WS clients that don't will be pruned after silence |
+
+## Layout
+
+```
+llm_proxy/
+  app.py               # app factory: two listeners (LLM catch-all + UI) + llm-proxy entry point
+  config.py            # settings model (defaults + explicit overrides; no env)
+  hub.py               # WebSocket fan-out hub (non-blocking live UI delivery + liveness)
+  logconf.py           # logging setup (text logs)
+  proxy/               # catch-all LLM router, pipeline (tap-and-forward), SSE parser
+  dissectors/          # observation dissectors: generic (fallback) + openai (chat decode); per-request selection
+  model/               # wire/parse objects + conversation objects (ring buffer)
+  store/               # in-memory store + retention
+  api/                 # /api/* UI endpoints
+  dump.py              # JSON export
+ui/                    # static single-page UI (index.html, app.js, styles.css; no build;
+                       #   markdown rendered by vendored marked v15.0.12 — marked.min.js)
+Dockerfile, docker-compose.yml
+```
+
+```
+
+
+## Assistant
+
+<thinking>
+Wait—I need to double-check the wording of the README's header line. According to the summary, step 4 says: change the header line to `**M7 — Test reorganization** (this tree; awaiting commit)` and keep the descriptive paragraph (still accurate). Hmm, but if I change "M6 — dissector framework" to "M7 — Test reorganization," the descriptive paragraph will end up following it... The paragraph describes the transparent catch-all architecture, which is accurate as a whole-project description. OK, that's what I did.
+
+Next, the final reply: mapping table, notes on MockedCase/ui_client, the rationale for not creating test_store.py, 61/61, reminders about the user side (verify:js, rebuild, commit). Keep it concise.
+
+</thinking>
+
+M7 complete. **61/61 tests OK in 11.1s**, formatters clean.
+
+**Subject-based mapping** (milestone → new file):
+
+| New file | Contents (moved from) |
+|---|---|
+| `test_cli.py` | `TestPackaging`, `TestCli` (ex-m0) + `TestCliPorts` (ex-m5) |
+| `test_proxy.py` | `TestProxy` (ex-m0, minus UI-asset test), `TestTransparent` (ex-m5), `TestInFlight` (ex-`test_inflight`), `TestUpstreamTimeouts` (ex-m3) |
+| `test_ws.py` | `TestLiveFanOut` (ex-m1, minus asset test), `TestWsLiveness` (ex-m3) |
+| `test_ui_api.py` | `TestReplayAndExport` (ex-m2), `TestClientRemoval`, `TestExchangeRemoval`, new `TestUiServing` (ex-m0 + ex-m1 asset tests) |
+| `test_dissectors.py` | `TestDecode`, `TestPreview` (ex-m6) |
+| `test_shutdown.py`, `mock_upstream.py`, `helpers.py` | unchanged / shared fixtures rewritten |
+
+**Notes:**
+- **No `test_store.py`** — the plan's file list was illustrative; the store is only exercised through the APIs (proxy/ws/ui-api tests), so a dedicated file would just duplicate coverage.
+- `helpers.py` now provides `MockedCase` (mock up/down per class, fresh clients per test) and `ui_client(**overrides)` for UI-only tests — all per-test fixture boilerplate removed from the moved classes.
+- Deleted the 9 old milestone-era test files so the suite runs no duplicates.
+- README status updated to reflect M7.
+
+**Your pending items** (carried over):
+1. `npm run verify:js` (covers the `?wslog` console-gating change)
+2. Container rebuild + hard refresh (covers emit-log removal + `?wslog`)
+3. Commit — I haven't committed anything, per your instruction.
