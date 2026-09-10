@@ -1,4 +1,4 @@
-/* LLM Proxy — live conversation UI (vanilla JS, esbuild-bundled; see package.json).
+/* llm-mitm-proxy — live conversation UI (vanilla JS, esbuild-bundled; see package.json).
  *
  * One WebSocket to /ws drives live updates; REST (/api/...) is used for the
  * initial load, export, and clear. The dock shows conversations; the main pane

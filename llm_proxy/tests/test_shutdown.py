@@ -59,7 +59,7 @@ def _tcp_up(port: int) -> bool:
 @unittest.skipUnless(sys.platform != "win32", "needs SIGTERM")
 class ShutdownBoundedTest(unittest.TestCase):
     def test_sigterm_exits_quickly_while_request_in_flight(self) -> None:
-        exe = Path(sys.executable).with_name("llm-proxy")
+        exe = Path(sys.executable).with_name("llm-mitm-proxy")
         if not exe.is_file():
             self.skipTest(f"console script not found: {exe}")
         llm_port, ui_port, up_port = _free_port(), _free_port(), _free_port()
@@ -70,9 +70,9 @@ class ShutdownBoundedTest(unittest.TestCase):
                 f"http://127.0.0.1:{up_port}",
                 "--host",
                 "127.0.0.1",
-                "--llm-port",
+                "--proxy-port",
                 str(llm_port),
-                "--ui-port",
+                "--web-port",
                 str(ui_port),
             ],
             stdout=subprocess.PIPE,

@@ -97,7 +97,7 @@ class TestProxy(MockedCase):
         self.assertEqual(stream_ex[0]["usage"]["total_tokens"], 8)
 
         exp = self.ui.get(f"/api/conversations/{cid}/export").json()
-        self.assertEqual(exp["format"], "llm-proxy/conversation")
+        self.assertEqual(exp["format"], "llm-mitm-proxy/conversation")
         self.assertEqual(exp["version"], 1)
         self.assertGreaterEqual(len(exp["exchanges"]), 2)
         self.assertGreaterEqual(exp["stats"]["total_completion_tokens"], 3)

@@ -7,7 +7,7 @@ connection reader task drains the queue and writes to the socket, providing
 natural backpressure: a slow or wedged UI subscriber drops its *oldest* buffered
 events (freshest wins) instead of stalling token delivery to the real client.
 
-Event model (PLAN §4): every message is ``{type, conversation_id, ...}``. A
+Event model: every message is ``{type, conversation_id, ...}``. A
 connection has a single *focus* conversation and receives full events for it;
 it receives lightweight ``activity`` pings (dock pulses) for all others.
 

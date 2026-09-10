@@ -1,5 +1,5 @@
 {
-  "name": "llm-proxy",
+  "name": "llm-mitm-proxy",
   "image": "mcr.microsoft.com/devcontainers/python:3.14",
   "features": {
     "ghcr.io/devcontainers/features/node:1": {
@@ -7,6 +7,6 @@
     },
     "ghcr.io/devcontainers/features/git:1": {}
   },
-  "forwardPorts": [8080, 9090],
+  "forwardPorts": [8081, 9090],
   "postCreateCommand": "pip install -e '.[dev]' && npm install && npm run build"
 }

@@ -17,7 +17,7 @@ concurrency:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: mill1000/llm-proxy
+  IMAGE_NAME: mill1000/llm-mitm-proxy
   # No linux/arm/v7: esbuild (the UI build stage) has no armv7 binary.
   PLATFORMS: linux/amd64,linux/arm64
 

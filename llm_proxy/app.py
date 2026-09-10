@@ -1,11 +1,11 @@
 """FastAPI app factory: one process, two listeners.
 
-* **LLM listener** (``llm_port``, default 8080): a transparent catch-all proxy
+* **LLM listener** (``llm_port``, default 8081): a transparent catch-all proxy
   to the upstream. Every method/path is forwarded verbatim and tapped.
 * **UI listener** (``ui_port``, default 9090): the WebUI, ``/api/*`` REST, the
   ``/ws`` WebSocket, and ``/health``. It serves no proxy routes.
 
-Run with ``llm-proxy`` (console script; both listeners, command-line settings,
+Run with ``llm-mitm-proxy`` (console script; both listeners, command-line settings,
 see --help) or ``uvicorn llm_proxy.app:app --timeout-graceful-shutdown 2
 --log-level warning --no-access-log`` for an ad-hoc **UI-only** run with
 default settings. The store and WebSocket hub live in this single process and are
@@ -138,7 +138,7 @@ def _lifespan(ctx: Context):
 def create_llm_app(ctx: Context) -> FastAPI:
     """LLM listener: a transparent catch-all proxy (no reserved routes)."""
     app = FastAPI(
-        title="LLM Proxy",
+        title="llm-mitm-proxy",
         version=__version__,
         docs_url=None,
         redoc_url=None,
@@ -153,7 +153,7 @@ def create_llm_app(ctx: Context) -> FastAPI:
 def create_ui_app(ctx: Context) -> FastAPI:
     """UI listener: WebUI + ``/api/*`` + ``/ws`` + ``/health`` (no proxy routes)."""
     app = FastAPI(
-        title="LLM Proxy UI",
+        title="llm-mitm-proxy UI",
         version=__version__,
         docs_url=None,
         redoc_url=None,
@@ -229,19 +229,19 @@ app = create_ui_app(Context(Settings()))
 def cli_overrides(argv: list[str] | None = None) -> dict[str, str | int]:
     """Parse the command line into settings overrides.
 
-    Usage: ``llm-proxy [UPSTREAM_BASE_URL] [--host HOST] [--llm-port N] [--ui-port N]``.
+    Usage: ``llm-mitm-proxy [UPSTREAM_BASE_URL] [--host HOST] [--proxy-port N] [--web-port N]``.
     Returns only the options actually given, keyed by ``Settings`` field name,
     so the result can be passed straight to ``Settings(**overrides)``.
     """
     parser = argparse.ArgumentParser(
-        prog="llm-proxy",
+        prog="llm-mitm-proxy",
         description="Transparent LLM API proxy with a live conversation WebUI.",
     )
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     parser.add_argument("upstream", nargs="?", metavar="UPSTREAM_BASE_URL", help="upstream base URL")
     parser.add_argument("--host", metavar="HOST", help="listen host for both listeners (default 0.0.0.0)")
-    parser.add_argument("--llm-port", metavar="PORT", type=int, help="LLM proxy listen port (default 8080)")
-    parser.add_argument("--ui-port", metavar="PORT", type=int, help="WebUI/API listen port (default 9090)")
+    parser.add_argument("--proxy-port", metavar="PORT", type=int, help="proxy listen port (default 8081)")
+    parser.add_argument("--web-port", metavar="PORT", type=int, help="web listen port (default 9090)")
     parser.add_argument("--upstream-api-key", metavar="KEY", help="server-side fallback API key")
     parser.add_argument(
         "--log-level", metavar="LEVEL", help="app log level (verbose, debug, info, warning, error)"
@@ -251,8 +251,8 @@ def cli_overrides(argv: list[str] | None = None) -> dict[str, str | int]:
     opts = {
         "upstream_base_url": args.upstream,
         "listen_host": args.host,
-        "llm_port": args.llm_port,
-        "ui_port": args.ui_port,
+        "llm_port": args.proxy_port,
+        "ui_port": args.web_port,
         "upstream_api_key": args.upstream_api_key,
         "log_level": args.log_level,
         "ui_dir": args.ui_dir,
@@ -341,6 +341,6 @@ async def _run(ctx: Context) -> None:
 
 
 def main() -> None:
-    """Console entry point (``llm-proxy``): command-line settings over defaults."""
+    """Console entry point (``llm-mitm-proxy``): command-line settings over defaults."""
     settings = Settings(**cli_overrides())
     asyncio.run(_run(Context(settings)))

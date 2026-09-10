@@ -32,17 +32,17 @@ ENV PYTHONUNBUFFERED=1
 ENV PIPX_HOME=/opt/pipx
 ENV PIPX_BIN_DIR=/usr/bin
 
-COPY --from=build /app/dist/llm_proxy-*.whl /tmp/
-RUN pipx install /tmp/llm_proxy-*.whl && rm /tmp/llm_proxy-*.whl
+COPY --from=build /app/dist/llm_mitm_proxy-*.whl /tmp/
+RUN pipx install /tmp/llm_mitm_proxy-*.whl && rm /tmp/llm_mitm_proxy-*.whl
 
 RUN adduser -D -u 1000 -h /dev/null -s /sbin/nologin appuser
 USER appuser
 
-EXPOSE 8080 9090
+EXPOSE 8081 9090
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s \
   CMD python3 -c "import urllib.request;urllib.request.urlopen('http://127.0.0.1:9090/health', timeout=8)"
 
 ENTRYPOINT ["/sbin/tini", "--"]
 
-CMD ["/bin/sh", "-c", "llm-proxy ${UPSTREAM_BASE_URL:+$UPSTREAM_BASE_URL} ${UPSTREAM_API_KEY:+--upstream-api-key $UPSTREAM_API_KEY} ${LISTEN_HOST:+--host $LISTEN_HOST} ${LLM_PORT:+--llm-port $LLM_PORT} ${UI_PORT:+--ui-port $UI_PORT} ${LOG_LEVEL:+--log-level $LOG_LEVEL}"]
+CMD ["/bin/sh", "-c", "llm-mitm-proxy ${UPSTREAM_BASE_URL:+$UPSTREAM_BASE_URL} ${UPSTREAM_API_KEY:+--upstream-api-key $UPSTREAM_API_KEY} ${LISTEN_HOST:+--host $LISTEN_HOST} ${PROXY_PORT:+--proxy-port $PROXY_PORT} ${WEB_PORT:+--web-port $WEB_PORT} ${LOG_LEVEL:+--log-level $LOG_LEVEL}"]

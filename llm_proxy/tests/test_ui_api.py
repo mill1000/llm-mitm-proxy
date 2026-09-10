@@ -59,7 +59,7 @@ class TestReplayAndExport(MockedCase):
 
         # The replayed exchange is exportable and carries the replay flag.
         exp = self.ui.get(f"/api/conversations/{CID}/exchanges/{replayed['sequence']}/export").json()
-        self.assertEqual(exp["format"], "llm-proxy/exchange")
+        self.assertEqual(exp["format"], "llm-mitm-proxy/exchange")
         self.assertTrue(exp["exchange"]["is_replay"])
 
     def test_replay_streaming(self):
@@ -93,7 +93,7 @@ class TestReplayAndExport(MockedCase):
         self.assertEqual(r.status_code, 200)
         self.assertEqual(r.headers.get("content-disposition"), f'attachment; filename="{CID}-ex0.json"')
         exp = r.json()
-        self.assertEqual(exp["format"], "llm-proxy/exchange")
+        self.assertEqual(exp["format"], "llm-mitm-proxy/exchange")
         self.assertEqual(exp["version"], 1)
         self.assertEqual(exp["exchange"]["sequence"], 0)
         self.assertFalse(exp["exchange"]["is_replay"])
@@ -112,7 +112,7 @@ class TestReplayAndExport(MockedCase):
         r = self.ui.get(f"/api/conversations/{cid}/export")
         self.assertEqual(r.status_code, 200)
         exp = r.json()
-        self.assertEqual(exp["format"], "llm-proxy/conversation")
+        self.assertEqual(exp["format"], "llm-mitm-proxy/conversation")
         self.assertEqual(exp["version"], 1)
         self.assertIn("stats", exp)
         self.assertGreaterEqual(len(exp["exchanges"]), 1)

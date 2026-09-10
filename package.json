@@ -1,8 +1,8 @@
 {
-  "name": "llm-proxy",
+  "name": "llm-mitm-proxy",
   "private": true,
   "version": "0.0.0",
-  "description": "WebUI build (esbuild) + JS verification for the LLM proxy.",
+  "description": "WebUI build (esbuild) + JS verification for llm-mitm-proxy.",
   "type": "module",
   "scripts": {
     "build": "esbuild ui/app.js --bundle --minify --format=esm --outfile=llm_proxy/web/app.js && esbuild ui/styles.css --bundle --minify --outfile=llm_proxy/web/styles.css && cp ui/index.html ui/favicon.svg llm_proxy/web/",

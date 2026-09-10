@@ -3,11 +3,10 @@ requires = ["setuptools>=68", "setuptools_scm[toml]>=6.2"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "llm-proxy"
+name = "llm-mitm-proxy"
 dynamic = ["version"]
-description = "Low-overhead OpenAI-compatible LLM proxy with a live conversation WebUI"
+description = "A simple transparent MITM proxy for LLM APIs with a live Web UI"
 readme = "README.md"
-# 3.11 floor: websockets (via uvicorn[standard]) requires >=3.11.
 requires-python = ">=3.11"
 classifiers = [
     "Programming Language :: Python :: 3",
@@ -30,14 +29,13 @@ dev = [
 ]
 
 [project.scripts]
-llm-proxy = "llm_proxy.app:main"
+llm-mitm-proxy = "llm_proxy.app:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["llm_proxy*"]
+include = ["llm_proxy", "llm_proxy.*"]
+exclude = ["llm_proxy.tests"]
 
-# WebUI build output (esbuild; `npm run build`). Shipped in the wheel so a
-# pip-installed copy serves the UI with no extra files. Gitignored.
 [tool.setuptools.package-data]
 llm_proxy = [
     "web/index.html",
@@ -55,6 +53,4 @@ line-length = 110
 target-version = ["py312"]
 
 [tool.setuptools_scm]
-# Version is derived from git tags (CalVer, e.g. 2026.09.08). The Docker build
-# context has no .git, so builds without --build-arg VERSION fall back to this.
 fallback_version = "0.0.0+local"

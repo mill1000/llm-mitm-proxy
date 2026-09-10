@@ -1,5 +1,5 @@
 """CLI and packaging: __version__ from installed metadata (setuptools_scm), the
-llm-proxy console script, and cli_overrides() argument mapping (incl. the
+llm-mitm-proxy console script, and cli_overrides() argument mapping (incl. the
 two-port split). No mock upstream needed."""
 
 from __future__ import annotations
@@ -24,13 +24,13 @@ class TestPackaging(unittest.TestCase):
 
         from llm_proxy import __version__
 
-        self.assertEqual(__version__, pkg_version("llm-proxy"))
+        self.assertEqual(__version__, pkg_version("llm-mitm-proxy"))
 
     def test_console_script_resolves(self):
-        """The llm-proxy console script must resolve to a callable in the package."""
+        """The llm-mitm-proxy console script must resolve to a callable in the package."""
         from importlib.metadata import distribution
 
-        eps = [ep for ep in distribution("llm-proxy").entry_points if ep.name == "llm-proxy"]
+        eps = [ep for ep in distribution("llm-mitm-proxy").entry_points if ep.name == "llm-mitm-proxy"]
         self.assertEqual(len(eps), 1)
         module_name, _, attr = eps[0].value.partition(":")
         module = importlib.import_module(module_name)
@@ -52,7 +52,7 @@ class TestCli(unittest.TestCase):
 
     def test_positional_upstream_and_flags(self):
         self.assertEqual(
-            cli_overrides(["http://127.0.0.1:8080", "--host", "0.0.0.0", "--ui-port", "9091"]),
+            cli_overrides(["http://127.0.0.1:8080", "--host", "0.0.0.0", "--web-port", "9091"]),
             {"upstream_base_url": "http://127.0.0.1:8080", "listen_host": "0.0.0.0", "ui_port": 9091},
         )
 
@@ -64,11 +64,11 @@ class TestCli(unittest.TestCase):
 
 
 class TestCliPorts(unittest.TestCase):
-    """--llm-port/--ui-port map onto the two listener ports."""
+    """--proxy-port/--web-port map onto the two listener ports."""
 
     def test_two_port_overrides(self):
         self.assertEqual(
-            cli_overrides(["http://x", "--llm-port", "8081", "--ui-port", "9091"]),
+            cli_overrides(["http://x", "--proxy-port", "8081", "--web-port", "9091"]),
             {"upstream_base_url": "http://x", "llm_port": 8081, "ui_port": 9091},
         )
 

@@ -1,4 +1,4 @@
-# LLM Proxy — Build Plan
+# llm-mitm-proxy — Build Plan
 
 > A lightweight, low-overhead, **transparent MITM proxy for LLM APIs** with a live "conversation" Web UI for inspecting, replaying, and exporting client↔server traffic.
 >
@@ -13,7 +13,7 @@
 3. **Each client gets its own conversation tab** (left-hand dock lists clients/conversations; main pane shows the selected one).
 4. **Replay** any captured request to the upstream and append the result to the conversation.
 5. **Export** a conversation as a structured **JSON dump**.
-6. Ship as a **Docker container, single image** (Dockerfile + example `docker-compose.yml`), with the **LLM proxy on its own port** (default 8080) and the **Web UI + app API on a separate port** (default 9090).
+6. Ship as a **Docker container, single image** (Dockerfile + example `docker-compose.yml`), with the **LLM proxy on its own port** (default 8081) and the **Web UI + app API on a separate port** (default 9090).
 7. **Performant** — no significant added latency/overhead between client and server.
 8. **Pluggable dissectors** (modules) that define how the pipeline *extracts/decodes* request & response data for the conversation view. Observation-only — the wire is always forwarded verbatim (cross-protocol translation is out of scope, §1 non-goals).
 9. Show **timestamps and time deltas** (TTFT, total, inter-token) in the conversation view.
@@ -37,7 +37,7 @@
 | Frontend | **No-build single-page app** (vanilla JS, optional Preact) served as static files | Keeps the Docker image **single-stage & small** (no Node build), trivially maintainable. (Q6 decided — see §13.1.) |
 | Client identity | **`host::user-agent::key`** (parts sanitized; key optional) | Trusted LAN; zero-config. The user agent splits tabs per *application* (two apps on one machine get separate tabs); an optional key adds a third split. See §5.1 + the Docker source-IP note. |
 | Streaming | **Tap-and-forward SSE** | Forward upstream SSE bytes to the client in real time (no full buffering) while tapping deltas to the UI. This is the core of both performance and the live view. |
-| Ports | **Two listeners, one process:** LLM port (default **8080**, catch-all → upstream) and UI port (default **9090**: Web UI, `/api/*`, `/ws`, `/health`) | A truly transparent proxy must not reserve any path for its own routes; separate ports remove the collision entirely and keep the LLM port 100% passthrough. |
+| Ports | **Two listeners, one process:** LLM port (default **8081**, catch-all → upstream) and UI port (default **9090**: Web UI, `/api/*`, `/ws`, `/health`) | A truly transparent proxy must not reserve any path for its own routes; separate ports remove the collision entirely and keep the LLM port 100% passthrough. |
 | Extraction model | **Dissector plugins** (observation-only, selected **per request**) | Each request is matched by (method, path): a matching dissector decodes it, everything else falls back to `generic` raw capture — no selection flag. The pipeline always forwards raw bytes verbatim. Replaces the old adapter/IR model — no translation, no in/out pairing (see §6). |
 | Storage | **In-memory ring buffers** (+ optional on-disk JSON persistence) | Live tool first; persistence is opt-in. |
 | Testing | **`python -m unittest`** (stdlib) — one framework, no runner deps | Zero extra dependencies, consistent with the lean/low-overhead ethos. The suite is small (a handful of e2e + unit tests) and unittest is sufficient; `python -m unittest discover` needs no runner config. Migrate to pytest only if the suite grows and needs fixtures/parametrize. |
@@ -54,8 +54,8 @@ flowchart TB
     C2[Client B]
     Cn[Client N]
 
-    subgraph Proxy["LLM Proxy - one process"]
-        LLM["LLM port 8080<br/>catch-all → upstream"]
+    subgraph Proxy["llm-mitm-proxy - one process"]
+        LLM["LLM port 8081<br/>catch-all → upstream"]
         PIPE["Pipeline<br/>tap + forward verbatim"]
         subgraph DIS["Dissectors (observation only, per-request)"]
             D1["openai: chat decode"]
@@ -86,7 +86,7 @@ flowchart TB
 
 Two listeners in one process (two uvicorn servers sharing the event loop, store, hub, and upstream client):
 
-- **LLM port (8080)** — a catch-all route: *every* method and path is forwarded to the upstream. There are no reserved routes on this port, so the proxy can never 404 or shadow a client request.
+- **LLM port (8081)** — a catch-all route: *every* method and path is forwarded to the upstream. There are no reserved routes on this port, so the proxy can never 404 or shadow a client request.
 - **UI port (9090)** — Web UI, `/api/*`, `/ws`, `/health`. Not proxied; not visible to LLM clients.
 
 The tap (dotted arrows) sits on the pipeline's forward path: the request (once) and the response stream (per chunk) are passed to the **dissectors** (§6), which extract what the conversation view needs. Extraction is a side channel — it never delays or alters the bytes going to the client.
@@ -261,7 +261,7 @@ Proposed JSON schema (versioned). Design goals: self-describing, replayable, and
 
 ```json
 {
-  "format": "llm-proxy/conversation",
+  "format": "llm-mitm-proxy/conversation",
   "version": 1,
   "exported_at": "2026-09-04T12:00:00Z",
   "proxy": {
@@ -329,7 +329,7 @@ Notes:
 ```
 
 +----------------+---------------------------------------------+
-|  LLM Proxy                        [Clients:3]  [Upstream:ok] |
+|  llm-mitm-proxy                   [Clients:3]  [Upstream:ok] |
 +----------------+---------------------------------------------+
 |  CLIENTS       |  client-a (my-app)        [Export][Clear][⏵]|
 |  ▸ client-a    |+-------------------------------------------+|
@@ -403,7 +403,7 @@ The overhead target is **near-zero added latency**, dominated by the model, not 
 
 ## 11. Docker & Deployment
 
-**Single image**, **one process with two listeners** — the LLM port (default **8080**) is the catch-all proxy; the UI port (default **9090**) serves the Web UI, `/api/*`, `/ws`, and `/health`. Two-stage alpine build (build stage → pipx runtime; see §12).
+**Single image**, **one process with two listeners** — the LLM port (default **8081**) is the catch-all proxy; the UI port (default **9090**) serves the Web UI, `/api/*`, `/ws`, and `/health`. Two-stage alpine build (build stage → pipx runtime; see §12).
 
 ### `Dockerfile` (no-build UI variant)
 
@@ -431,13 +431,13 @@ COPY ui ./ui
 RUN useradd -m appuser && chown -R appuser:appuser /app
 USER appuser
 
-EXPOSE 8080 9090
+EXPOSE 8081 9090
 
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s \
   CMD python -c "import sys,urllib.request;urllib.request.urlopen('http://127.0.0.1:9090/health')" || sys.exit(1)
 
-# Image CMD maps the container env vars onto the `llm-proxy` CLI
-# (positional upstream + --host/--llm-port/--ui-port/...), starting
+# Image CMD maps the container env vars onto the `llm-mitm-proxy` CLI
+# (positional upstream + --host/--proxy-port/--web-port/...), starting
 # one process with two listeners.
 ```
 
@@ -447,18 +447,18 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s \
 
 ```yaml
 services:
-  llm-proxy:
+  llm-mitm-proxy:
     build: .
-    image: llm-proxy:latest
+    image: llm-mitm-proxy:latest
     # Standard port publishing. On Linux this goes through iptables DNAT,
     # which preserves the real client source IP — so IP-based client
     # identification works out of the box (see the §5.1 note).
     ports:
-      - "8080:8080"      # clients → LLM API (catch-all proxy)
+      - "8081:8081"      # clients → LLM API (catch-all proxy)
       - "9090:9090"      # Web UI + app API, at http://<host>:9090/
     environment:
       LISTEN_HOST: "0.0.0.0"
-      LLM_PORT: "8080"           # LLM API proxy port; move it if it clashes with a local llama.cpp on 8080
+      LLM_PORT: "8081"           # LLM API proxy port (8081: coexists with llama.cpp's default 8080)
       UI_PORT: "9090"            # Web UI + app API
       # llama.cpp runs on the Docker host; reach it via host-gateway (mapped below).
       # Use the host's LAN IP if you prefer.
@@ -478,12 +478,12 @@ services:
   #   # command: --port 8080 ...
 
 # volumes:
-#   llm-proxy-data:
+#   llm-mitm-proxy-data:
 ```
 
-**Config:** the package reads **no env vars**. `llm-proxy` takes CLI options (positional upstream, `--host`, `--llm-port`, `--ui-port`, `--upstream-api-key`, `--log-level`, `--ui-dir`) over defaults, and the image `CMD` maps the container env vars (`UPSTREAM_BASE_URL`, `UPSTREAM_API_KEY`, `LISTEN_HOST`, `LLM_PORT`, `UI_PORT`, `LOG_LEVEL`) onto them. Settings not on the CLI (upstream timeouts, retention, capture, WS liveness, uvloop) are defaults-only — add a CLI option if one needs to be tunable.
+**Config:** the package reads **no env vars**. `llm-mitm-proxy` takes CLI options (positional upstream, `--host`, `--proxy-port`, `--web-port`, `--upstream-api-key`, `--log-level`, `--ui-dir`) over defaults, and the image `CMD` maps the container env vars (`UPSTREAM_BASE_URL`, `UPSTREAM_API_KEY`, `LISTEN_HOST`, `LLM_PORT`, `UI_PORT`, `LOG_LEVEL`) onto them. Settings not on the CLI (upstream timeouts, retention, capture, WS liveness, uvloop) are defaults-only — add a CLI option if one needs to be tunable.
 
-**Build:** `docker compose build` / `docker build -t llm-proxy .`. Multi-arch (Q11) is free — no code changes: `docker buildx build --platform linux/amd64,linux/arm64 -t llm-proxy . --push`.
+**Build:** `docker compose build` / `docker build -t llm-mitm-proxy .`. Multi-arch (Q11) is free — no code changes: `docker buildx build --platform linux/amd64,linux/arm64 -t llm-mitm-proxy . --push`.
 
 ---
 
@@ -521,7 +521,7 @@ services:
 | Q12 | Observability extras | **None** — text logs only (JSON log format dropped). |
 | Q13 | Conversation granularity | **One tab per client by default** (`host::user-agent`, §5.1). Optional no-key auto-split via `SPLIT_CONVERSATIONS=history` (message-history boundary detection) or an `X-Conversation-Id` header to force a tag (see §4). |
 | Q14 | Cross-protocol translation | **Out of scope, permanently.** Dissectors are observation-only (§6). |
-| Q15 | Port layout | **Two ports:** LLM 8080 (catch-all proxy), UI 9090 (Web UI + /api/* + /ws + /health). One process, two listeners. |
+| Q15 | Port layout | **Two ports:** LLM 8081 (catch-all proxy), UI 9090 (Web UI + /api/* + /ws + /health). One process, two listeners. 8081 chosen so the proxy can sit next to a default-config llama.cpp (8080). |
 | Q16 | Opaque (undecoded) traffic in the conversation view | **Show** it in the ordinary two-sided exchange card (raw body preview; no separate card shape, no dissector badge) + `INFO` log line. |
 | Q17 | Initial dissector set | **`openai` + `generic` fallback**, selected **per request** by (method, path) — no `--dissector` flag, no hierarchy (llama.cpp speaks the OpenAI chat API, so one chat decoder covers it; metadata paths are captured opaquely). No Anthropic dissector. |
 | Q18 | Replay on opaque exchanges | **Yes** — replay works for every captured exchange, including opaque ones (re-issue the captured request). |
@@ -530,7 +530,7 @@ services:
 | Q21 | `openai` dissector match scope | **`POST */chat/completions` only** (both `/v1/chat/completions` and bare `/chat/completions`) — no legacy `/v1/completions`; unmatched requests fall back to `generic` (§6). |
 | Q22 | `marked` source | **npm `marked` bundled into `app.js` by esbuild** (replaces the vendored `marked.min.js`, which is deleted). The output bundle stays self-contained/offline — the original "go vendored" intent, but version-pinned via `package.json`. |
 | Q23 | UI modularization | **None — `app.js` stays a monolith.** The build only bundles/minifies/inlines; no source split. Revisit if the file outgrows ~2k lines. |
-| Q24 | PyPI distribution | **Yes — the wheel is the full app.** `npm run build` outputs into the package (`llm_proxy/web/`), shipped as explicit package data; a `pip install llm-proxy` (or `pipx`) copy serves the WebUI with no extra files. Release process: build the UI before the wheel. The Docker runtime inherits this (no separate UI copy). |
+| Q24 | PyPI distribution | **Yes — the wheel is the full app.** `npm run build` outputs into the package (`llm_proxy/web/`), shipped as explicit package data; a `pip install llm-mitm-proxy` (or `pipx`) copy serves the WebUI with no extra files. Release process: build the UI before the wheel. The Docker runtime inherits this (no separate UI copy). |
 
 ---
 
@@ -569,10 +569,10 @@ services:
 - *Exit: a captured request can be fully customized and re-sent from the UI, with the result appended as a replay.*
 
 **M5 — Transparent MITM core (two-port)**
-- Split the app into **two listeners in one process** (two uvicorn servers, shared loop/store/hub/upstream client): LLM port (default 8080) = catch-all, every method/path → upstream, no reserved routes; UI port (default 9090) = UI + `/api/*` + `/ws` + `/health`.
+- Split the app into **two listeners in one process** (two uvicorn servers, shared loop/store/hub/upstream client): LLM port (default 8081) = catch-all, every method/path → upstream, no reserved routes; UI port (default 9090) = UI + `/api/*` + `/ws` + `/health`.
 - Pipeline forwards **everything** verbatim (non-SSE, non-JSON, error responses included) and taps every exchange into the store (raw capture, capped).
 - Traffic decoded only by the `generic` base: logged (`debug`) + captured opaquely (raw body preview).
-- CLI: `--llm-port` / `--ui-port` (replace `--port`); Dockerfile + compose publish both ports; healthcheck on the UI port.
+- CLI: `--proxy-port` / `--web-port` (replace `--port`); Dockerfile + compose publish both ports; healthcheck on the web port.
 - *Exit: any client (e.g. Zed) works through the proxy with zero 404s; `/props`, `/models/sse`, and any other path appear in the UI as captured exchanges; the UI port behaves exactly as today.*
 
 **M6 — Per-request decode**
@@ -651,6 +651,7 @@ llm-proxy/
 │   ├── api/
 │   │   └── ui.py              # /api/* endpoints
 │   ├── dump.py                # JSON export
+│   ├── tests/                 # unittest suite (excluded from the wheel)
 │   └── web/                   # gitignored esbuild output; wheel package data (Q24)
 ├── package.json               # build + lint tooling (esbuild, marked, eslint)
 ├── package-lock.json          # committed (npm ci in the Dockerfile)

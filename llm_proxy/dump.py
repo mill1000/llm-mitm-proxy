@@ -1,4 +1,4 @@
-"""Conversation dump / export (versioned JSON). Format described in PLAN.md section 7."""
+"""Conversation dump / export (versioned JSON)."""
 
 from __future__ import annotations
 
@@ -41,7 +41,7 @@ def _proxy_block(settings) -> dict:
 def conversation_to_dump(conv: Conversation, settings) -> dict:
     exchanges = conv.exchanges
     return {
-        "format": "llm-proxy/conversation",
+        "format": "llm-mitm-proxy/conversation",
         "version": 1,
         "exported_at": _iso(time.time()),
         "proxy": _proxy_block(settings),
@@ -54,7 +54,7 @@ def conversation_to_dump(conv: Conversation, settings) -> dict:
 def exchange_to_dump(exchange, settings) -> dict:
     """A single exchange, for re-importing or offline inspection of one request/response."""
     return {
-        "format": "llm-proxy/exchange",
+        "format": "llm-mitm-proxy/exchange",
         "version": 1,
         "exported_at": _iso(time.time()),
         "proxy": _proxy_block(settings),

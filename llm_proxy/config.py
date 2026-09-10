@@ -1,7 +1,7 @@
 """Application settings: defaults + explicit overrides.
 
 The package reads **no environment variables**. Configuration is explicit:
-``llm-proxy`` passes command-line values in, and the Docker image's ``CMD``
+``llm-mitm-proxy`` passes command-line values in, and the Docker image's ``CMD``
 maps container env vars onto those CLI arguments (env vars are a Docker
 concern only).
 """
@@ -15,7 +15,8 @@ class Settings(BaseModel):
     # --- listen (one process, two listeners) ---
     listen_host: str = "0.0.0.0"
     # LLM listener: transparent catch-all proxy to the upstream (client traffic).
-    llm_port: int = 8080
+    # 8081: llama.cpp's default is 8080, so the proxy can sit next to it.
+    llm_port: int = 8081
     # UI listener: WebUI + /api/* + /ws + /health.
     ui_port: int = 9090
 

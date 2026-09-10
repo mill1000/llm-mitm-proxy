@@ -12,7 +12,7 @@ on:
   workflow_dispatch:
 
 env:
-  CONTAINER_NAME: llm-proxy
+  CONTAINER_NAME: llm-mitm-proxy
 
 jobs:
   prune-pr-images:
