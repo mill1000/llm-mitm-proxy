@@ -25,7 +25,7 @@ jobs:
           pip install black isort
       - run: black --check --diff llm_proxy
       - run: isort --check-only --diff llm_proxy
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: "22"
           cache: npm
@@ -52,7 +52,7 @@ jobs:
       - run: python -c "import sys; print(sys.version)"
       # Build the UI so the in-package serving + packaging tests run (they
       # skip when llm_proxy/web is absent).
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: "22"
           cache: npm
