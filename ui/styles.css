@@ -239,7 +239,7 @@ body {
   padding: 0.4rem 0.5rem;
 }
 .resp-text:empty { display: none; }
-.binary-note {
+.opaque-note {
   margin-top: 0.5rem;
   font-size: 0.8rem;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;

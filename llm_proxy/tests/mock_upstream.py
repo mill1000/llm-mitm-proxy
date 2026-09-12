@@ -61,6 +61,28 @@ async def img() -> Response:
     return Response(content=PNG_1x1, media_type="image/png")
 
 
+# Small text assets of a proxied non-LLM web UI. These must be captured
+# opaquely (content-type + size), not decoded into the store.
+@mock.get("/style.css")
+async def style_css() -> Response:
+    return Response(content=b"body{color:red;font:12px sans-serif}", media_type="text/css")
+
+
+@mock.get("/app.js")
+async def app_js() -> Response:
+    return Response(content=b"console.log('asset')", media_type="application/javascript")
+
+
+@mock.get("/index.html")
+async def index_html() -> Response:
+    return Response(content=b"<html><body><h1>ui</h1></body></html>", media_type="text/html")
+
+
+@mock.get("/icon.svg")
+async def icon_svg() -> Response:
+    return Response(content=b'<svg xmlns="http://www.w3.org/2000/svg"></svg>', media_type="image/svg+xml")
+
+
 @mock.post("/blob")
 async def blob(request: Request) -> Response:
     """Echoes a binary request body back (exercises binary request AND response
