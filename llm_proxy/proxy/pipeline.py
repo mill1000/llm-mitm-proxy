@@ -66,6 +66,37 @@ def _capped_text(data: bytes) -> str | None:
     return data[:_RAW_BODY_CAP].decode("utf-8", errors="replace")
 
 
+def _looks_binary(data: bytes) -> bool:
+    """Heuristic for a binary (non-text) body: a NUL byte, or bytes that are not
+    valid UTF-8. Binary bodies (images, other non-text assets from a proxied
+    non-LLM endpoint) are recorded by content-type and size, not decoded to
+    text. Only a capped prefix is inspected - binary magic bytes lead, and a
+    multibyte character split at the cap is tolerated (drop up to three trailing
+    bytes before deciding)."""
+    if not data:
+        return False
+    sample = data[:_RAW_BODY_CAP]
+    if b"\x00" in sample:
+        return True
+    for trim in range(min(4, len(sample))):
+        try:
+            sample[: len(sample) - trim].decode("utf-8")
+            return False
+        except UnicodeDecodeError:
+            continue
+    return True
+
+
+def _content_type(headers: dict) -> str | None:
+    """The body's content-type (without parameters, lowercased) from a wire
+    header dict, if the request/response declared one."""
+    for k, v in headers.items():
+        if k.lower() == "content-type":
+            ct = v.split(";", 1)[0].strip().lower()
+            return ct or None
+    return None
+
+
 def _mask(v) -> str:
     if not v:
         return v
@@ -229,6 +260,9 @@ class Pipeline:
         # Display hint for the pending card; the real stream decision is made
         # from the upstream response's content-type in _upstream().
         is_stream = bool(wire_req.body_json and wire_req.body_json.get("stream"))
+        # A binary request body (e.g. an image upload) is not decoded to text:
+        # record its content-type and size instead of garbled replacement text.
+        req_binary = _looks_binary(wire_req.body)
         # Full captured request shape (headers/body redacted), plus model/preview
         # for the card header. Shared by the in-flight placeholder and the
         # exchange_started event so the pending card's debug views are complete.
@@ -237,8 +271,12 @@ class Pipeline:
             "method": wire_req.method,
             "path": wire_req.path,
             "headers": _redact(wire_req.headers),
+            "content_type": _content_type(wire_req.headers),
             "body_json": wire_req.body_json,
-            "body_text": None if wire_req.body_json is not None else _capped_text(wire_req.body),
+            "body_binary": req_binary,
+            "body_text": (
+                None if (wire_req.body_json is not None or req_binary) else _capped_text(wire_req.body)
+            ),
             "size_bytes": len(wire_req.body) if wire_req.body else 0,
             "model": parsed_req.model,
             "preview": parsed_req.preview,
@@ -676,11 +714,19 @@ class Pipeline:
                 "total_tokens": int(u.get("total_tokens") or 0),
             }
 
+        # A binary response body (an image or other non-text asset from a proxied
+        # non-LLM endpoint) is not decoded to text: record its content-type and
+        # size instead of garbled replacement characters. (For the non-stream
+        # case ``body`` is the response body; streams are always SSE text, so this
+        # is gated on ``not streaming``.)
+        resp_binary = not streaming and _looks_binary(body or b"")
         server_response: dict = {
             "timestamp": t_first,
             "status": status,
             "headers": _redact(resp_headers),
             "streaming": streaming,
+            "content_type": _content_type(resp_headers),
+            "body_binary": resp_binary,
             "size_bytes": body_size if body_size is not None else (len(body_bytes) if body_bytes else 0),
         }
         if streaming and parsed is not None and parsed.reassembled is not None:
@@ -688,6 +734,10 @@ class Pipeline:
         elif raw_text is not None:
             # Undecoded stream: the capped raw stream is the only faithful capture.
             server_response["body_text"] = raw_text
+        elif resp_binary:
+            # Binary body: content_type + size_bytes above are the capture; the
+            # bytes themselves are not stored (they are forwarded verbatim).
+            pass
         else:
             body_json = parsed.body_json if parsed is not None else None
             if body_json is None:

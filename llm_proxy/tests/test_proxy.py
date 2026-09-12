@@ -16,8 +16,10 @@ from fastapi.testclient import TestClient
 
 try:  # package form (unittest discover)
     from .helpers import BASE, CHAT, CID, MockedCase, close_ui, payload, ui_client
+    from .mock_upstream import PNG_1x1
 except ImportError:  # direct execution fallback
     from helpers import BASE, CHAT, CID, MockedCase, close_ui, payload, ui_client  # type: ignore
+    from mock_upstream import PNG_1x1  # type: ignore
 
 from llm_proxy.app import Context, create_llm_app, create_ui_app
 
@@ -190,6 +192,39 @@ class TestTransparent(MockedCase):
         sr = ex["server_response"]
         self.assertEqual(sr["body_text"], "hello")
         self.assertIsNone(sr["body_json"])
+        self.assertFalse(sr["body_binary"])
+        self.assertEqual(sr["content_type"], "text/plain")
+
+    def test_binary_response_recorded_not_text(self):
+        # A binary (image/png) response - e.g. a web-UI asset served by a proxied
+        # non-LLM endpoint - must pass through verbatim and be recorded by
+        # content-type + size, NOT decoded to garbled replacement text.
+        r = self.llm.get("/img")
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.content, PNG_1x1)
+        self.assertEqual(r.headers["content-type"], "image/png")
+        (ex,) = self._exchanges()
+        sr = ex["server_response"]
+        self.assertTrue(sr["body_binary"])
+        self.assertEqual(sr["content_type"], "image/png")
+        self.assertEqual(sr["size_bytes"], len(PNG_1x1))
+        # Not decoded to text, and no JSON either.
+        self.assertNotIn("body_text", sr)
+        self.assertNotIn("body_json", sr)
+
+    def test_binary_request_body_recorded_not_text(self):
+        # A binary request body (e.g. an image upload) is recorded by
+        # content-type + size on the client side, not garbled to text.
+        r = self.llm.post("/blob", content=PNG_1x1, headers={"content-type": "image/png"})
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.content, PNG_1x1)
+        (ex,) = self._exchanges()
+        cr = ex["client_request"]
+        self.assertTrue(cr["body_binary"])
+        self.assertEqual(cr["content_type"], "image/png")
+        self.assertEqual(cr["size_bytes"], len(PNG_1x1))
+        self.assertIsNone(cr["body_text"])
+        self.assertIsNone(cr["body_json"])
 
     def test_undecoded_sse_captured_raw(self):
         r = self.llm.get("/sse")
