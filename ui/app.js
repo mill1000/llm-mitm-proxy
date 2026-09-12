@@ -47,6 +47,12 @@ import { marked } from "marked";
     if (ms == null) return "—";
     return ms < 1000 ? `${Math.round(ms)}ms` : `${(ms / 1000).toFixed(2)}s`;
   }
+  function fmtBytes(n) {
+    if (n == null) return "";
+    if (n < 1024) return `${n} B`;
+    if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+    return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+  }
   function toksPerSec(ex) {
     const t = ex.timings || {};
     const u = ex.usage || {};
@@ -216,6 +222,14 @@ import { marked } from "marked";
     if (sr.body_text != null) obj.body_text = sr.body_text;
     if (sr.chunks) obj.chunks = sr.chunks;
     return JSON.stringify(obj, null, 2);
+  }
+  function opaqueNote(side) {
+    // An opaque body (css/js/svg/image/font/blob from a proxied non-LLM
+    // endpoint) is not decoded to text; show its type and size instead.
+    if (!side || !side.opaque) return "";
+    const ct = side.content_type ? side.content_type : "unknown content type";
+    const size = side.size_bytes != null ? ` · ${fmtBytes(side.size_bytes)}` : "";
+    return `<div class="opaque-note">${esc(ct)}${size} — not displayed</div>`;
   }
   function respText(ex) {
     const sr = ex.server_response || {};
@@ -401,12 +415,14 @@ import { marked } from "marked";
         <div class="side-label">CLIENT</div>
         <div class="line">${esc(cr.method)} ${esc(cr.path)}</div>
         ${model ? `<div class="line model">model: ${esc(model)}</div>` : ""}
+        ${opaqueNote(cr)}
         ${pv ? '<div class="preview"></div>' : ""}
         ${toolsHtml(ex)}
         <details class="full"><summary>full request</summary><pre class="req-pre"></pre><button class="copy-btn" type="button">copy</button></details>
       </div>`;
   }
   function serverSideHtml(ex, reasoning) {
+    const sr = ex.server_response || {};
     const think = reasoning
       ? '<details class="think"><summary class="think-summary"></summary><pre class="think-text"></pre></details>'
       : "";
@@ -414,7 +430,7 @@ import { marked } from "marked";
       <div class="side server">
         <div class="side-label">SERVER</div>
         ${think}
-        <div class="resp-text"></div>
+        ${opaqueNote(sr) || '<div class="resp-text"></div>'}
         ${toolCallsHtml(toolCalls(ex))}
         ${ex.error ? `<div class="err">${esc(ex.error.message)}</div>` : ""}
         <details class="full"><summary>full response</summary><pre class="resp-pre"></pre><button class="copy-btn" type="button">copy</button></details>
@@ -701,7 +717,7 @@ import { marked } from "marked";
     el.querySelector(".req-pre").textContent = fullRequest(ex);
     el.querySelector(".resp-pre").textContent = fullResponse(ex);
     const rt = el.querySelector(".resp-text");
-    setText(rt, text);
+    if (rt) setText(rt, text);
     const think = el.querySelector(".think");
     if (think) {
       wireThink(think);

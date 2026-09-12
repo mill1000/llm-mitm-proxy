@@ -66,6 +66,52 @@ def _capped_text(data: bytes) -> str | None:
     return data[:_RAW_BODY_CAP].decode("utf-8", errors="replace")
 
 
+def _looks_binary(data: bytes) -> bool:
+    """Heuristic for a binary (non-text) body: a NUL byte, or bytes that are not
+    valid UTF-8. Binary bodies (images, other non-text assets from a proxied
+    non-LLM endpoint) are recorded by content-type and size, not decoded to
+    text. Only a capped prefix is inspected - binary magic bytes lead, and a
+    multibyte character split at the cap is tolerated (drop up to three trailing
+    bytes before deciding)."""
+    if not data:
+        return False
+    sample = data[:_RAW_BODY_CAP]
+    if b"\x00" in sample:
+        return True
+    for trim in range(min(4, len(sample))):
+        try:
+            sample[: len(sample) - trim].decode("utf-8")
+            return False
+        except UnicodeDecodeError:
+            continue
+    return True
+
+
+def _content_type(headers: dict) -> str | None:
+    """The body's content-type (without parameters, lowercased) from a wire
+    header dict, if the request/response declared one."""
+    for k, v in headers.items():
+        if k.lower() == "content-type":
+            ct = v.split(";", 1)[0].strip().lower()
+            return ct or None
+    return None
+
+
+def _is_opaque(headers: dict, body: bytes) -> bool:
+    """Whether a wire body is captured opaquely (content-type + size, no decode).
+
+    A declared content-type decides: JSON (``application/json`` or ``*/+json``)
+    and ``text/plain`` are decoded; any other type - CSS, JS, HTML, SVG, fonts,
+    images, octet-stream, ... - is opaque. With no declared type, a binary body
+    is opaque and a text one is decoded best-effort. The proxy taps LLM APIs,
+    not a browser's asset tree, so opaque keeps the store and the UI readable.
+    """
+    ct = _content_type(headers)
+    if ct is None:
+        return _looks_binary(body)
+    return ct not in ("application/json", "text/plain") and not ct.endswith("+json")
+
+
 def _mask(v) -> str:
     if not v:
         return v
@@ -229,6 +275,9 @@ class Pipeline:
         # Display hint for the pending card; the real stream decision is made
         # from the upstream response's content-type in _upstream().
         is_stream = bool(wire_req.body_json and wire_req.body_json.get("stream"))
+        # An opaque request body (e.g. an uploaded image or form payload) is not
+        # decoded to text: record its content-type and size instead.
+        req_opaque = _is_opaque(wire_req.headers, wire_req.body)
         # Full captured request shape (headers/body redacted), plus model/preview
         # for the card header. Shared by the in-flight placeholder and the
         # exchange_started event so the pending card's debug views are complete.
@@ -237,8 +286,12 @@ class Pipeline:
             "method": wire_req.method,
             "path": wire_req.path,
             "headers": _redact(wire_req.headers),
+            "content_type": _content_type(wire_req.headers),
             "body_json": wire_req.body_json,
-            "body_text": None if wire_req.body_json is not None else _capped_text(wire_req.body),
+            "opaque": req_opaque,
+            "body_text": (
+                None if (wire_req.body_json is not None or req_opaque) else _capped_text(wire_req.body)
+            ),
             "size_bytes": len(wire_req.body) if wire_req.body else 0,
             "model": parsed_req.model,
             "preview": parsed_req.preview,
@@ -676,11 +729,18 @@ class Pipeline:
                 "total_tokens": int(u.get("total_tokens") or 0),
             }
 
+        # A proxied non-LLM endpoint serves the web UI's assets (CSS, JS, HTML,
+        # SVG, images, fonts, ...); they are captured opaquely - content-type +
+        # size, no decoded body. (For the non-stream case ``body`` is the response
+        # body; streams are always SSE text, so this is gated on ``not streaming``.)
+        resp_opaque = not streaming and _is_opaque(resp_headers, body or b"")
         server_response: dict = {
             "timestamp": t_first,
             "status": status,
             "headers": _redact(resp_headers),
             "streaming": streaming,
+            "content_type": _content_type(resp_headers),
+            "opaque": resp_opaque,
             "size_bytes": body_size if body_size is not None else (len(body_bytes) if body_bytes else 0),
         }
         if streaming and parsed is not None and parsed.reassembled is not None:
@@ -688,6 +748,10 @@ class Pipeline:
         elif raw_text is not None:
             # Undecoded stream: the capped raw stream is the only faithful capture.
             server_response["body_text"] = raw_text
+        elif resp_opaque:
+            # Opaque capture: content_type + size_bytes above are the record; the
+            # body is forwarded verbatim and not stored.
+            pass
         else:
             body_json = parsed.body_json if parsed is not None else None
             if body_json is None:

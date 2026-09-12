@@ -10,7 +10,12 @@ import urllib.request
 
 import uvicorn
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse, PlainTextResponse, StreamingResponse
+from fastapi.responses import (
+    JSONResponse,
+    PlainTextResponse,
+    Response,
+    StreamingResponse,
+)
 
 mock = FastAPI()
 
@@ -38,6 +43,52 @@ async def props(request: Request) -> dict:
 async def plain() -> PlainTextResponse:
     """A non-JSON response body (exercises the raw-text capture path)."""
     return PlainTextResponse("hello")
+
+
+# A tiny 1x1 transparent PNG (magic bytes + NULs). Exercises the binary-response
+# capture path: the proxy must forward it verbatim and record its content-type
+# and size rather than decoding it to garbled text.
+PNG_1x1 = bytes.fromhex(
+    "89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c489"
+    "0000000d49444154789c626001000000ffff03000006000557bfabd4000000004945"
+    "4e44ae426082"
+)
+
+
+@mock.get("/img")
+async def img() -> Response:
+    """A binary (image/png) response body (a proxied non-LLM web-UI asset)."""
+    return Response(content=PNG_1x1, media_type="image/png")
+
+
+# Small text assets of a proxied non-LLM web UI. These must be captured
+# opaquely (content-type + size), not decoded into the store.
+@mock.get("/style.css")
+async def style_css() -> Response:
+    return Response(content=b"body{color:red;font:12px sans-serif}", media_type="text/css")
+
+
+@mock.get("/app.js")
+async def app_js() -> Response:
+    return Response(content=b"console.log('asset')", media_type="application/javascript")
+
+
+@mock.get("/index.html")
+async def index_html() -> Response:
+    return Response(content=b"<html><body><h1>ui</h1></body></html>", media_type="text/html")
+
+
+@mock.get("/icon.svg")
+async def icon_svg() -> Response:
+    return Response(content=b'<svg xmlns="http://www.w3.org/2000/svg"></svg>', media_type="image/svg+xml")
+
+
+@mock.post("/blob")
+async def blob(request: Request) -> Response:
+    """Echoes a binary request body back (exercises binary request AND response
+    capture: the proxy records content-type + size, never garbled text)."""
+    data = await request.body()
+    return Response(content=data, media_type=request.headers.get("content-type", "application/octet-stream"))
 
 
 @mock.get("/models/sse")
