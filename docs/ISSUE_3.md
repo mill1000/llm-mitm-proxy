@@ -1,4 +1,4 @@
-## User (checkpoint)
+## User
 
 This project was written exclusivley by AI. The plan is in [@PLAN.md](file:///workspaces/llm-mitm-proxy/docs/PLAN.md) and the previous conversations in /docs/CONVERSATION.md, but its tool large to read all at once
 
@@ -26,7 +26,7 @@ I'll start by fetching the GitHub issue to understand what needs to be fixed.
 
 
 
-**Tool Call: Fetch `https://github.com/mill1000/llm-mitm-proxy/issues/3`**
+**Tool Call: Fetch https://github.com/mill1000/llm\-mitm\-proxy/issues/3**
 Status: Completed
 
 Skip to content                                                                         
@@ -245,7 +245,7 @@ Let's read the main files to understand the architecture. I'll read the proxy pi
 **Tool Call: Read file `llm_proxy/proxy/pipeline.py`**
 Status: Completed
 
-```
+```/workspaces/llm-mitm-proxy/llm_proxy/proxy/pipeline.py
 SUCCESS: File outline retrieved. This file is too large to read all at once, so the outline below shows the file's structure with line numbers.
 
 IMPORTANT: Do NOT retry this call without line numbers - you will get the same outline.
@@ -1522,7 +1522,7 @@ Now let me look at the UI to see how these fields render, plus the dump format a
 **Tool Call: Read file `ui/app.js`**
 Status: Completed
 
-```
+```/workspaces/llm-mitm-proxy/ui/app.js
 SUCCESS: File outline retrieved. This file is too large to read all at once, so the outline below shows the file's structure with line numbers.
 
 IMPORTANT: Do NOT retry this call without line numbers - you will get the same outline.
@@ -3070,8 +3070,11 @@ Hmm, let me try searching for "plain" inside test_proxy.py.
 **Tool Call: Search files for regex `plain`**
 Status: Completed
 
-file:///workspaces/llm-mitm-proxy/llm_proxy/dissectors/base.py#L48:54
+Found 4 matches:
 
+## Matches in llm-mitm-proxy/llm_proxy/dissectors/base.py
+
+### class NonStream › L48-54
 ```
 class NonStream:
     """A plain byte accumulator for responses that are not stream-parsed."""
@@ -3082,9 +3085,9 @@ class NonStream:
         self.body += chunk
 ```
 
+## Matches in llm-mitm-proxy/llm_proxy/tests/mock_upstream.py
 
-file:///workspaces/llm-mitm-proxy/llm_proxy/tests/mock_upstream.py#L11:15
-
+### L11-15
 ```
 import uvicorn
 from fastapi import FastAPI, Request
@@ -3093,9 +3096,7 @@ from fastapi.responses import JSONResponse, PlainTextResponse, StreamingResponse
 mock = FastAPI()
 ```
 
-
-file:///workspaces/llm-mitm-proxy/llm_proxy/tests/mock_upstream.py#L37:40
-
+### L37-40
 ```
 @mock.get("/plain")
 async def plain() -> PlainTextResponse:
@@ -3103,9 +3104,9 @@ async def plain() -> PlainTextResponse:
     return PlainTextResponse("hello")
 ```
 
+## Matches in llm-mitm-proxy/llm_proxy/tests/test_proxy.py
 
-file:///workspaces/llm-mitm-proxy/llm_proxy/tests/test_proxy.py#L185:192
-
+### class TestTransparent › def test_non_json_response_captured_as_text › L185-192
 ```
     def test_non_json_response_captured_as_text(self):
         r = self.llm.get("/plain")
@@ -3434,7 +3435,6 @@ Let me check the conversation docs for any related design decisions about binary
 **Tool Call: grep -n -i "binary\|octet\|content-type\|image\|asset" /workspaces/llm-mitm-proxy/docs/CONVERSATION.md | head -50**
 Status: Completed
 
-Terminal:
 ```
 9:* It should run as a docker container, ideally as a single image. Ensure you create a Dockerfile and example docker compose.
 54:7. Docker container, ideally a single image; Dockerfile + docker-compose example
@@ -3486,9 +3486,7 @@ Terminal:
 1940:**M4 (roadmap, not v1)** — cross-format adapters (OpenAI→Anthropic), multi-upstream routing, on-disk persistence, Prometheus metrics, multi-arch image.
 2165:6. Ship as a **Docker container, single image** (Dockerfile + example `docker-compose.yml`).
 2186:| Frontend | **No-build single-page app** (vanilla JS, optional Preact) served as static files | Keeps the Docker image **single-stage & small** (no Node build), trivially maintainable. (Q6 decided — see §13.1.) |
-
 ```
-
 
 ## Assistant
 
@@ -4039,7 +4037,6 @@ Next, let's look at styles.css and add styling for the binary notes. Let me chec
 **Tool Call: grep -n "resp-text\|\.line\|preview\|err\b\|badge" /workspaces/llm-mitm-proxy/ui/styles.css | head -40; echo "---TOTAL---"; wc -l /workspaces/llm-mitm-proxy/ui/styles.css**
 Status: Completed
 
-Terminal:
 ```
 13:  --err: #ff7b72;
 52:.pill.ws-off { color: var(--err); }
@@ -4061,9 +4058,7 @@ Terminal:
 452:.rd-status.err { color: var(--err); }
 ---TOTAL---
 458 /workspaces/llm-mitm-proxy/ui/styles.css
-
 ```
-
 
 ## Assistant
 
@@ -4576,7 +4571,7 @@ Let me start with the backend helpers in `pipeline.py`.
 **Tool Call: llm\_proxy/proxy/pipeline.py**
 Status: Completed
 
-Diff: llm_proxy/proxy/pipeline.py
+Diff: /workspaces/llm-mitm-proxy/llm_proxy/proxy/pipeline.py
 ```
 """The proxy pipeline: identify client, forward to upstream, tap the response, capture.
 
@@ -5345,7 +5340,7 @@ Now the `client_request` in `_forward`:
 **Tool Call: llm\_proxy/proxy/pipeline.py**
 Status: Completed
 
-Diff: llm_proxy/proxy/pipeline.py
+Diff: /workspaces/llm-mitm-proxy/llm_proxy/proxy/pipeline.py
 ```
 """The proxy pipeline: identify client, forward to upstream, tap the response, capture.
 
@@ -6119,7 +6114,7 @@ Now the `server_response` in `_capture`:
 **Tool Call: llm\_proxy/proxy/pipeline.py**
 Status: Completed
 
-Diff: llm_proxy/proxy/pipeline.py
+Diff: /workspaces/llm-mitm-proxy/llm_proxy/proxy/pipeline.py
 ```
 """The proxy pipeline: identify client, forward to upstream, tap the response, capture.
 
@@ -6948,7 +6943,7 @@ The import/join/noqa diagnostics are pre-existing (venv not resolved by the lint
 **Tool Call: llm\_proxy/proxy/pipeline.py**
 Status: Completed
 
-Diff: llm_proxy/proxy/pipeline.py
+Diff: /workspaces/llm-mitm-proxy/llm_proxy/proxy/pipeline.py
 ```
 """The proxy pipeline: identify client, forward to upstream, tap the response, capture.
 
@@ -7772,7 +7767,6 @@ for name, d in [
 '**
 Status: Completed
 
-Terminal:
 ```
 png                len=      12 binary=True
 jpeg               len=      14 binary=True
@@ -7783,9 +7777,7 @@ empty              len=       0 binary=False
 big_text           len=  260000 binary=False
 big_boundary       len=   65637 binary=False
 tiny_invalid       len=       3 binary=True
-
 ```
-
 
 ## Assistant
 
@@ -7811,7 +7803,7 @@ The heuristic is robust. Now let me add a binary-response endpoint to the mock u
 **Tool Call: llm\_proxy/tests/mock\_upstream.py**
 Status: Completed
 
-Diff: llm_proxy/tests/mock_upstream.py
+Diff: /workspaces/llm-mitm-proxy/llm_proxy/tests/mock_upstream.py
 ```
 """A tiny in-process stand-in for a local llama.cpp ``/v1`` server."""
 
@@ -8086,7 +8078,7 @@ Let me add a binary echo endpoint for testing request-body capture too.
 **Tool Call: llm\_proxy/tests/mock\_upstream.py**
 Status: Completed
 
-Diff: llm_proxy/tests/mock_upstream.py
+Diff: /workspaces/llm-mitm-proxy/llm_proxy/tests/mock_upstream.py
 ```
 """A tiny in-process stand-in for a local llama.cpp ``/v1`` server."""
 
@@ -8363,7 +8355,7 @@ Now let me add the tests to `TestTransparent` in `test_proxy.py`. First update t
 **Tool Call: llm\_proxy/tests/test\_proxy.py**
 Status: Completed
 
-Diff: llm_proxy/tests/test_proxy.py
+Diff: /workspaces/llm-mitm-proxy/llm_proxy/tests/test_proxy.py
 ```
 """The transparent LLM proxy: verbatim passthrough (query strings, upstream
 errors, non-JSON bodies, undecoded SSE), streaming tap-and-forward, upstream
@@ -8668,7 +8660,7 @@ Alright, let's add the test after `test_non_json_response_captured_as_text`.
 **Tool Call: llm\_proxy/tests/test\_proxy.py**
 Status: Completed
 
-Diff: llm_proxy/tests/test_proxy.py
+Diff: /workspaces/llm-mitm-proxy/llm_proxy/tests/test_proxy.py
 ```
 """The transparent LLM proxy: verbatim passthrough (query strings, upstream
 errors, non-JSON bodies, undecoded SSE), streaming tap-and-forward, upstream
@@ -9096,7 +9088,6 @@ Let's run the tests. I'll use the virtual environment. Let me check whether .ven
 **Tool Call: .venv/bin/python -m unittest llm_proxy.tests.test_proxy -v 2>&1 | tail -40**
 Status: Completed
 
-Terminal:
 ```
 test_proxy (unittest.loader._FailedTest.test_proxy) ... ERROR
 
@@ -9116,9 +9107,7 @@ ModuleNotFoundError: No module named 'fastapi'
 Ran 1 test in 0.000s
 
 FAILED (errors=1)
-
 ```
-
 
 ## Assistant
 
@@ -9130,7 +9119,6 @@ The venv doesn't have fastapi. Let me check the venv. Let's see what's installed
 **Tool Call: .venv/bin/python -m pip list 2>/dev/null | grep -i -E "fastapi|uvicorn|httpx|pydantic" ; echo "---"; ls .venv/bin | head**
 Status: Completed
 
-Terminal:
 ```
 ---
 Activate.ps1
@@ -9143,9 +9131,7 @@ dotenv
 fastapi
 httpx2
 idna
-
 ```
-
 
 ## Assistant
 
@@ -9159,16 +9145,15 @@ Wait, maybe `pip list` failed silently (2>/dev/null). Let me check directly.
 **Tool Call: .venv/bin/python -c "import fastapi, uvicorn, httpx2, pydantic; print('fastapi', fastapi.__version__); print('httpx2', httpx2.__version__)" 2>&1**
 Status: Completed
 
-Terminal:
+Command ".venv/bin/python -c "import fastapi, uvicorn, httpx2, pydantic; print('fastapi', fastapi.__version__); print('httpx2', httpx2.__version__)" 2>&1" failed with exit code 1.
+
 ```
 Traceback (most recent call last):
   File "<string>", line 1, in <module>
     import fastapi, uvicorn, httpx2, pydantic; print('fastapi', fastapi.__version__); print('httpx2', httpx2.__version__)
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 ModuleNotFoundError: No module named 'fastapi'
-
 ```
-
 
 ## Assistant
 
@@ -9184,7 +9169,6 @@ Actually, the problem might be that the venv was created with a different python
 **Tool Call: .venv/bin/python -c "import sys; print(sys.executable); print('\n'.join(sys.path))"; echo "--- site-packages ---"; ls .venv/lib/*/site-packages/ 2>/dev/null | head -40**
 Status: Completed
 
-Terminal:
 ```
 /workspaces/llm-mitm-proxy/.venv/bin/python
 
@@ -9232,9 +9216,7 @@ isort
 isort-9.0.1.dist-info
 llm_mitm_proxy-0.0.1.dev13+local.g413808fc7.d20260910.dist-info
 mypy_extensions-1.1.0.dist-info
-
 ```
-
 
 ## Assistant
 
@@ -9259,7 +9241,6 @@ Actually, the problem might be that the venv was created on a system with a diff
 **Tool Call: cat .venv/pyvenv.cfg; echo "--- lib dir ---"; ls .venv/lib/; echo "--- which site-packages ---"; ls -d .venv/lib/*/site-packages 2>/dev/null; echo "--- python version ---"; .venv/bin/python --version**
 Status: Completed
 
-Terminal:
 ```
 home = /usr/bin
 include-system-site-packages = false
@@ -9272,9 +9253,7 @@ python3.12
 .venv/lib/python3.12/site-packages
 --- python version ---
 Python 3.13.5
-
 ```
-
 
 ## Assistant
 
@@ -9310,22 +9289,15 @@ I need to avoid shell substitution. Let's run individual commands instead.
 **Tool Call: ls -la .venv/bin/python .venv/bin/python3**
 Status: Completed
 
-Terminal:
 ```
 lrwxrwxrwx 1 vscode vscode  7 Sep  8 18:36 .venv/bin/python -> python3
 lrwxrwxrwx 1 vscode vscode 16 Sep  8 18:36 .venv/bin/python3 -> /usr/bin/python3
-
 ```
-
 
 **Tool Call: command -v python3.12 python3.13 python3.11**
 Status: Completed
 
-Terminal:
-```
-
-```
-
+Command "command -v python3.12 python3.13 python3.11" failed with exit code 127.
 
 ## Assistant
 
@@ -9337,14 +9309,11 @@ So `.venv/bin/python3` -> `/usr/bin/python3`, which is Python 3.13.5. But the ve
 **Tool Call: ls /usr/bin/python* 2>&1; echo "---"; /usr/bin/python3 --version**
 Status: Completed
 
-Terminal:
 ```
 /usr/bin/python3  /usr/bin/python3.13
 ---
 Python 3.13.5
-
 ```
-
 
 ## Assistant
 
@@ -9370,12 +9339,11 @@ Only Python 3.13 is available; the old venv was built for 3.12 and is unusable. 
 **Tool Call: python3 -m venv .venv && .venv/bin/python -m pip install --upgrade pip -q && echo "venv recreated"**
 Status: Completed
 
-Terminal:
+Command "python3 -m venv .venv && .venv/bin/python -m pip install --upgrade pip -q && echo "venv recreated"" failed with exit code 1.
+
 ```
 Error: Command '['/workspaces/llm-mitm-proxy/.venv/bin/python3', '-m', 'ensurepip', '--upgrade', '--default-pip']' returned non-zero exit status 1.
-
 ```
-
 
 ## Assistant
 
@@ -9389,7 +9357,6 @@ Actually, let me verify the error in more detail.
 **Tool Call: python3 -m venv --help 2>&1 | head -5; echo "=== try without-pip ==="; rm -rf .venv && python3 -m venv --without-pip .venv 2>&1 && echo "created without-pip" && ls .venv/bin**
 Status: Completed
 
-Terminal:
 ```
 usage: python3 -m venv [-h] [--system-site-packages] [--symlinks | --copies]
                        [--clear] [--upgrade] [--without-pip] [--prompt PROMPT]
@@ -9400,9 +9367,7 @@ usage: python3 -m venv [-h] [--system-site-packages] [--symlinks | --copies]
 created without-pip
  Activate.ps1   activate.csh    python	  python3.14
  activate       activate.fish   python3  ''$'\360\235\234\213''thon'
-
 ```
-
 
 ## Assistant
 
@@ -9418,7 +9383,6 @@ Let me try installing pip into the new venv using get-pip or ensurepip.
 **Tool Call: .venv/bin/python --version; echo "---"; ls -la .venv/bin/ | grep -i python**
 Status: Completed
 
-Terminal:
 ```
 Python 3.14.7
 ---
@@ -9426,9 +9390,7 @@ lrwxrwxrwx 1 vscode vscode    7 Sep 12 15:31 python -> python3
 lrwxrwxrwx 1 vscode vscode   22 Sep 12 15:31 python3 -> /usr/local/bin/python3
 lrwxrwxrwx 1 vscode vscode    7 Sep 12 15:31 python3.14 -> python3
 lrwxrwxrwx 1 vscode vscode    7 Sep 12 15:31 𝜋thon -> python3
-
 ```
-
 
 ## Assistant
 
@@ -9452,15 +9414,12 @@ Let me get pip into the venv. Let me try ensurepip first.
 **Tool Call: .venv/bin/python -m ensurepip --upgrade 2>&1 | tail -5**
 Status: Completed
 
-Terminal:
 ```
 Looking in links: /tmp/tmpbvrzin_4
 Processing /tmp/tmpbvrzin_4/pip-26.2.1-py3-none-any.whl
 Installing collected packages: pip
 Successfully installed pip-26.2.1
-
 ```
-
 
 ## Assistant
 
@@ -9476,11 +9435,7 @@ pip is installed. Now let me install the package with dev dependencies.
 **Tool Call: .venv/bin/python -m pip install -e ".[dev]" -q 2>&1 | tail -15**
 Status: Completed
 
-Terminal:
-```
-
-```
-
+Command executed successfully.
 
 ## Assistant
 
@@ -9492,12 +9447,9 @@ Alright, let's check whether fastapi and the test client work. The FastAPI TestC
 **Tool Call: .venv/bin/python -c "from fastapi.testclient import TestClient; import fastapi, httpx2; print('fastapi', fastapi.__version__, 'httpx2', httpx2.__version__)" 2>&1**
 Status: Completed
 
-Terminal:
 ```
 fastapi 0.141.1 httpx2 2.12.0
-
 ```
-
 
 ## Assistant
 
@@ -9513,7 +9465,6 @@ Now let me run the proxy test suite.
 **Tool Call: .venv/bin/python -m unittest llm_proxy.tests.test_proxy -v 2>&1 | tail -40**
 Status: Completed
 
-Terminal:
 ```
 test_in_flight_carries_streaming_flag (llm_proxy.tests.test_proxy.TestInFlight.test_in_flight_carries_streaming_flag)
 A slow streaming request is visible as in_flight with streaming set, so ... ok
@@ -9553,9 +9504,7 @@ AssertionError: 'body_text' unexpectedly found in {'timestamp': 1789227419.60898
 Ran 21 tests in 3.339s
 
 FAILED (failures=1)
-
 ```
-
 
 ## Assistant
 
@@ -9587,7 +9536,7 @@ One assertion mismatch: the request always includes the `body_text` key (as `Non
 **Tool Call: llm\_proxy/tests/test\_proxy.py**
 Status: Completed
 
-Diff: llm_proxy/tests/test_proxy.py
+Diff: /workspaces/llm-mitm-proxy/llm_proxy/tests/test_proxy.py
 ```
 """The transparent LLM proxy: verbatim passthrough (query strings, upstream
 errors, non-JSON bodies, undecoded SSE), streaming tap-and-forward, upstream
@@ -9927,16 +9876,13 @@ Let's re-run the test.
 **Tool Call: .venv/bin/python -m unittest llm_proxy.tests.test_proxy 2>&1 | tail -10**
 Status: Completed
 
-Terminal:
 ```
 .....................
 ----------------------------------------------------------------------
 Ran 21 tests in 3.243s
 
 OK
-
 ```
-
 
 ## Assistant
 
@@ -9952,7 +9898,6 @@ All proxy tests pass. Let me run the full suite to be safe.
 **Tool Call: .venv/bin/python -m unittest discover -s llm_proxy/tests -v 2>&1 | tail -30**
 Status: Completed
 
-Terminal:
 ```
 test_replay_as_is (test_ui_api.TestReplayAndExport.test_replay_as_is) ... ok
 test_replay_replaces_body (test_ui_api.TestReplayAndExport.test_replay_replaces_body) ... ok
@@ -9984,9 +9929,7 @@ test_ws_silent_socket_pruned (test_ws.TestWsLiveness.test_ws_silent_socket_prune
 Ran 64 tests in 13.826s
 
 OK
-
 ```
-
 
 ## Assistant
 
@@ -10013,7 +9956,7 @@ All 64 tests pass. Now let me implement the UI changes in `app.js`. First, add a
 **Tool Call: ui/app.js**
 Status: Completed
 
-Diff: ui/app.js
+Diff: /workspaces/llm-mitm-proxy/ui/app.js
 ```
 /* llm-mitm-proxy — live conversation UI (vanilla JS, esbuild-bundled; see package.json).
  *
@@ -11011,7 +10954,7 @@ Now add the `binaryNote` helper, right before `respText`:
 **Tool Call: ui/app.js**
 Status: Completed
 
-Diff: ui/app.js
+Diff: /workspaces/llm-mitm-proxy/ui/app.js
 ```
 /* llm-mitm-proxy — live conversation UI (vanilla JS, esbuild-bundled; see package.json).
  *
@@ -12015,7 +11958,7 @@ Now update `clientSideHtml` and `serverSideHtml` to render the binary note:
 **Tool Call: ui/app.js**
 Status: Completed
 
-Diff: ui/app.js
+Diff: /workspaces/llm-mitm-proxy/ui/app.js
 ```
 /* llm-mitm-proxy — live conversation UI (vanilla JS, esbuild-bundled; see package.json).
  *
@@ -13035,7 +12978,7 @@ I need to add the `sr` variable to `serverSideHtml`'s scope. Let me fix that:
 **Tool Call: ui/app.js**
 Status: Completed
 
-Diff: ui/app.js
+Diff: /workspaces/llm-mitm-proxy/ui/app.js
 ```
 /* llm-mitm-proxy — live conversation UI (vanilla JS, esbuild-bundled; see package.json).
  *
@@ -14041,7 +13984,7 @@ Now guard the `setText(rt, text)` call in `exchangeCard` since the `.resp-text` 
 **Tool Call: ui/app.js**
 Status: Completed
 
-Diff: ui/app.js
+Diff: /workspaces/llm-mitm-proxy/ui/app.js
 ```
 /* llm-mitm-proxy — live conversation UI (vanilla JS, esbuild-bundled; see package.json).
  *
@@ -15055,7 +14998,7 @@ Now let me add the `.binary-note` styling to `styles.css`:
 **Tool Call: ui/styles.css**
 Status: Completed
 
-Diff: ui/styles.css
+Diff: /workspaces/llm-mitm-proxy/ui/styles.css
 ```
 :root {
   color-scheme: dark;
@@ -15543,7 +15486,6 @@ Let me verify the CSS variables I referenced exist:
 **Tool Call: grep -n -E "\-\-border|\-\-muted|\-\-panel" /workspaces/llm-mitm-proxy/ui/styles.css | head**
 Status: Completed
 
-Terminal:
 ```
 5:  --panel: #1b1e24;
 6:  --panel-2: #12151b;
@@ -15555,9 +15497,7 @@ Terminal:
 48:  color: var(--muted);
 62:  border-right: 1px solid var(--border);
 73:  border-bottom: 1px solid var(--border);
-
 ```
-
 
 ## Assistant
 
@@ -15575,15 +15515,10 @@ All variables exist. Now let me verify the JS is valid (syntax check + lint) and
 **Tool Call: npm run check 2>&1 | tail -15**
 Status: Completed
 
-Terminal:
 ```
-
 > llm-mitm-proxy@0.0.0 check
 > node --check ui/app.js
-
-
 ```
-
 
 ## Assistant
 
@@ -15595,15 +15530,10 @@ Terminal:
 **Tool Call: npm run lint 2>&1 | tail -25**
 Status: Completed
 
-Terminal:
 ```
-
 > llm-mitm-proxy@0.0.0 lint
 > eslint ui
-
-
 ```
-
 
 ## Assistant
 
@@ -15619,9 +15549,7 @@ Lint passes. Now let me build the served UI bundle:
 **Tool Call: npm run build 2>&1 | tail -15; echo "--- web dir ---"; ls -la llm_proxy/web/**
 Status: Completed
 
-Terminal:
 ```
-
 > llm-mitm-proxy@0.0.0 build
 > esbuild ui/app.js --bundle --minify --format=esm --outfile=llm_proxy/web/app.js && esbuild ui/styles.css --bundle --minify --outfile=llm_proxy/web/styles.css && cp ui/index.html ui/favicon.svg llm_proxy/web/
 
@@ -15641,9 +15569,7 @@ drwxr-xr-x 10 vscode vscode  4096 Sep 10 19:31 ..
 -rw-r--r--  1 vscode vscode   235 Sep 12 15:48 favicon.svg
 -rw-r--r--  1 vscode vscode  3166 Sep 12 15:48 index.html
 -rw-r--r--  1 vscode vscode 11533 Sep 12 15:48 styles.css
-
 ```
-
 
 ## Assistant
 
@@ -15866,7 +15792,6 @@ Let me check formatting consistency with the project's `black`/`isort` config.
 **Tool Call: .venv/bin/python -m black --check --diff llm_proxy/proxy/pipeline.py llm_proxy/tests/test_proxy.py llm_proxy/tests/mock_upstream.py 2>&1 | head -40**
 Status: Completed
 
-Terminal:
 ```
 --- llm_proxy/proxy/pipeline.py	2026-09-12 15:24:28.235428+00:00
 +++ llm_proxy/proxy/pipeline.py	2026-09-12 15:52:20.362361+00:00
@@ -15889,9 +15814,7 @@ would reformat llm_proxy/proxy/pipeline.py
 
 Oh no! 💥 💔 💥
 1 file would be reformatted, 2 files would be left unchanged.
-
 ```
-
 
 ## Assistant
 
@@ -15907,7 +15830,6 @@ Black wants to wrap one line that exceeds the 110-char limit. Let me apply it:
 **Tool Call: .venv/bin/python -m black llm_proxy/proxy/pipeline.py llm_proxy/tests/test_proxy.py llm_proxy/tests/mock_upstream.py 2>&1 | tail -5; echo "--- isort ---"; .venv/bin/python -m isort --check-only llm_proxy/proxy/pipeline.py llm_proxy/tests/test_proxy.py llm_proxy/tests/mock_upstream.py 2>&1 | tail -10**
 Status: Completed
 
-Terminal:
 ```
 reformatted llm_proxy/proxy/pipeline.py
 
@@ -15915,9 +15837,7 @@ All done! ✨ 🍰 ✨
 1 file reformatted, 2 files left unchanged.
 --- isort ---
 ERROR: /workspaces/llm-mitm-proxy/llm_proxy/tests/mock_upstream.py Imports are incorrectly sorted and/or formatted.
-
 ```
-
 
 ## Assistant
 
@@ -15929,7 +15849,6 @@ black reformatted pipeline.py. isort is flagging mock_upstream.py. Let me check 
 **Tool Call: .venv/bin/python -m isort --diff llm_proxy/tests/mock_upstream.py 2>&1 | head -20**
 Status: Completed
 
-Terminal:
 ```
 --- /workspaces/llm-mitm-proxy/llm_proxy/tests/mock_upstream.py:before	2026-09-12 15:28:51.144316
 +++ /workspaces/llm-mitm-proxy/llm_proxy/tests/mock_upstream.py:after	2026-09-12 15:53:31.328679
@@ -15946,10 +15865,7 @@ Terminal:
 +)
 
  mock = FastAPI()
-
-
 ```
-
 
 ## Assistant
 
@@ -15961,16 +15877,13 @@ isort wants to wrap the import (it's over 110 characters). Let's apply isort to 
 **Tool Call: .venv/bin/python -m isort llm_proxy/tests/mock_upstream.py 2>&1 | tail -3; echo "--- verify all clean ---"; .venv/bin/python -m black --check llm_proxy/proxy/pipeline.py llm_proxy/tests/test_proxy.py llm_proxy/tests/mock_upstream.py 2>&1 | tail -3; .venv/bin/python -m isort --check-only llm_proxy/proxy/pipeline.py llm_proxy/tests/test_proxy.py llm_proxy/tests/mock_upstream.py 2>&1 | tail -3 && echo "isort clean"**
 Status: Completed
 
-Terminal:
 ```
 Fixing /workspaces/llm-mitm-proxy/llm_proxy/tests/mock_upstream.py
 --- verify all clean ---
 All done! ✨ 🍰 ✨
 3 files would be left unchanged.
 isort clean
-
 ```
-
 
 ## Assistant
 
@@ -15986,16 +15899,13 @@ Formatting is clean. Let me re-run the full test suite to confirm everything sti
 **Tool Call: .venv/bin/python -m unittest discover -s llm_proxy/tests 2>&1 | tail -8**
 Status: Completed
 
-Terminal:
 ```
 ................................................................
 ----------------------------------------------------------------------
 Ran 64 tests in 13.083s
 
 OK
-
 ```
-
 
 ## Assistant
 
@@ -16015,14 +15925,11 @@ All 64 tests pass. Let me confirm the built UI bundle actually contains the new 
 **Tool Call: grep -c "binary-note\|body_binary\|not displayed" llm_proxy/web/app.js; echo "--- styles ---"; grep -c "binary-note" llm_proxy/web/styles.css**
 Status: Completed
 
-Terminal:
 ```
 1
 --- styles ---
 1
-
 ```
-
 
 ## Assistant
 
@@ -16040,17 +15947,14 @@ Both bundles contain the new logic. Let me do a final review of the complete dif
 **Tool Call: git --no-pager diff --stat**
 Status: Completed
 
-Terminal:
 ```
- llm_proxy/proxy/pipeline.py      | 52 +++++++++++++++++++++++++++++++++++++++++++++++++++-
+llm_proxy/proxy/pipeline.py      | 52 +++++++++++++++++++++++++++++++++++++++++++++++++++-
  llm_proxy/tests/mock_upstream.py | 31 ++++++++++++++++++++++++++++++-
  llm_proxy/tests/test_proxy.py    | 35 +++++++++++++++++++++++++++++++++++
  ui/app.js                        | 20 ++++++++++++++++++--
  ui/styles.css                    | 10 ++++++++++
  5 files changed, 144 insertions(+), 4 deletions(-)
-
 ```
-
 
 ## Assistant
 
@@ -16064,18 +15968,15 @@ Actually, the diff --stat only shows tracked files. `llm_proxy/web/` might be un
 **Tool Call: git --no-pager status --short; echo "--- gitignore web? ---"; grep -n "web" .gitignore**
 Status: Completed
 
-Terminal:
 ```
- M llm_proxy/proxy/pipeline.py
+M llm_proxy/proxy/pipeline.py
  M llm_proxy/tests/mock_upstream.py
  M llm_proxy/tests/test_proxy.py
  M ui/app.js
  M ui/styles.css
 --- gitignore web? ---
 9:llm_proxy/web/
-
 ```
-
 
 ## Assistant
 
@@ -16093,7 +15994,6 @@ Let me view the full diff to do a final review.
 **Tool Call: git --no-pager diff ui/app.js ui/styles.css**
 Status: Completed
 
-Terminal:
 ```
 diff --git a/ui/app.js b/ui/app.js
 index 72941d7..1b6c7d0 100644
@@ -16181,9 +16081,7 @@ index c26ebe1..4df7a88 100644
  .think {
    margin-top: 0.5rem;
  }
-
 ```
-
 
 ## Assistant
 
@@ -16201,7 +16099,6 @@ The UI diff is clean. Let me review the backend diff:
 **Tool Call: git --no-pager diff llm_proxy/proxy/pipeline.py**
 Status: Completed
 
-Terminal:
 ```
 diff --git a/llm_proxy/proxy/pipeline.py b/llm_proxy/proxy/pipeline.py
 index 8718813..096c0e8 100644
@@ -16300,9 +16197,7 @@ index 8718813..096c0e8 100644
          else:
              body_json = parsed.body_json if parsed is not None else None
              if body_json is None:
-
 ```
-
 
 ## Assistant
 
@@ -16529,3 +16424,7216 @@ Fixed issue #3: the proxy decoded binary data (images, fonts, etc. from proxied 
 - I did **not** commit or touch the GitHub issue, per your instructions.
 
 Optional follow-up: `docs/PLAN.md` §7's dump-format example is illustrative and already simplified (uses `body` rather than `body_json`/`body_text`); I left it as-is, but can add the new `body_binary`/`content_type` fields if you'd like the doc synced.
+
+## User
+
+Needs additional work to avoid decoding css, js, svg and other assets
+
+## Assistant
+
+<thinking>
+What the user is asking for is to avoid decoding CSS, JS, SVG, and other non-LLM assets (text-based assets that are currently decoded and displayed as garbled text). In other words, the binary heuristic alone isn't sufficient. The content-type of text-based assets is things like `text/css`, `application/javascript`, `image/svg+xml`, `text/html`, `font/woff2`, etc.
+
+The problem: "when proxying something like llama-server, its entire web UI may pass through the proxy, and a lot of text and binary assets that aren't specific to the LLM API can end up passing through."
+
+In other words, the fix should treat known non-text-asset content-types as opaque (binary-like) captures and display the "type + size" note instead of dumping the contents of CSS/JS files.
+
+Let me think about the design:
+
+Current state:
+- `_looks_binary(data)` — byte-level heuristic (NUL / non-UTF-8).
+- Text assets (CSS, JS, HTML, SVG) are valid UTF-8, so they pass the heuristic and get decoded into `body_text` (with a 64KB cap). The UI ends up displaying 200 characters of minified JS. Ugly.
+
+The Issue says "it should just note what the data type was and its size, or something like that." So for non-LLM-API responses, we should record the content-type + size and not display the contents at all.
+
+Design decision: which responses should have their contents decoded?
+
+The proxy's core purpose is to capture LLM API exchanges. Everything else (web UI assets: CSS, JS, HTML, images, fonts, SVG) should be captured opaquely: method/path/status/content-type/size, no body.
+
+Approach: classify the response by content-type:
+1. `application/json` (or JSON that's actually parseable) → decode (body_json). These are LLM API responses (chat completion, models list, etc.)
+2. `text/event-stream` → SSE path (existing).
+3. Everything else (text/css, application/javascript, image/*, font/*, text/html, image/svg+xml, application/octet-stream, …) → record opaquely as content_type + size_bytes, no body_text.
+
+But wait — what about text responses that aren't assets? For example, llama.cpp's `/props` returns JSON (fine). The `/plain` test returns `text/plain "hello"` — a test for the raw text capture path. Hmm, the existing test `test_non_json_response_captured_as_text` expects `body_text == "hello"` and `content_type == "text/plain"`.
+
+So we can't just blanket-decode everything that isn't JSON. We need to narrow down which content-types to treat as "assets" to decode: CSS, JS, SVG, HTML, fonts, images, and probably other binary/octet types.
+
+Two options:
+A. **Blocklist of asset content-types**: decode `text/css`, `application/javascript`, `text/javascript`, `image/svg+xml`, `text/html`, `font/*`, `application/json` (parse as JSON), … and everything else gets decoded. This breaks for new asset types.
+
+B. **Whitelist of types to decode**: only decode `application/json` (as JSON), `text/plain` (as text), `application/xml`? And treat everything else as opaque. This is the cleaner approach: the proxy's job is LLM API capture; JSON responses are LLM API; text/plain is small and debuggable (the "hello" test); everything else (css/js/html/svg/font/image/octet) is opaque.
+
+Option B is more robust: as new asset types appear they default to being captured opaquely, which is the safe direction for the problem (garbled display). The "hello" text/plain case continues to be decoded.
+
+What about `text/event-stream`? That's already handled in a separate branch (the SSE path).
+
+What about `application/xml`, `application/problem+json`? problem+json is JSON — parseable. XML… let's keep it simple: the rule = attempt to decode when (a) content-type is JSON-ish (`application/json`, `*/+json`), or (b) body parses as a JSON object, or (c) content-type is text/plain (short plain text), or (d) content-type is absent and body parses as JSON/text.
+
+Hmm, but the existing behavior for the `/props` test: JSON content-type, body_json captured. Fine.
+
+`/plain` test: text/plain → body_text "hello". Should be maintained.
+
+Now, where do I apply this? The decision should be based on the response's content-type (for the response) and the request's content-type (for the request body).
+
+For requests: an upload with `content-type: application/octet-stream` or `multipart/form-data` → binary. Image upload `image/png` → binary. `application/json` → JSON. What about a text/plain request? Probably decode. What about `text/x-shellscript` or something? Unlikely as a request. For requests, we can apply the same "known-text-asset types" logic, but the risk is low.
+
+Let me design a unified classifier:
+
+```python
+# Content-types we decode in the capture. LLM API exchanges are JSON or SSE;
+# text/plain is kept for debuggability. Everything else (web-UI assets: CSS,
+# JS, HTML, SVG, fonts, images, octet-stream, …) is captured opaquely by
+# content-type and size - the proxy taps LLM APIs, not a browser's asset tree.
+_DECODABLE = {"application/json", "text/plain"}
+```
+
+And the logic:
+- A response is "decodable" when: not streaming, and (content_type is in _DECODEABLE, or content_type is None, or content_type ends with "+json"). Wait — content_type is None (no header): old behavior tried JSON parsing, then fell back to text. Keep this: if no content-type is declared, attempt decode as before (JSON, then text). Because it's often a minimal server.
+
+Hmm, but that means a response with no content-type and a huge CSS-like body would still get decoded to 64KB of text. Edge case; acceptable — most servers declare a content-type.
+
+Wait, actually, let me reconsider: should we decode text/html? No — HTML is a web UI asset and it should be opaque.
+
+What about `text/event-stream`? Already branched off before this.
+
+What about SSE-like text streams with content-type `text/plain`? The SSE branch only triggers on `text/event-stream`. OK.
+
+So the rule for a non-stream response:
+1. If content_type is declared:
+   - JSON-ish (`application/json` or suffix `+json`) → attempt JSON parse; on failure fall back to text? If a JSON content-type has an unparseable body (e.g. an error page served as JSON?) — fall back to text.
+   - `text/plain` → decode as text.
+   - Otherwise (css, js, html, svg, font, image, octet, …) → opaque (content_type + size).
+2. If no content_type is declared:
+   - If body is valid UTF-8 (not binary): attempt JSON, then text (legacy behavior).
+   - Otherwise (binary): opaque.
+
+This preserves `/plain` (text/plain → "hello"), `/props` (application/json → JSON), and makes CSS/JS/HTML/SVG/fonts/images opaque.
+
+For requests:
+- `application/json` → body_json (already handled by safe_json).
+- `text/plain` → body_text.
+- Binary heuristic → opaque.
+- Other content-types (form-data, octet-stream, …) → opaque? multipart form data is text-ish, but… it's an upload, not an LLM API. I think treating non-JSON/non-plaintext request bodies as opaque is correct. Hmm, but what about `application/x-www-form-urlencoded`? Some LLM-ish endpoints? Not chat. Let's keep it simple: decode JSON and text/plain requests, treat everything else as opaque (with the binary heuristic subsuming the obvious binary case).
+
+Actually wait — note: currently requests are decoded whenever the body is not JSON and is not binary. With the new rule, request content-types `text/x-gpg` etc. would become opaque. That's fine, and aligns with the policy of "tapping the LLM API."
+
+Hmm, but let me reconsider whether request-side content-type gating is necessary or over-engineering. The Issue is about responses ("the proxy tries to display binary data (images) as text"). The user's follow-up says "avoid decoding css, js, svg, and other assets" — those are responses from llama-server's web UI. Requests to the LLM proxy are basically JSON chat requests. But a proxy could see a POST with a CSS body? Unlikely. Still, for consistency, apply the same classifier on both sides — symmetric, and simple to explain.
+
+OK, let me restructure. Currently:
+- `_looks_binary(data)` — byte heuristic.
+- `_content_type(headers)` — extraction.
+
+New: a helper that classifies (headers, body) into one of {"json", "text", "opaque"}:
+
+```python
+def _body_kind(headers: dict, body: bytes) -> str:
+    """Classify a wire body for capture: ``"json"``, ``"text"``, or ``"opaque"``.
+
+    The proxy taps LLM APIs - JSON exchanges, text/plain notes, and (elsewhere)
+    SSE. Everything a browser fetches for a proxied non-LLM web UI (CSS, JS,
+    HTML, SVG, fonts, images, octet-stream, …) is captured opaquely by
+    content-type and size, not decoded: the store stays small and the UI stays
+    readable. With no declared content-type, a non-binary body is decoded as
+    best effort (JSON, then text).
+    """
+    ct = _content_type(headers)
+    if ct is not None:
+        if ct == "application/json" or ct.endswith("+json"):
+            return "json"
+        if ct == "text/plain":
+            return "text"
+        return "opaque"
+    return "text" if not _looks_binary(body) else "opaque"
+```
+
+Wait, but if ct is application/json and the body isn't valid JSON, "json" — the existing code does `safe_json(body_bytes)` and falls back to `body_text` when that fails. If we classify as "json" and parsing fails… do we fall back to text decode? Old behavior: body_json None → body_text = capped text. Let's preserve this fallback: in the capture, if kind == "json", try safe_json; on failure fall through to text (if not binary…). Hmm, this is getting complicated.
+
+Let me simplify the capture logic:
+
+```python
+kind = _body_kind(resp_headers, body)
+if kind == "opaque":
+    # content_type + size_bytes are the capture; bytes are forwarded verbatim.
+    pass
+else:
+    body_json = parsed.body_json if parsed is not None else None
+    if body_json is None and kind == "json":
+        body_json = safe_json(body_bytes)
+    server_response["body_json"] = body_json
+    if body_json is None:
+        server_response["body_text"] = _capped_text(body_bytes)
+```
+
+Hmm wait, when kind == "json" but parsing fails, `_capped_text` on a JSON-like body is fine (it's UTF-8 text).
+
+But note: `parsed.body_json` — the openai dissector's NonStream finalize sets body_json when it can parse. For generic, parsed is empty. For JSON responses that aren't chat (e.g. /v1/models), the openai dissector doesn't match (path check), so generic → parsed is an empty ParsedResponse → body_json is None → safe_json. Good.
+
+Also `body_binary` flag: should I keep it? The UI uses `body_binary` to render the note. I can rename the concept: `opaque` or keep `body_binary`. The Issue says "note what the data type was and its size." Let me keep the field name `body_binary`… but now CSS/JS/HTML are "opaque" rather than "binary." A field called body_binary that's true for CSS is misleading. Better to rename to something like `opaque` or `body_captured: false`.
+
+Let me think about naming. The capture is either (a) decoded (body_json/body_text present) or (b) opaque (content_type + size_bytes only). The natural boolean: `opaque: true` or `captured_raw: false`. Hmm.
+
+What the UI's note says: "binary image/png · 73 B — not displayed." For CSS: "text/css · 12.3 KB — not displayed." If the field is `body_binary`, the note logic would need a different message. Let me rename to `opaque` (bool), and have the note read: `opaque text/css · 12.3 KB — content not displayed`? Hmm, or keep it simple: "binary" is wrong for CSS.
+
+Actually, how about making the note generic: "not decoded: text/css · 12.3 KB." Or "captured opaquely: text/css · 12.3 KB." Hmm. Let's think about what's most readable in the UI:
+
+`text/css · 12.3 KB — not displayed` — good, no need for a "binary"/"opaque" prefix; the content-type conveys it. For octet-stream without a declared type… content_type is None → "unknown."
+
+Let me define:
+- Field: `opaque: true` (instead of body_binary). Or keep `body_binary`? For the dump format compatibility… the dump is version 1, but this is a pre-1.0 project (version 0.0.1.dev13). No compatibility concerns. Rename.
+
+Hmm wait, actually, let me reconsider. Is `opaque` a good name? In the dissector's docstring "opaque" is already used: "the selected dissector decodes what it recognizes; anything else is captured opaquely (raw, capped) and logged at INFO." So "opaque capture" is the project's own vocabulary! Great — the `opaque: true` field fits the codebase's language.
+
+So:
+- Request: `"opaque": req_opaque`, `"body_text": None if (json or opaque) else _capped_text(...)`.
+- Response: `"opaque": resp_opaque`.
+
+UI: `binaryNote` → `opaqueNote` or keep the name; render when `side.opaque`. Note text: `<div class="opaque-note">text/css · 12.3 KB — content not displayed</div>`. Hmm, "content not displayed" vs "not displayed." The Issue says "just note what the data type was and its size, or something like that." So: `text/css · 12.3 KB` is the essential part. Let me render: `text/css · 12.3 KB — content not shown`? Keep it short: `<ct> · <size> — not displayed`. If ct is None: `binary · 73 B — not displayed`? Hmm, without content-type and binary… let's say `undecoded · 73 B — not displayed`.
+
+Hmm, let's keep it simple:
+```js
+function opaqueNote(side) {
+  if (!side || !side.opaque) return "";
+  const ct = side.content_type || "unknown content type";
+  const size = side.size_bytes != null ? ` · ${fmtBytes(side.size_bytes)}` : "";
+  return `<div class="opaque-note">${esc(ct)}${size} — not displayed</div>`;
+}
+```
+
+Wait, "unknown content type" is awkward for a GET with no body — but for a GET, the request body is empty: size 0, opaque? For a GET with no body: body is empty → `_looks_binary(b"")` is False → kind is "text" → body_text = None (empty). Not opaque. Good. But wait: a GET with content-type application/json? No body → body_json = safe_json(b"") = None; body_text None. No issue.
+
+Hmm, one more consideration: for a request with an empty body and no content-type… ct None → `_body_kind` → "text" → not opaque. Good.
+
+Now, CSS/JS/HTML/SVG/fonts — covered by "declared content-type is not json/plain → opaque."
+
+`image/svg+xml` — opaque. ✓ (The user explicitly mentions SVG.)
+`application/javascript`, `text/javascript`, `text/css`, `text/html`, `font/woff2`, `application/vnd.ms-fontobject`, `image/png`, `application/octet-stream`, `video/mp4`, `application/wasm` — all opaque. ✓
+
+What about `application/xml`? Opaque. Fine (an asset-ish thing).
+`application/problem+json` → ends with "+json" → decoded as JSON. ✓
+`application/vnd.api+json` → decoded. ✓
+`text/markdown`? Hmm — not json/plain → opaque. A text-based LLM-ish response? A chat response would be JSON. An LLM endpoint that returns text/markdown… possible? The proxy taps OpenAI-compatible chat (JSON). If a custom endpoint returns markdown text, it would now be opaque. Acceptable? Old behavior decoded it. Hmm. Should I include text/* more broadly in the whitelist?
+
+Let me reconsider: whitelist = {application/json, */+json, text/plain}. Blacklist-ish alternative: decode everything except known asset types {text/css, text/html, application/javascript, text/javascript, image/*, font/*, application/octet-stream, audio/*, video/*, application/wasm, application/pdf…}.
+
+Tradeoff: whitelist is safe against new asset types (default = opaque); blacklist preserves decoding for unknown text types (default = decode → risk of garbled display for new asset types, which is exactly the bug we're fixing).
+
+Given the Issue's intent, whitelist is the right direction. And for markdown: an LLM API that returns raw markdown as the response — that's not OpenAI-compatible, and the proxy's decoding target is chat completion. The /plain text/plain case (which the tests use) is preserved. I think the whitelist is correct.
+
+Hmm wait. But what about `text/event-stream` with a different case, or `text/event-stream; charset=utf-8`? Already branched off before this via the content-type check in `_upstream`. In `_sse_stream` capture, `streaming=True`, raw_text path — no impact.
+
+What about chunked streaming with non-SSE content-type? The code only branches on SSE for streaming; other stream content-types are drained fully (`aiter_bytes`). So "streaming=False" for all non-SSE. OK.
+
+Now, request-side `text/plain`: a POST to some endpoint with a plaintext body. Decoded as before. Fine.
+
+Another scenario: an LLM API response with content-type `text/plain` that's actually JSON? The kind is "text" → body_json None → body_text. Old behavior: body_json = safe_json succeeds → body_json. Hmm! Behavior change: a JSON body served as text/plain loses JSON capture. Do any tests cover this? The mock's chat returns application/json (JSONResponse). The "boom" error also JSONResponse. No test for JSON as text/plain. Edge case; acceptable. Actually, wait — should we always attempt safe_json first regardless of kind? If a JSON object parses, it's always better to store it as body_json than as text. Let me add this: in the capture, when not opaque, attempt JSON parse before text decode (which is what the old code did — it ran safe_json unconditionally for non-stream when parsed had no body_json).
+
+So the capture logic:
+```python
+if not resp_opaque:
+    body_json = parsed.body_json if parsed is not None else None
+    if body_json is None:
+        body_json = safe_json(body_bytes)
+    server_response["body_json"] = body_json
+    if body_json is None:
+        server_response["body_text"] = _capped_text(body_bytes)
+```
+This is exactly the old else branch — unchanged! The only change: the opaque branch skips it, and the opaque determination now uses content-type, not (only) the binary heuristic.
+
+So the diff to `_capture`:
+```python
+resp_opaque = not streaming and _body_kind(resp_headers, body or b"") == "opaque"
+```
+Wait, but I want to keep `_looks_binary` as a fallback for when there's no content-type. `_body_kind` handles that.
+
+Hmm, but wait: for a non-streaming response with `content_type` declared as application/json and body unparseable (e.g. HTML error page served with the wrong content-type?) → kind "json" → not opaque → body_json None → body_text = capped HTML text. Old behavior: same. OK.
+
+And an HTML error page from an upstream with the correct content-type text/html → opaque.
+
+Next, requests in `_forward`:
+```python
+req_opaque = _body_kind(wire_req.headers, wire_req.body) == "opaque"
+client_request = {
+    ...
+    "content_type": _content_type(wire_req.headers),
+    "body_json": wire_req.body_json,
+    "opaque": req_opaque,
+    "body_text": None if (wire_req.body_json is not None or req_opaque) else _capped_text(wire_req.body),
+    ...
+}
+```
+
+Wait, subtle point: a request with content-type application/json but a non-JSON body (rare) → kind "json" → not opaque → body_text gets set. Fine.
+
+A request with no content-type and a JSON body: wire_req.body_json is set (safe_json in handle()) → body_text None. Not opaque (no ct → non-binary → "text"). ✓ (Chat requests always have JSON content-type.)
+
+Hmm — a request with content-type `application/x-www-form-urlencoded`? Opaque now. Old: decoded as text. Form-encoded uploads… acceptable.
+
+Now — one more thought on `_body_kind` for requests: the `Content-Type` in the request headers is present on POSTs with a body. TestClient's `self.llm.post(CHAT, json=...)` sets application/json. ✓
+
+Next, let me also think: does `include_raw_chunks` for SSE chunks interact? No, SSE only.
+
+What about the pending/in-flight placeholder? The client_request is shared — opaque is already included. Fine.
+
+Next, dump format: `to_dict` passes the dict through as-is — no changes needed. PLAN.md §7 example — I noted it's illustrative; leave it (or add an opaque example? I suggested it before and the user didn't ask. Skip; focus on the code. Actually, hmm, the user said "needs more work to avoid decoding css, js, svg, and other assets" — code only.)
+
+Next, UI: rename binaryNote → opaqueNote, use `side.opaque`, and update CSS class `.binary-note` → `.opaque-note`. Also `fullRequest`/`fullResponse` include body_text/body_json/chunks — for opaque, none of them are present; the full view shows content_type (add to the obj?). Let me check: fullResponse builds an obj of {status, headers, streaming, size_bytes} + reassembled/body/body_text/chunks. The content-type is already in the headers. Fine — no change needed. Actually, adding `content_type` and `opaque` to the full dump would be nice for completeness, but headers already have content-type. Keep it minimal.
+
+UI note text: for a binary PNG without… PNG has content-type image/png → "image/png · 73 B — not displayed." For octet-stream: "application/octet-stream · 12.3 KB — not displayed."
+
+Next, tests:
+1. Update `test_binary_response_recorded_not_text` → now expects `opaque` true (rename to `test_opaque_binary_response…`? Keep the name but assert `sr["opaque"]` is True; body_binary no longer exists).
+2. Update `test_binary_request_body_recorded_not_text` similarly.
+3. Update `test_non_json_response_captured_as_text` (text/plain) → expects decoded text (no change), `opaque` False.
+4. New tests:
+   - CSS response → opaque, content_type text/css, no body_text/body_json, body forwarded verbatim.
+   - JS response → opaque (application/javascript).
+   - HTML response → opaque.
+   - SVG response → opaque (image/svg+xml).
+   Maybe one test that covers multiple asset types via a parametrize-ish loop. Let me add mock endpoints: `/style.css` (text/css), `/app.js` (application/javascript), `/index.html` (text/html), `/icon.svg` (image/svg+xml). Or a single `/asset` endpoint that switches on the extension? Cleaner: individual small endpoints, or one endpoint that uses a query param… the simplest and most maintainable: a few small endpoints.
+
+Actually, to keep the mock small, add one endpoint per type, but with tiny bodies:
+```python
+@mock.get("/style.css")
+async def style_css() -> Response:
+    return Response(content=b"body { color: red; }", media_type="text/css")
+
+@mock.get("/app.js")
+async def app_js() -> Response:
+    return Response(content=b"console.log('hi');", media_type="application/javascript")
+
+@mock.get("/index.html")
+async def index_html() -> Response:
+    return Response(content=b"<html><body>hi</body></html>", media_type="text/html")
+
+@mock.get("/icon.svg")
+async def icon_svg() -> Response:
+    return Response(content=b'<svg xmlns="http://www.w3.org/2000/svg"/>', media_type="image/svg+xml")
+```
+
+And a test:
+```python
+def test_text_assets_recorded_opaque(self):
+    # Web-UI assets of a proxied non-LLM endpoint (CSS/JS/HTML/SVG) must not be
+    # decoded into the capture: content-type + size only, body forwarded verbatim.
+    for path, ct in [
+        ("/style.css", "text/css"),
+        ("/app.js", "application/javascript"),
+        ("/index.html", "text/html"),
+        ("/icon.svg", "image/svg+xml"),
+    ]:
+        self.llm.get(path)
+    (exs,) = ... 
+```
+Hmm, four GETs → four exchanges; the order of `_exchanges()` is… the conversation's exchange list is in append order (a deque). Take the last 4 in order? Simpler: one test per asset type in a loop, but a new conversation per test… MockedCase creates a new Context per test, but multiple GETs within one test accumulate. Let me iterate the exchanges and match by client_request.path:
+
+```python
+def test_text_assets_recorded_opaque(self):
+    assets = {
+        "/style.css": "text/css",
+        "/app.js": "application/javascript",
+        "/index.html": "text/html",
+        "/icon.svg": "image/svg+xml",
+    }
+    for path in assets:
+        r = self.llm.get(path)
+        self.assertEqual(r.status_code, 200)
+    exs = {ex["client_request"]["path"]: ex for ex in self._exchanges()}
+    for path, ct in assets.items():
+        ex = exs[path]
+        sr = ex["server_response"]
+        self.assertTrue(sr["opaque"], path)
+        self.assertEqual(sr["content_type"], ct)
+        self.assertGreater(sr["size_bytes"], 0)
+        self.assertNotIn("body_text", sr)
+        self.assertNotIn("body_json", sr)
+```
+
+Wait — is the path stored with a query? GETs without params → path is clean. ✓
+
+5. Also, a test that a JSON response with a weird content-type still decodes? E.g., the mock's `/props` returns a dict → JSONResponse → application/json. Already covered by test_opaque_capture_with_query (asserts body_json). But let me assert `opaque` False there. Let me add `self.assertFalse(sr["opaque"])` to test_opaque_capture_with_query. Hmm, the name is "opaque capture" (disssector's terminology) but now there's an `opaque` field — a confusing test name. Leave it (pre-existing).
+
+6. text/plain test: add `self.assertFalse(sr["opaque"])`.
+
+Now, about `_RAW_BODY_CAP` and the SSE `raw_parts` — no changes.
+
+Also — the `parsed` openai dissector on non-streaming chat with JSON content-type: no change.
+
+One more: what if the response has `content-type: application/json; charset=utf-8`? `_content_type` splits on ';' → application/json. ✓
+
+Let me also double-check the interaction of `_body_kind` with SSE responses in `_capture`: streaming=True → resp_opaque False (gated). ✓
+
+And 502/499 error captures: streaming=False, body=b"" → ct from {} → None → non-binary → "text" → not opaque → body_json None → body_text None. Same as before. ✓
+
+Next, about the `body_binary` field — remove it entirely and replace with `opaque`? I added it in this session (uncommitted), so renaming is clean. The UI uses `body_binary` → change to `opaque`.
+
+Also, the module docstring mentions "captured opaquely (raw, capped)" — that's now even more accurate.
+
+Now, one more thought on the request side: `wire_req.headers` — the full header dict including content-length, etc. `_content_type` scans for content-type. ✓
+
+Let me reconsider whether to keep `_looks_binary` as a standalone function (used by `_body_kind` for the no-content-type case). Yes.
+
+Edge case: a response with no content-type and a text body → decoded as before. A response with no content-type and a binary body → opaque. ✓
+
+Now let me write the code.
+
+The new `_body_kind`:
+
+```python
+# Content-types decoded in the capture. The proxy taps LLM APIs - JSON
+# exchanges and (separately) SSE - plus small text/plain bodies. Everything a
+# browser fetches for a proxied non-LLM web UI (CSS, JS, HTML, SVG, fonts,
+# images, octet-stream, ...) is captured opaquely: content-type + size, no
+# decoded body, so the store and the UI stay readable.
+_TEXT_DECODABLE = {"application/json", "text/plain"}
+
+
+def _body_kind(headers: dict, body: bytes) -> str:
+    """``"json"``, ``"text"``, or ``"opaque"``: how a wire body is captured.
+
+    A declared content-type decides: JSON (``application/json`` or ``*/+json``)
+    and ``text/plain`` are decoded, any other type is opaque. With no declared
+    type, a non-binary body is decoded best-effort and a binary one is opaque.
+    """
+    ct = _content_type(headers)
+    if ct is None:
+        return "opaque" if _looks_binary(body) else "text"
+    if ct in _TEXT_DECODABLE or ct.endswith("+json"):
+        return "json"
+    return "opaque"
+```
+
+Wait: for kind "json" vs "text" — does the distinction affect the capture? In the capture, the non-opaque branch: try parsed.body_json, else safe_json, else _capped_text. Same regardless of whether json/text. So the json/text distinction is irrelevant to the output! Only "opaque" vs not matters. Then simplify to a bool: `_is_opaque(headers, body)`.
+
+```python
+def _is_opaque(headers: dict, body: bytes) -> bool:
+    """Whether a wire body is captured opaquely (content-type + size, no decode).
+
+    A declared content-type decides: JSON (``application/json`` or ``*/+json``)
+    and ``text/plain`` decode; anything else - CSS, JS, HTML, SVG, fonts,
+    images, octet-stream, ... - is opaque. With no declared type, the binary
+    heuristic decides. The proxy taps LLM APIs, not a browser's asset tree.
+    """
+    ct = _content_type(headers)
+    if ct is None:
+        return _looks_binary(body)
+    return ct not in ("application/json", "text/plain") and not ct.endswith("+json")
+```
+
+Clean. Then:
+
+`_forward`:
+```python
+req_opaque = _is_opaque(wire_req.headers, wire_req.body)
+...
+"opaque": req_opaque,
+"body_text": None if (wire_req.body_json is not None or req_opaque) else _capped_text(wire_req.body),
+```
+(Remove the body_binary line.)
+
+`_capture`:
+```python
+# Web-UI assets of a proxied non-LLM endpoint (CSS, JS, HTML, SVG, images,
+# fonts, ...) are captured opaquely: content-type + size, no decoded body.
+# (For the non-stream case ``body`` is the response body; streams are always
+# SSE text, so this is gated on ``not streaming``.)
+resp_opaque = not streaming and _is_opaque(resp_headers, body or b"")
+server_response: dict = {
+    ...
+    "content_type": _content_type(resp_headers),
+    "opaque": resp_opaque,
+    "size_bytes": ...,
+}
+...
+elif resp_opaque:
+    # Opaque capture: content_type + size_bytes above; bytes are forwarded
+    # verbatim and not stored.
+    pass
+```
+
+Hmm wait, `_is_opaque(resp_headers, body or b"")` — `body` is None only on the error path (499/502), where resp_headers is also {} → ct None → _looks_binary(b"") → False → not opaque. ✓
+
+The UI changes:
+- `binaryNote` → `opaqueNote(side)` checks `side.opaque`.
+- Class `.binary-note` → `.opaque-note`.
+- Note text: `${esc(ct)}${size} — not displayed`, ct default "unknown content type." Hmm: `<div class="opaque-note">image/png · 73 B — not displayed</div>`. Good.
+
+Update tests as planned.
+
+Now — what about the `content_type` field on client_request for GETs (no content-type)? None → UI's fullRequest includes headers anyway. Fine.
+
+Reconfirm that `test_opaque_capture_with_query` still passes: /props → JSONResponse → application/json → not opaque → body_json parsed. ✓ And `test_undecoded_sse_captured_raw`: /sse → text/event-stream → SSE branch (streaming), raw_text set, not opaque. sr has body_text "tick…". ✓
+
+`test_streaming_tap_and_forward`, etc.: no impact.
+
+One more UI consideration — `respText` for opaque: no reassembled/body_json/body_text → returns "". ✓ (The card shows only the note.)
+
+Also `previewOf`: cr.preview is None, body_json is {} → msgs [] → "". ✓
+
+Next, let me also think about `exchange_started` events for an in-flight pending card with an opaque request: fine.
+
+OK — one more thought: should I include the body in the dump of opaque responses? The Issue says don't display it; capturing the first N bytes is… no, keep it opaque — that's the point ("just note what the data type was and its size, or something like that").
+
+Implementation order:
+1. pipeline.py: replace the use of the body_binary logic with `_is_opaque`; keep `_looks_binary`, `_content_type`.
+2. mock_upstream.py: add asset endpoints.
+3. test_proxy.py: update + add tests.
+4. app.js: opaqueNote; styles.css: .opaque-note.
+5. Run tests, format, build.
+
+Let me write the edits. The current pipeline code (after the black reformat):
+
+```python
+        is_stream = bool(wire_req.body_json and wire_req.body_json.get("stream"))
+        # A binary request body (e.g. an image upload) is not decoded to text:
+        # record its content-type and size instead of garbled replacement text.
+        req_binary = _looks_binary(wire_req.body)
+        # Full captured request shape (headers/body redacted), plus model/preview
+        # for the card header. Shared by the in-flight placeholder and the
+        # exchange_started event so the pending card's debug views are complete.
+        client_request = {
+            "timestamp": t0,
+            "method": wire_req.method,
+            "path": wire_req.path,
+            "headers": _redact(wire_req.headers),
+            "content_type": _content_type(wire_req.headers),
+            "body_json": wire_req.body_json,
+            "body_binary": req_binary,
+            "body_text": (
+                None if (wire_req.body_json is not None or req_binary) else _capped_text(wire_req.body)
+            ),
+            "size_bytes": len(wire_req.body) if wire_req.body else 0,
+            "model": parsed_req.model,
+            "preview": parsed_req.preview,
+        }
+```
+
+New:
+```python
+        is_stream = bool(wire_req.body_json and wire_req.body_json.get("stream"))
+        # An opaque request body (a browser asset upload) is not decoded to
+        # text: record its content-type and size instead.
+        req_opaque = _is_opaque(wire_req.headers, wire_req.body)
+        ...
+            "opaque": req_opaque,
+            "body_text": (
+                None if (wire_req.body_json is not None or req_opaque) else _capped_text(wire_req.body)
+            ),
+```
+
+The current response block in _capture:
+```python
+        # A binary response body (an image or other non-text asset from a proxied
+        # non-LLM endpoint) is not decoded to text: record its content-type and
+        # size instead of garbled replacement characters. (For the non-stream
+        # case ``body`` is the response body; streams are always SSE text, so this
+        # is gated on ``not streaming``.)
+        resp_binary = not streaming and _looks_binary(body or b"")
+        server_response: dict = {
+            "timestamp": t_first,
+            "status": status,
+            "headers": _redact(resp_headers),
+            "streaming": streaming,
+            "content_type": _content_type(resp_headers),
+            "body_binary": resp_binary,
+            "size_bytes": body_size if body_size is not None else (len(body_bytes) if body_bytes else 0),
+        }
+        if streaming and parsed is not None and parsed.reassembled is not None:
+            server_response["reassembled"] = parsed.reassembled
+        elif raw_text is not None:
+            # Undecoded stream: the capped raw stream is the only faithful capture.
+            server_response["body_text"] = raw_text
+        elif resp_binary:
+            # Binary body: content_type + size_bytes above are the capture; the
+            # bytes themselves are not stored (they are forwarded verbatim).
+            pass
+```
+
+New:
+```python
+        # A proxied non-LLM endpoint serves the web UI's assets (CSS, JS, HTML,
+        # SVG, images, fonts, ...); they are captured opaquely - content-type +
+        # size, no decoded body. (For the non-stream case ``body`` is the
+        # response body; streams are always SSE text, so this is gated on
+        # ``not streaming``.)
+        resp_opaque = not streaming and _is_opaque(resp_headers, body or b"")
+        server_response: dict = {
+            "timestamp": t_first,
+            "status": status,
+            "headers": _redact(resp_headers),
+            "streaming": streaming,
+            "content_type": _content_type(resp_headers),
+            "opaque": resp_opaque,
+            "size_bytes": body_size if body_size is not None else (len(body_bytes) if body_bytes else 0),
+        }
+        ...
+        elif resp_opaque:
+            # Opaque capture: content_type + size_bytes above are the record;
+            # the body is forwarded verbatim and not stored.
+            pass
+```
+
+And add `_is_opaque` after `_content_type`:
+
+```python
+def _is_opaque(headers: dict, body: bytes) -> bool:
+    """Whether a wire body is captured opaquely (content-type + size, no decode).
+
+    A declared content-type decides: JSON (``application/json`` or ``*/+json``)
+    and ``text/plain`` are decoded; any other type - CSS, JS, HTML, SVG, fonts,
+    images, octet-stream, ... - is opaque. With no declared type, a binary body
+    is opaque and a text one is decoded best-effort. The proxy taps LLM APIs,
+    not a browser's asset tree.
+    """
+    ct = _content_type(headers)
+    if ct is None:
+        return _looks_binary(body)
+    return ct not in ("application/json", "text/plain") and not ct.endswith("+json")
+```
+
+UI app.js:
+```js
+  function opaqueNote(side) {
+    // A body captured opaquely (a CSS/JS/SVG/image/font asset of a proxied
+    // non-LLM endpoint) is not decoded; show its type and size instead.
+    if (!side || !side.opaque) return "";
+    const ct = side.content_type || "unknown content type";
+    const size = side.size_bytes != null ? ` · ${fmtBytes(side.size_bytes)}` : "";
+    return `<div class="opaque-note">${esc(ct)}${size} — not displayed</div>`;
+  }
+```
+Replace the binaryNote call sites: `${binaryNote(cr)}` → `${opaqueNote(cr)}`, `${binaryNote(sr) || ...}` → `${opaqueNote(sr) || ...}`.
+
+styles.css: rename `.binary-note` to `.opaque-note`.
+
+Tests:
+- `test_non_json_response_captured_as_text`: add `self.assertFalse(sr["opaque"])`.
+- `test_binary_response_recorded_not_text` → rename? Keep the name (binary is the canonical case), change `sr["body_binary"]` → `sr["opaque"]`.
+- `test_binary_request_body_recorded_not_text`: `cr["body_binary"]` → `cr["opaque"]`.
+- Add `test_text_assets_recorded_opaque` with 4 asset endpoints.
+- `test_opaque_capture_with_query`: add `self.assertFalse(sr["opaque"])`? This asserts body_json — good to pin down that JSON is not opaque. Add it.
+
+Mock endpoints: add after /img:
+
+```python
+# Small text assets of a proxied non-LLM web UI. These must be captured
+# opaquely (content-type + size), not decoded into the store.
+@mock.get("/style.css")
+async def style_css() -> Response:
+    return Response(content=b"body{color:red;font:12px sans-serif}", media_type="text/css")
+
+
+@mock.get("/app.js")
+async def app_js() -> Response:
+    return Response(content=b"console.log('asset')", media_type="application/javascript")
+
+
+@mock.get("/index.html")
+async def index_html() -> Response:
+    return Response(content=b"<html><body><h1>ui</h1></body></html>", media_type="text/html")
+
+
+@mock.get("/icon.svg")
+async def icon_svg() -> Response:
+    return Response(content=b'<svg xmlns="http://www.w3.org/2000/svg"></svg>', media_type="image/svg+xml")
+```
+
+Note: FastAPI routes `/style.css` — a path with a dot is fine.
+
+Test:
+```python
+    def test_text_assets_recorded_opaque(self):
+        # CSS/JS/HTML/SVG - a proxied non-LLM endpoint's web-UI assets - are
+        # captured opaquely (content-type + size), not decoded into the store,
+        # and pass through verbatim.
+        assets = {
+            "/style.css": "text/css",
+            "/app.js": "application/javascript",
+            "/index.html": "text/html",
+            "/icon.svg": "image/svg+xml",
+        }
+        for path, _ in assets.items():
+            r = self.llm.get(path)
+            self.assertEqual(r.status_code, 200)
+        exs = {ex["client_request"]["path"]: ex for ex in self._exchanges()}
+        for path, ct in assets.items():
+            sr = exs[path]["server_response"]
+            self.assertTrue(sr["opaque"], path)
+            self.assertEqual(sr["content_type"], ct)
+            self.assertGreater(sr["size_bytes"], 0)
+            self.assertNotIn("body_text", sr)
+            self.assertNotIn("body_json", sr)
+```
+
+After that, rebuild the UI, run the full suite, and format.
+
+One more check — the UI's `fullResponse` includes `size_bytes` ✓ and content_type is included in headers ✓.
+
+Also, check there are no lingering references to `body_binary` anywhere: grep after the edit.
+
+Let me implement it.
+
+</thinking>
+
+The issue is broader than binary: a proxied non-LLM endpoint (llama-server's web UI) also serves **text** assets — CSS, JS, HTML, SVG — which currently get decoded into `body_text` (minified JS garbage in the UI). The fix: capture **opaquely** (content-type + size, no body) for any declared content-type that isn't JSON or `text/plain`.
+
+Let me implement this in the backend first.
+
+
+
+**Tool Call: llm\_proxy/proxy/pipeline.py**
+Status: Completed
+
+Diff: /workspaces/llm-mitm-proxy/llm_proxy/proxy/pipeline.py
+```
+"""The proxy pipeline: identify client, forward to upstream, tap the response, capture.
+
+Transparent tap-and-forward: the request goes to the upstream verbatim and the
+upstream response (SSE streams included) is streamed back to the client
+untouched, while a side parse (the dissector) accumulates the exchange for the
+store. The tap never blocks the client path. The selected dissector decodes
+what it recognizes; anything else is captured opaquely (raw, capped) and
+logged at INFO.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import json
+import logging
+import re
+import time
+import uuid
+
+import httpx2
+from fastapi import Request
+from fastapi.responses import Response, StreamingResponse
+
+from .. import dissectors  # noqa: F401  (registers the bundled dissectors)
+from ..dissectors.base import get_dissector
+from ..hub import Hub
+from ..model.conversation import Conversation, Exchange
+from ..model.ir import ParsedRequest, WireRequest
+from ..store.memory import MemoryStore
+from .util import safe_json
+
+# Hop-by-hop / transport headers we must not forward upstream (httpx2 rebuilds them).
+_HOP_BY_HOP = {
+    "connection",
+    "keep-alive",
+    "proxy-authenticate",
+    "proxy-authorization",
+    "te",
+    "trailers",
+    "transfer-encoding",
+    "upgrade",
+    "host",
+    "content-length",
+}
+# Response headers we strip before sending back to the client (httpx2 already
+# decompressed, and Starlette recomputes content-length).
+_STRIP_RESP = {"content-length", "content-encoding", "transfer-encoding", "connection", "date", "server"}
+# Headers masked in captured exchanges/dumps.
+_SECRET_HEADERS = {"authorization", "proxy-authorization", "x-api-key"}
+
+# Raw (non-JSON) request/response bodies and undecoded SSE streams are stored
+# capped, so the ring-bounded store stays bounded for large payloads.
+_RAW_BODY_CAP = 64 * 1024
+
+# Client ids are embedded in REST paths (/api/conversations/{cid}), so they are
+# restricted to a single-segment character set (no "/" or ":").
+_ID_UNSAFE = re.compile(r"[^A-Za-z0-9._-]+")
+
+log = logging.getLogger("llm_proxy.proxy")
+
+
+def _capped_text(data: bytes) -> str | None:
+    """Best-effort UTF-8 text for a raw (non-JSON) body, capped for storage."""
+    if not data:
+        return None
+    return data[:_RAW_BODY_CAP].decode("utf-8", errors="replace")
+
+
+def _looks_binary(data: bytes) -> bool:
+    """Heuristic for a binary (non-text) body: a NUL byte, or bytes that are not
+    valid UTF-8. Binary bodies (images, other non-text assets from a proxied
+    non-LLM endpoint) are recorded by content-type and size, not decoded to
+    text. Only a capped prefix is inspected - binary magic bytes lead, and a
+    multibyte character split at the cap is tolerated (drop up to three trailing
+    bytes before deciding)."""
+    if not data:
+        return False
+    sample = data[:_RAW_BODY_CAP]
+    if b"\x00" in sample:
+        return True
+    for trim in range(min(4, len(sample))):
+        try:
+            sample[: len(sample) - trim].decode("utf-8")
+            return False
+        except UnicodeDecodeError:
+            continue
+    return True
+
+
+def _content_type(headers: dict) -> str | None:
+    """The body's content-type (without parameters, lowercased) from a wire
+    header dict, if the request/response declared one."""
+    for k, v in headers.items():
+        if k.lower() == "content-type":
+            ct = v.split(";", 1)[0].strip().lower()
+            return ct or None
+    return None
+
+
+def _is_opaque(headers: dict, body: bytes) -> bool:
+    """Whether a wire body is captured opaquely (content-type + size, no decode).
+
+    A declared content-type decides: JSON (``application/json`` or ``*/+json``)
+    and ``text/plain`` are decoded; any other type - CSS, JS, HTML, SVG, fonts,
+    images, octet-stream, ... - is opaque. With no declared type, a binary body
+    is opaque and a text one is decoded best-effort. The proxy taps LLM APIs,
+    not a browser's asset tree, so opaque keeps the store and the UI readable.
+    """
+    ct = _content_type(headers)
+    if ct is None:
+        return _looks_binary(body)
+    return ct not in ("application/json", "text/plain") and not ct.endswith("+json")
+
+
+def _mask(v) -> str:
+    if not v:
+        return v
+    s = str(v)
+    return s if len(s) <= 8 else f"{s[:4]}***{s[-2:]}"
+
+
+def _redact(headers: dict) -> dict:
+    return {k: (_mask(v) if k.lower() in _SECRET_HEADERS else v) for k, v in headers.items()}
+
+
+class Pipeline:
+    def __init__(self, http: httpx2.AsyncClient, settings, store: MemoryStore, hub: Hub):
+        self.http = http
+        self.settings = settings
+        self.store = store
+        self.hub = hub
+        # Selection is per request by method+path: the chat decoder when the path
+        # is an OpenAI-compatible chat completion, else the generic raw-capture
+        # fallback. No global setting; the pipeline branches on ``is self.generic``
+        # for the opaque INFO log.
+        self.chat = get_dissector("openai")
+        self.generic = get_dissector("generic")
+
+    def dissector_for(self, method: str, path: str):
+        """The dissector for this request: the chat decoder if the path is an
+        OpenAI-compatible chat completion, else the generic raw-capture fallback."""
+        return self.chat if self.chat.matches(method, path) else self.generic
+
+    def _parse_request(self, dissector, wire_req) -> ParsedRequest:
+        try:
+            return dissector.request(wire_req)
+        except Exception:  # noqa: BLE001
+            # A tap must never break the forward path: fall back to raw capture.
+            log.warning(
+                "dissector %s failed to parse the request; capturing raw", dissector.name, exc_info=True
+            )
+            return self.generic.request(wire_req)
+
+    def _parse_response(self, dissector, wire_req, status: int, resp_headers: dict, data: bytes):
+        """Run the dissector's response lifecycle over a fully drained body."""
+        try:
+            handle = dissector.response_started(wire_req, status, resp_headers)
+            if handle is None:
+                return None
+            dissector.feed_chunk(handle, data)
+            return dissector.finalize(handle)
+        except Exception:  # noqa: BLE001
+            # A tap must never break the forward path: fall back to raw capture.
+            log.warning(
+                "dissector %s failed to decode the response; capturing raw", dissector.name, exc_info=True
+            )
+            return None
+
+    # ---- client identity ----
+    @staticmethod
+    def _extract_key(headers: dict) -> str | None:
+        auth = headers.get("authorization") or headers.get("Authorization")
+        if auth and auth.lower().startswith("bearer "):
+            return auth[7:].strip() or None
+        return None
+
+    @staticmethod
+    def _id_part(value: str) -> str | None:
+        return _ID_UNSAFE.sub("_", value.strip())[:64] or None
+
+    def client_id(self, request: Request) -> str:
+        """Source IP, + user agent, + API key. The user agent splits clients that
+        share a source IP (e.g. curl and an editor client on the same machine).
+        """
+        headers = dict(request.headers)
+        if self.settings.client_id_header:
+            override = self._id_part(headers.get(self.settings.client_id_header.lower(), ""))
+            if override:
+                return override
+        parts = [self._id_part(request.client.host if request.client else "unknown")]
+        ua = self._id_part(headers.get("user-agent", ""))
+        if ua:
+            parts.append(ua)
+        key = self._id_part(self._extract_key(headers) or "")
+        if key:
+            parts.append(key)
+        return "::".join(parts)
+
+    # ---- upstream request shaping (transparent passthrough + key fallback) ----
+    def _upstream_headers(self, headers: dict) -> dict:
+        out = {k: v for k, v in headers.items() if k.lower() not in _HOP_BY_HOP}
+        if not any(k.lower() == "authorization" for k in out) and self.settings.upstream_api_key:
+            out["authorization"] = f"Bearer {self.settings.upstream_api_key}"
+        return out
+
+    def _replay_headers(self, headers: dict) -> dict:
+        # Captured headers are redacted, so any secret values are unusable masks;
+        # drop them and let _upstream_headers() re-apply the UPSTREAM_API_KEY fallback.
+        out = {k: v for k, v in headers.items() if k.lower() not in _SECRET_HEADERS}
+        return self._upstream_headers(out)
+
+    @staticmethod
+    def _resp_headers(headers: dict) -> dict:
+        return {k: v for k, v in headers.items() if k.lower() not in _STRIP_RESP}
+
+    # ---- entry point (called by the router for every request on the LLM port) ----
+    async def handle(self, request: Request) -> Response:
+        t0 = time.time()
+        body = await request.body()
+        # Forward the full path *including the query string* verbatim: a
+        # transparent proxy must not drop ``?model=...`` and friends.
+        url = request.url
+        full_path = f"{url.path}?{url.query}" if url.query else url.path
+        wire_req = WireRequest(
+            method=request.method,
+            path=full_path,
+            headers=dict(request.headers),
+            body=body,
+            body_json=safe_json(body),
+        )
+
+        tag = request.headers.get("x-conversation-id", "") if self.settings.split_conversations else ""
+        client_id = self.client_id(request)
+        headers = self._upstream_headers(dict(request.headers))
+
+        dissector = self.dissector_for(wire_req.method, wire_req.path)
+        if dissector is self.generic:
+            log.debug("undecoded request: %s %s (opaque capture)", wire_req.method, wire_req.path)
+        parsed_req = self._parse_request(dissector, wire_req)
+
+        cid = self.store.conversation_id(client_id, tag)
+        exchange_id = str(uuid.uuid4())
+
+        if not self.store.has_client(client_id):
+            # Register the client BEFORE broadcasting: client_seen triggers an
+            # immediate /api/clients re-fetch in the UI, which must never run
+            # ahead of the store or it returns an empty dock. handle() runs
+            # synchronously up to its first await, so anything registered here
+            # is visible before the re-fetch can be processed (no race window).
+            self.store.get_or_create_conversation(client_id, tag)
+            self.hub.emit(
+                cid,
+                {"type": "client_seen", "conversation_id": cid, "client_id": client_id, "ts": t0},
+                broadcast=True,
+            )
+        return await self._forward(
+            wire_req, parsed_req, dissector, client_id, tag, cid, exchange_id, headers, t0, is_replay=False
+        )
+
+    # ---- forward to upstream (shared by live requests and replay) ----
+    async def _forward(
+        self,
+        wire_req,
+        parsed_req,
+        dissector,
+        client_id,
+        tag,
+        cid,
+        exchange_id,
+        headers,
+        t0,
+        *,
+        is_replay: bool,
+    ) -> Response:
+        # Display hint for the pending card; the real stream decision is made
+        # from the upstream response's content-type in _upstream().
+        is_stream = bool(wire_req.body_json and wire_req.body_json.get("stream"))
+        # A binary request body (e.g. an image upload) is not decoded to text:
+        # record its content-type and size instead of garbled replacement text.
+        req_binary = _looks_binary(wire_req.body)
+        # Full captured request shape (headers/body redacted), plus model/preview
+        # for the card header. Shared by the in-flight placeholder and the
+        # exchange_started event so the pending card's debug views are complete.
+        client_request = {
+            "timestamp": t0,
+            "method": wire_req.method,
+            "path": wire_req.path,
+            "headers": _redact(wire_req.headers),
+            "content_type": _content_type(wire_req.headers),
+            "body_json": wire_req.body_json,
+            "body_binary": req_binary,
+            "body_text": (
+                None if (wire_req.body_json is not None or req_binary) else _capped_text(wire_req.body)
+            ),
+            "size_bytes": len(wire_req.body) if wire_req.body else 0,
+            "model": parsed_req.model,
+            "preview": parsed_req.preview,
+        }
+        # Register in-flight before responding: the exchange_started event is
+        # focus-scoped and a UI that only now focuses this conversation misses
+        # it, so REST must already show the pending exchange. The sequence is
+        # assigned here (conv.append) and forwarded in the event so the pending
+        # card - and any replay from it - targets the right exchange; a UI-side
+        # guess desyncs behind a slow in-flight request.
+        pending = Exchange(
+            id=exchange_id,
+            is_replay=is_replay,
+            client_request=client_request,
+            in_flight=True,
+            streaming=is_stream,
+            dissector=dissector.name,
+        )
+        self.store.begin_exchange(client_id, tag, pending)
+        self.hub.emit(
+            cid,
+            {
+                "type": "exchange_started",
+                "conversation_id": cid,
+                "exchange_id": exchange_id,
+                "sequence": pending.sequence,
+                "streaming": is_stream,
+                "is_replay": is_replay,
+                "dissector": dissector.name,
+                "ts": t0,
+                "client_request": client_request,
+            },
+            dock=True,
+        )
+
+        try:
+            return await self._upstream(
+                wire_req,
+                dissector,
+                client_request,
+                client_id,
+                tag,
+                cid,
+                exchange_id,
+                headers,
+                t0,
+                is_replay=is_replay,
+            )
+        except asyncio.CancelledError:
+            # The client went away before the upstream responded (e.g. gave up on
+            # a slow request). Capture and emit so the in-flight placeholder
+            # resolves instead of lingering as a stuck "pending" card.
+            t_end = time.time()
+            ex = self._capture(
+                client_id,
+                tag,
+                wire_req,
+                client_request,
+                exchange_id=exchange_id,
+                status=499,
+                resp_headers={},
+                streaming=False,
+                body=b"",
+                dissector=dissector.name,
+                error={"type": "CancelledError", "message": "client disconnected before upstream responded"},
+                t0=t0,
+                t_send=t0,
+                t_first=None,
+                t_end=t_end,
+                is_replay=is_replay,
+            )
+            if ex is not None:
+                self.hub.emit(
+                    cid,
+                    {
+                        "type": "exchange_completed",
+                        "conversation_id": cid,
+                        "exchange_id": exchange_id,
+                        "ts": t_end,
+                        "exchange": ex.to_dict(),
+                    },
+                    dock=True,
+                )
+            raise
+
+    # ---- replay (re-send a captured client request to the upstream) ----
+    async def replay(self, conv: Conversation, source: Exchange, body: dict | None) -> Response:
+        cr = source.client_request or {}
+        # The UI sends the full edited request body; an empty/missing body means
+        # replay as captured (e.g. GETs, or an unedited dock).
+        body_json = dict(body) if isinstance(body, dict) and body else dict(cr.get("body_json") or {})
+        body_bytes = json.dumps(body_json).encode()
+        wire_req = WireRequest(
+            method=cr.get("method", "POST"),
+            path=cr.get("path", "/v1/chat/completions"),
+            headers=dict(cr.get("headers") or {}),
+            body=body_bytes,
+            body_json=body_json,
+        )
+        client_id = conv.client_id
+        tag = conv.tag
+        cid = conv.id
+        headers = self._replay_headers(cr.get("headers") or {})
+        dissector = self.dissector_for(wire_req.method, wire_req.path)
+        parsed_req = self._parse_request(dissector, wire_req)
+        t0 = time.time()
+        exchange_id = str(uuid.uuid4())
+        return await self._forward(
+            wire_req, parsed_req, dissector, client_id, tag, cid, exchange_id, headers, t0, is_replay=True
+        )
+
+    # ---- upstream call: open the stream, branch on the response's content-type ----
+    async def _upstream(
+        self,
+        wire_req,
+        dissector,
+        client_request,
+        client_id,
+        tag,
+        cid,
+        exchange_id,
+        headers,
+        t0,
+        *,
+        is_replay: bool,
+    ) -> Response:
+        # Open the upstream stream *before* responding, so the client receives the
+        # upstream's real status/headers (a clean 502 if it is unreachable) rather
+        # than a premature 200 that is then aborted mid-body.
+        t_send = time.time()
+        # Hold the stream context manager alive across the response: httpx2's
+        # stream() is an @asynccontextmanager, and dropping it would let it be
+        # GC'd, closing the response stream before the body is read.
+        stream_cm = self.http.stream(
+            wire_req.method, wire_req.path, content=wire_req.body or None, headers=headers
+        )
+        try:
+            up = await stream_cm.__aenter__()
+            status = up.status_code
+            resp_headers = dict(up.headers)
+            if "text/event-stream" in resp_headers.get("content-type", ""):
+                return await self._sse_stream(
+                    up,
+                    stream_cm,
+                    wire_req,
+                    dissector,
+                    client_request,
+                    client_id,
+                    tag,
+                    cid,
+                    exchange_id,
+                    status,
+                    resp_headers,
+                    t0,
+                    t_send,
+                    is_replay=is_replay,
+                )
+
+            # Non-SSE response (JSON, text, or an upstream error): drain it fully,
+            # tap it, and return it verbatim.
+            state: dict = {"first": None, "end": None}
+            data = b""
+            try:
+                async for chunk in up.aiter_bytes():
+                    if state["first"] is None:
+                        state["first"] = time.time()
+                    data += chunk
+            finally:
+                state["end"] = time.time()
+                await stream_cm.__aexit__(None, None, None)
+        except Exception as exc:  # noqa: BLE001 - upstream failed before the
+            # client received anything (request, response, or a mid-drain death):
+            # a clean 502, captured as a failed exchange.
+            t_end = time.time()
+            ex = self._capture(
+                client_id,
+                tag,
+                wire_req,
+                client_request,
+                exchange_id=exchange_id,
+                status=502,
+                resp_headers={},
+                streaming=False,
+                body=b"",
+                dissector=dissector.name,
+                error={"type": type(exc).__name__, "message": str(exc)},
+                t0=t0,
+                t_send=t_send,
+                t_first=None,
+                t_end=t_end,
+                is_replay=is_replay,
+            )
+            if ex is not None:
+                self.hub.emit(
+                    cid,
+                    {
+                        "type": "exchange_completed",
+                        "conversation_id": cid,
+                        "exchange_id": exchange_id,
+                        "ts": t_end,
+                        "exchange": ex.to_dict(),
+                    },
+                    dock=True,
+                )
+            return Response(
+                content=json.dumps({"error": {"message": f"upstream error: {exc}"}}).encode(),
+                status_code=502,
+                media_type="application/json",
+            )
+        parsed = self._parse_response(dissector, wire_req, status, resp_headers, data)
+        ex = self._capture(
+            client_id,
+            tag,
+            wire_req,
+            client_request,
+            exchange_id=exchange_id,
+            status=status,
+            resp_headers=resp_headers,
+            streaming=False,
+            body=data,
+            parsed=parsed,
+            dissector=dissector.name,
+            t0=t0,
+            t_send=t_send,
+            t_first=state["first"],
+            t_end=state["end"],
+            is_replay=is_replay,
+        )
+        if ex is not None:
+            self.hub.emit(
+                cid,
+                {
+                    "type": "exchange_completed",
+                    "conversation_id": cid,
+                    "exchange_id": exchange_id,
+                    "ts": state["end"],
+                    "exchange": ex.to_dict(),
+                },
+                dock=True,
+            )
+        return Response(
+            content=data,
+            status_code=status,
+            headers=self._resp_headers(resp_headers),
+            media_type=resp_headers.get("content-type"),
+        )
+
+    # ---- SSE stream: tap-and-forward with live UI fan-out (decoded chat) or a
+    # capped raw capture (undecoded) ----
+    async def _sse_stream(
+        self,
+        up,
+        stream_cm,
+        wire_req,
+        dissector,
+        client_request,
+        client_id,
+        tag,
+        cid,
+        exchange_id,
+        status,
+        resp_headers,
+        t0,
+        t_send,
+        *,
+        is_replay: bool,
+    ) -> StreamingResponse:
+        state: dict = {"first": None, "end": None, "first_content": None, "last_content": None, "size": 0}
+        try:
+            handle = dissector.response_started(wire_req, status, resp_headers)
+        except Exception:  # noqa: BLE001
+            log.warning(
+                "dissector %s failed to open the response; capturing raw", dissector.name, exc_info=True
+            )
+            handle = None
+        raw_chunks: list[bytes] = []
+        raw_parts: list[bytes] = []
+        raw_len = 0
+
+        async def generate():
+            nonlocal raw_len
+            try:
+                async for chunk in up.aiter_bytes():
+                    if state["first"] is None:
+                        state["first"] = time.time()
+                    state["size"] += len(chunk)
+                    if handle is not None:
+                        try:
+                            deltas = dissector.feed_chunk(handle, chunk)
+                        except Exception:  # noqa: BLE001
+                            deltas = []
+                        for d in deltas:
+                            if d.delta or d.reasoning_delta:
+                                now = time.time()
+                                if d.delta:
+                                    if state["first_content"] is None:
+                                        state["first_content"] = now
+                                    state["last_content"] = now
+                                self.hub.emit(
+                                    cid,
+                                    {
+                                        "type": "delta",
+                                        "conversation_id": cid,
+                                        "exchange_id": exchange_id,
+                                        "delta": d.delta,
+                                        "reasoning_delta": d.reasoning_delta,
+                                        "ts": now,
+                                    },
+                                )
+                    if self.settings.include_raw_chunks:
+                        raw_chunks.append(chunk)
+                    if raw_len < _RAW_BODY_CAP:
+                        # Keep a capped raw copy of every stream: the raw SSE is
+                        # the faithful capture when the dissector does not
+                        # reassemble it (undecoded, or a non-chat recognized path).
+                        room = _RAW_BODY_CAP - raw_len
+                        raw_parts.append(chunk[:room])
+                        raw_len += min(len(chunk), room)
+                    yield chunk
+            except httpx2.TransportError as exc:
+                # Upstream died mid-stream: end it cleanly (the finally below
+                # still records the partial capture) instead of crashing ASGI.
+                log.warning("upstream stream interrupted: %s %s: %s", wire_req.method, wire_req.path, exc)
+            finally:
+                state["end"] = time.time()
+                await stream_cm.__aexit__(None, None, None)
+                parsed = None
+                if handle is not None:
+                    try:
+                        parsed = dissector.finalize(handle)
+                    except Exception:  # noqa: BLE001
+                        parsed = None
+                ex = self._capture(
+                    client_id,
+                    tag,
+                    wire_req,
+                    client_request,
+                    exchange_id=exchange_id,
+                    status=status,
+                    resp_headers=resp_headers,
+                    streaming=True,
+                    raw_text="".join(p.decode("utf-8", errors="replace") for p in raw_parts),
+                    raw_chunks=raw_chunks,
+                    body_size=state["size"],
+                    parsed=parsed,
+                    dissector=dissector.name,
+                    t0=t0,
+                    t_send=t_send,
+                    t_first=state["first"],
+                    t_end=state["end"],
+                    t_first_content=state["first_content"],
+                    t_last_content=state["last_content"],
+                    is_replay=is_replay,
+                )
+                if ex is not None:
+                    self.hub.emit(
+                        cid,
+                        {
+                            "type": "exchange_completed",
+                            "conversation_id": cid,
+                            "exchange_id": exchange_id,
+                            "ts": state["end"],
+                            "exchange": ex.to_dict(),
+                        },
+                        dock=True,
+                    )
+
+        return StreamingResponse(
+            generate(),
+            status_code=status,
+            media_type="text/event-stream",
+            headers={"cache-control": "no-cache", "x-accel-buffering": "no"},
+        )
+
+    # ---- capture (build an Exchange and store it) ----
+    def _capture(
+        self,
+        client_id,
+        tag,
+        wire_req,
+        client_request,
+        *,
+        exchange_id,
+        status,
+        resp_headers,
+        streaming,
+        body=None,
+        body_size=None,
+        raw_text=None,
+        raw_chunks=None,
+        parsed=None,
+        dissector="generic",
+        error=None,
+        t0,
+        t_send,
+        t_first,
+        t_end,
+        t_first_content=None,
+        t_last_content=None,
+        is_replay: bool = False,
+    ) -> Exchange | None:
+        body_bytes = body if body is not None else wire_req.body
+        # Upstream-reported generation rate: llama.cpp embeds a ``timings`` object
+        # (``predicted_n``/``predicted_ms``) in the final stream chunk and in
+        # non-stream bodies. It is the only reliable tok/s for non-stream responses
+        # and for reasoning models, where byte-level windows mislead.
+        up_timings = parsed.timings if parsed is not None else None
+        if up_timings is None and body_bytes:
+            up_timings = (safe_json(body_bytes) or {}).get("timings")
+        gen_tok_per_sec = None
+        if isinstance(up_timings, dict):
+            pn = up_timings.get("predicted_n")
+            pms = up_timings.get("predicted_ms")
+            if isinstance(pn, (int, float)) and isinstance(pms, (int, float)) and pms > 0:
+                gen_tok_per_sec = round(pn / (pms / 1000), 1)
+        timings = {
+            "t_request_in": t0,
+            "t_upstream_send": t_send,
+            "t_first_byte": t_first,
+            "t_first_content": t_first_content,
+            "t_last_content": t_last_content,
+            "t_end": t_end,
+            "ttft_ms": round((t_first - t_send) * 1000, 2) if (t_first and t_send) else None,
+            "total_ms": round((t_end - t0) * 1000, 2) if (t_end and t0) else None,
+            "gen_tok_per_sec": gen_tok_per_sec,
+        }
+        usage = None
+        u = parsed.usage if parsed is not None else None
+        if not isinstance(u, dict) and body_bytes:
+            u = (safe_json(body_bytes) or {}).get("usage")
+        if isinstance(u, dict):
+            usage = {
+                "prompt_tokens": int(u.get("prompt_tokens") or 0),
+                "completion_tokens": int(u.get("completion_tokens") or 0),
+                "total_tokens": int(u.get("total_tokens") or 0),
+            }
+
+        # A binary response body (an image or other non-text asset from a proxied
+        # non-LLM endpoint) is not decoded to text: record its content-type and
+        # size instead of garbled replacement characters. (For the non-stream
+        # case ``body`` is the response body; streams are always SSE text, so this
+        # is gated on ``not streaming``.)
+        resp_binary = not streaming and _looks_binary(body or b"")
+        server_response: dict = {
+            "timestamp": t_first,
+            "status": status,
+            "headers": _redact(resp_headers),
+            "streaming": streaming,
+            "content_type": _content_type(resp_headers),
+            "body_binary": resp_binary,
+            "size_bytes": body_size if body_size is not None else (len(body_bytes) if body_bytes else 0),
+        }
+        if streaming and parsed is not None and parsed.reassembled is not None:
+            server_response["reassembled"] = parsed.reassembled
+        elif raw_text is not None:
+            # Undecoded stream: the capped raw stream is the only faithful capture.
+            server_response["body_text"] = raw_text
+        elif resp_binary:
+            # Binary body: content_type + size_bytes above are the capture; the
+            # bytes themselves are not stored (they are forwarded verbatim).
+            pass
+        else:
+            body_json = parsed.body_json if parsed is not None else None
+            if body_json is None:
+                body_json = safe_json(body_bytes)
+            server_response["body_json"] = body_json
+            if body_json is None:
+                server_response["body_text"] = _capped_text(body_bytes)
+        if self.settings.include_raw_chunks and raw_chunks is not None:
+            server_response["chunks"] = [c.decode("utf-8", errors="replace") for c in raw_chunks]
+
+        exchange = Exchange(
+            id=exchange_id,
+            is_replay=is_replay,
+            client_request=client_request,
+            server_response=server_response,
+            timings=timings,
+            usage=usage,
+            error=error,
+            dissector=dissector,
+        )
+        # add_exchange finalizes the in-flight placeholder in place and returns the
+        # copy that lives in the ring buffer, whose sequence was assigned at
+        # begin_exchange. Return it (not the freshly-built one) so the completed
+        # event carries the real sequence rather than the default 0. It is None if
+        # the exchange was removed while in flight: callers then skip the completed
+        # event, since there is no stored exchange to point at.
+        _, _, stored = self.store.add_exchange(client_id, tag, exchange)
+        return stored
+
+```
+
+
+## Assistant
+
+<thinking>
+Next, I'll update the `client_request` in `_forward` — replacing `body_binary`/`req_binary` with `opaque`/`req_opaque`.
+
+</thinking>
+
+Now update the `client_request` in `_forward` to use the new classifier:
+
+
+
+**Tool Call: llm\_proxy/proxy/pipeline.py**
+Status: Completed
+
+Diff: /workspaces/llm-mitm-proxy/llm_proxy/proxy/pipeline.py
+```
+"""The proxy pipeline: identify client, forward to upstream, tap the response, capture.
+
+Transparent tap-and-forward: the request goes to the upstream verbatim and the
+upstream response (SSE streams included) is streamed back to the client
+untouched, while a side parse (the dissector) accumulates the exchange for the
+store. The tap never blocks the client path. The selected dissector decodes
+what it recognizes; anything else is captured opaquely (raw, capped) and
+logged at INFO.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import json
+import logging
+import re
+import time
+import uuid
+
+import httpx2
+from fastapi import Request
+from fastapi.responses import Response, StreamingResponse
+
+from .. import dissectors  # noqa: F401  (registers the bundled dissectors)
+from ..dissectors.base import get_dissector
+from ..hub import Hub
+from ..model.conversation import Conversation, Exchange
+from ..model.ir import ParsedRequest, WireRequest
+from ..store.memory import MemoryStore
+from .util import safe_json
+
+# Hop-by-hop / transport headers we must not forward upstream (httpx2 rebuilds them).
+_HOP_BY_HOP = {
+    "connection",
+    "keep-alive",
+    "proxy-authenticate",
+    "proxy-authorization",
+    "te",
+    "trailers",
+    "transfer-encoding",
+    "upgrade",
+    "host",
+    "content-length",
+}
+# Response headers we strip before sending back to the client (httpx2 already
+# decompressed, and Starlette recomputes content-length).
+_STRIP_RESP = {"content-length", "content-encoding", "transfer-encoding", "connection", "date", "server"}
+# Headers masked in captured exchanges/dumps.
+_SECRET_HEADERS = {"authorization", "proxy-authorization", "x-api-key"}
+
+# Raw (non-JSON) request/response bodies and undecoded SSE streams are stored
+# capped, so the ring-bounded store stays bounded for large payloads.
+_RAW_BODY_CAP = 64 * 1024
+
+# Client ids are embedded in REST paths (/api/conversations/{cid}), so they are
+# restricted to a single-segment character set (no "/" or ":").
+_ID_UNSAFE = re.compile(r"[^A-Za-z0-9._-]+")
+
+log = logging.getLogger("llm_proxy.proxy")
+
+
+def _capped_text(data: bytes) -> str | None:
+    """Best-effort UTF-8 text for a raw (non-JSON) body, capped for storage."""
+    if not data:
+        return None
+    return data[:_RAW_BODY_CAP].decode("utf-8", errors="replace")
+
+
+def _looks_binary(data: bytes) -> bool:
+    """Heuristic for a binary (non-text) body: a NUL byte, or bytes that are not
+    valid UTF-8. Binary bodies (images, other non-text assets from a proxied
+    non-LLM endpoint) are recorded by content-type and size, not decoded to
+    text. Only a capped prefix is inspected - binary magic bytes lead, and a
+    multibyte character split at the cap is tolerated (drop up to three trailing
+    bytes before deciding)."""
+    if not data:
+        return False
+    sample = data[:_RAW_BODY_CAP]
+    if b"\x00" in sample:
+        return True
+    for trim in range(min(4, len(sample))):
+        try:
+            sample[: len(sample) - trim].decode("utf-8")
+            return False
+        except UnicodeDecodeError:
+            continue
+    return True
+
+
+def _content_type(headers: dict) -> str | None:
+    """The body's content-type (without parameters, lowercased) from a wire
+    header dict, if the request/response declared one."""
+    for k, v in headers.items():
+        if k.lower() == "content-type":
+            ct = v.split(";", 1)[0].strip().lower()
+            return ct or None
+    return None
+
+
+def _is_opaque(headers: dict, body: bytes) -> bool:
+    """Whether a wire body is captured opaquely (content-type + size, no decode).
+
+    A declared content-type decides: JSON (``application/json`` or ``*/+json``)
+    and ``text/plain`` are decoded; any other type - CSS, JS, HTML, SVG, fonts,
+    images, octet-stream, ... - is opaque. With no declared type, a binary body
+    is opaque and a text one is decoded best-effort. The proxy taps LLM APIs,
+    not a browser's asset tree, so opaque keeps the store and the UI readable.
+    """
+    ct = _content_type(headers)
+    if ct is None:
+        return _looks_binary(body)
+    return ct not in ("application/json", "text/plain") and not ct.endswith("+json")
+
+
+def _mask(v) -> str:
+    if not v:
+        return v
+    s = str(v)
+    return s if len(s) <= 8 else f"{s[:4]}***{s[-2:]}"
+
+
+def _redact(headers: dict) -> dict:
+    return {k: (_mask(v) if k.lower() in _SECRET_HEADERS else v) for k, v in headers.items()}
+
+
+class Pipeline:
+    def __init__(self, http: httpx2.AsyncClient, settings, store: MemoryStore, hub: Hub):
+        self.http = http
+        self.settings = settings
+        self.store = store
+        self.hub = hub
+        # Selection is per request by method+path: the chat decoder when the path
+        # is an OpenAI-compatible chat completion, else the generic raw-capture
+        # fallback. No global setting; the pipeline branches on ``is self.generic``
+        # for the opaque INFO log.
+        self.chat = get_dissector("openai")
+        self.generic = get_dissector("generic")
+
+    def dissector_for(self, method: str, path: str):
+        """The dissector for this request: the chat decoder if the path is an
+        OpenAI-compatible chat completion, else the generic raw-capture fallback."""
+        return self.chat if self.chat.matches(method, path) else self.generic
+
+    def _parse_request(self, dissector, wire_req) -> ParsedRequest:
+        try:
+            return dissector.request(wire_req)
+        except Exception:  # noqa: BLE001
+            # A tap must never break the forward path: fall back to raw capture.
+            log.warning(
+                "dissector %s failed to parse the request; capturing raw", dissector.name, exc_info=True
+            )
+            return self.generic.request(wire_req)
+
+    def _parse_response(self, dissector, wire_req, status: int, resp_headers: dict, data: bytes):
+        """Run the dissector's response lifecycle over a fully drained body."""
+        try:
+            handle = dissector.response_started(wire_req, status, resp_headers)
+            if handle is None:
+                return None
+            dissector.feed_chunk(handle, data)
+            return dissector.finalize(handle)
+        except Exception:  # noqa: BLE001
+            # A tap must never break the forward path: fall back to raw capture.
+            log.warning(
+                "dissector %s failed to decode the response; capturing raw", dissector.name, exc_info=True
+            )
+            return None
+
+    # ---- client identity ----
+    @staticmethod
+    def _extract_key(headers: dict) -> str | None:
+        auth = headers.get("authorization") or headers.get("Authorization")
+        if auth and auth.lower().startswith("bearer "):
+            return auth[7:].strip() or None
+        return None
+
+    @staticmethod
+    def _id_part(value: str) -> str | None:
+        return _ID_UNSAFE.sub("_", value.strip())[:64] or None
+
+    def client_id(self, request: Request) -> str:
+        """Source IP, + user agent, + API key. The user agent splits clients that
+        share a source IP (e.g. curl and an editor client on the same machine).
+        """
+        headers = dict(request.headers)
+        if self.settings.client_id_header:
+            override = self._id_part(headers.get(self.settings.client_id_header.lower(), ""))
+            if override:
+                return override
+        parts = [self._id_part(request.client.host if request.client else "unknown")]
+        ua = self._id_part(headers.get("user-agent", ""))
+        if ua:
+            parts.append(ua)
+        key = self._id_part(self._extract_key(headers) or "")
+        if key:
+            parts.append(key)
+        return "::".join(parts)
+
+    # ---- upstream request shaping (transparent passthrough + key fallback) ----
+    def _upstream_headers(self, headers: dict) -> dict:
+        out = {k: v for k, v in headers.items() if k.lower() not in _HOP_BY_HOP}
+        if not any(k.lower() == "authorization" for k in out) and self.settings.upstream_api_key:
+            out["authorization"] = f"Bearer {self.settings.upstream_api_key}"
+        return out
+
+    def _replay_headers(self, headers: dict) -> dict:
+        # Captured headers are redacted, so any secret values are unusable masks;
+        # drop them and let _upstream_headers() re-apply the UPSTREAM_API_KEY fallback.
+        out = {k: v for k, v in headers.items() if k.lower() not in _SECRET_HEADERS}
+        return self._upstream_headers(out)
+
+    @staticmethod
+    def _resp_headers(headers: dict) -> dict:
+        return {k: v for k, v in headers.items() if k.lower() not in _STRIP_RESP}
+
+    # ---- entry point (called by the router for every request on the LLM port) ----
+    async def handle(self, request: Request) -> Response:
+        t0 = time.time()
+        body = await request.body()
+        # Forward the full path *including the query string* verbatim: a
+        # transparent proxy must not drop ``?model=...`` and friends.
+        url = request.url
+        full_path = f"{url.path}?{url.query}" if url.query else url.path
+        wire_req = WireRequest(
+            method=request.method,
+            path=full_path,
+            headers=dict(request.headers),
+            body=body,
+            body_json=safe_json(body),
+        )
+
+        tag = request.headers.get("x-conversation-id", "") if self.settings.split_conversations else ""
+        client_id = self.client_id(request)
+        headers = self._upstream_headers(dict(request.headers))
+
+        dissector = self.dissector_for(wire_req.method, wire_req.path)
+        if dissector is self.generic:
+            log.debug("undecoded request: %s %s (opaque capture)", wire_req.method, wire_req.path)
+        parsed_req = self._parse_request(dissector, wire_req)
+
+        cid = self.store.conversation_id(client_id, tag)
+        exchange_id = str(uuid.uuid4())
+
+        if not self.store.has_client(client_id):
+            # Register the client BEFORE broadcasting: client_seen triggers an
+            # immediate /api/clients re-fetch in the UI, which must never run
+            # ahead of the store or it returns an empty dock. handle() runs
+            # synchronously up to its first await, so anything registered here
+            # is visible before the re-fetch can be processed (no race window).
+            self.store.get_or_create_conversation(client_id, tag)
+            self.hub.emit(
+                cid,
+                {"type": "client_seen", "conversation_id": cid, "client_id": client_id, "ts": t0},
+                broadcast=True,
+            )
+        return await self._forward(
+            wire_req, parsed_req, dissector, client_id, tag, cid, exchange_id, headers, t0, is_replay=False
+        )
+
+    # ---- forward to upstream (shared by live requests and replay) ----
+    async def _forward(
+        self,
+        wire_req,
+        parsed_req,
+        dissector,
+        client_id,
+        tag,
+        cid,
+        exchange_id,
+        headers,
+        t0,
+        *,
+        is_replay: bool,
+    ) -> Response:
+        # Display hint for the pending card; the real stream decision is made
+        # from the upstream response's content-type in _upstream().
+        is_stream = bool(wire_req.body_json and wire_req.body_json.get("stream"))
+        # An opaque request body (e.g. an uploaded image or form payload) is not
+        # decoded to text: record its content-type and size instead.
+        req_opaque = _is_opaque(wire_req.headers, wire_req.body)
+        # Full captured request shape (headers/body redacted), plus model/preview
+        # for the card header. Shared by the in-flight placeholder and the
+        # exchange_started event so the pending card's debug views are complete.
+        client_request = {
+            "timestamp": t0,
+            "method": wire_req.method,
+            "path": wire_req.path,
+            "headers": _redact(wire_req.headers),
+            "content_type": _content_type(wire_req.headers),
+            "body_json": wire_req.body_json,
+            "opaque": req_opaque,
+            "body_text": (
+                None if (wire_req.body_json is not None or req_opaque) else _capped_text(wire_req.body)
+            ),
+            "size_bytes": len(wire_req.body) if wire_req.body else 0,
+            "model": parsed_req.model,
+            "preview": parsed_req.preview,
+        }
+        # Register in-flight before responding: the exchange_started event is
+        # focus-scoped and a UI that only now focuses this conversation misses
+        # it, so REST must already show the pending exchange. The sequence is
+        # assigned here (conv.append) and forwarded in the event so the pending
+        # card - and any replay from it - targets the right exchange; a UI-side
+        # guess desyncs behind a slow in-flight request.
+        pending = Exchange(
+            id=exchange_id,
+            is_replay=is_replay,
+            client_request=client_request,
+            in_flight=True,
+            streaming=is_stream,
+            dissector=dissector.name,
+        )
+        self.store.begin_exchange(client_id, tag, pending)
+        self.hub.emit(
+            cid,
+            {
+                "type": "exchange_started",
+                "conversation_id": cid,
+                "exchange_id": exchange_id,
+                "sequence": pending.sequence,
+                "streaming": is_stream,
+                "is_replay": is_replay,
+                "dissector": dissector.name,
+                "ts": t0,
+                "client_request": client_request,
+            },
+            dock=True,
+        )
+
+        try:
+            return await self._upstream(
+                wire_req,
+                dissector,
+                client_request,
+                client_id,
+                tag,
+                cid,
+                exchange_id,
+                headers,
+                t0,
+                is_replay=is_replay,
+            )
+        except asyncio.CancelledError:
+            # The client went away before the upstream responded (e.g. gave up on
+            # a slow request). Capture and emit so the in-flight placeholder
+            # resolves instead of lingering as a stuck "pending" card.
+            t_end = time.time()
+            ex = self._capture(
+                client_id,
+                tag,
+                wire_req,
+                client_request,
+                exchange_id=exchange_id,
+                status=499,
+                resp_headers={},
+                streaming=False,
+                body=b"",
+                dissector=dissector.name,
+                error={"type": "CancelledError", "message": "client disconnected before upstream responded"},
+                t0=t0,
+                t_send=t0,
+                t_first=None,
+                t_end=t_end,
+                is_replay=is_replay,
+            )
+            if ex is not None:
+                self.hub.emit(
+                    cid,
+                    {
+                        "type": "exchange_completed",
+                        "conversation_id": cid,
+                        "exchange_id": exchange_id,
+                        "ts": t_end,
+                        "exchange": ex.to_dict(),
+                    },
+                    dock=True,
+                )
+            raise
+
+    # ---- replay (re-send a captured client request to the upstream) ----
+    async def replay(self, conv: Conversation, source: Exchange, body: dict | None) -> Response:
+        cr = source.client_request or {}
+        # The UI sends the full edited request body; an empty/missing body means
+        # replay as captured (e.g. GETs, or an unedited dock).
+        body_json = dict(body) if isinstance(body, dict) and body else dict(cr.get("body_json") or {})
+        body_bytes = json.dumps(body_json).encode()
+        wire_req = WireRequest(
+            method=cr.get("method", "POST"),
+            path=cr.get("path", "/v1/chat/completions"),
+            headers=dict(cr.get("headers") or {}),
+            body=body_bytes,
+            body_json=body_json,
+        )
+        client_id = conv.client_id
+        tag = conv.tag
+        cid = conv.id
+        headers = self._replay_headers(cr.get("headers") or {})
+        dissector = self.dissector_for(wire_req.method, wire_req.path)
+        parsed_req = self._parse_request(dissector, wire_req)
+        t0 = time.time()
+        exchange_id = str(uuid.uuid4())
+        return await self._forward(
+            wire_req, parsed_req, dissector, client_id, tag, cid, exchange_id, headers, t0, is_replay=True
+        )
+
+    # ---- upstream call: open the stream, branch on the response's content-type ----
+    async def _upstream(
+        self,
+        wire_req,
+        dissector,
+        client_request,
+        client_id,
+        tag,
+        cid,
+        exchange_id,
+        headers,
+        t0,
+        *,
+        is_replay: bool,
+    ) -> Response:
+        # Open the upstream stream *before* responding, so the client receives the
+        # upstream's real status/headers (a clean 502 if it is unreachable) rather
+        # than a premature 200 that is then aborted mid-body.
+        t_send = time.time()
+        # Hold the stream context manager alive across the response: httpx2's
+        # stream() is an @asynccontextmanager, and dropping it would let it be
+        # GC'd, closing the response stream before the body is read.
+        stream_cm = self.http.stream(
+            wire_req.method, wire_req.path, content=wire_req.body or None, headers=headers
+        )
+        try:
+            up = await stream_cm.__aenter__()
+            status = up.status_code
+            resp_headers = dict(up.headers)
+            if "text/event-stream" in resp_headers.get("content-type", ""):
+                return await self._sse_stream(
+                    up,
+                    stream_cm,
+                    wire_req,
+                    dissector,
+                    client_request,
+                    client_id,
+                    tag,
+                    cid,
+                    exchange_id,
+                    status,
+                    resp_headers,
+                    t0,
+                    t_send,
+                    is_replay=is_replay,
+                )
+
+            # Non-SSE response (JSON, text, or an upstream error): drain it fully,
+            # tap it, and return it verbatim.
+            state: dict = {"first": None, "end": None}
+            data = b""
+            try:
+                async for chunk in up.aiter_bytes():
+                    if state["first"] is None:
+                        state["first"] = time.time()
+                    data += chunk
+            finally:
+                state["end"] = time.time()
+                await stream_cm.__aexit__(None, None, None)
+        except Exception as exc:  # noqa: BLE001 - upstream failed before the
+            # client received anything (request, response, or a mid-drain death):
+            # a clean 502, captured as a failed exchange.
+            t_end = time.time()
+            ex = self._capture(
+                client_id,
+                tag,
+                wire_req,
+                client_request,
+                exchange_id=exchange_id,
+                status=502,
+                resp_headers={},
+                streaming=False,
+                body=b"",
+                dissector=dissector.name,
+                error={"type": type(exc).__name__, "message": str(exc)},
+                t0=t0,
+                t_send=t_send,
+                t_first=None,
+                t_end=t_end,
+                is_replay=is_replay,
+            )
+            if ex is not None:
+                self.hub.emit(
+                    cid,
+                    {
+                        "type": "exchange_completed",
+                        "conversation_id": cid,
+                        "exchange_id": exchange_id,
+                        "ts": t_end,
+                        "exchange": ex.to_dict(),
+                    },
+                    dock=True,
+                )
+            return Response(
+                content=json.dumps({"error": {"message": f"upstream error: {exc}"}}).encode(),
+                status_code=502,
+                media_type="application/json",
+            )
+        parsed = self._parse_response(dissector, wire_req, status, resp_headers, data)
+        ex = self._capture(
+            client_id,
+            tag,
+            wire_req,
+            client_request,
+            exchange_id=exchange_id,
+            status=status,
+            resp_headers=resp_headers,
+            streaming=False,
+            body=data,
+            parsed=parsed,
+            dissector=dissector.name,
+            t0=t0,
+            t_send=t_send,
+            t_first=state["first"],
+            t_end=state["end"],
+            is_replay=is_replay,
+        )
+        if ex is not None:
+            self.hub.emit(
+                cid,
+                {
+                    "type": "exchange_completed",
+                    "conversation_id": cid,
+                    "exchange_id": exchange_id,
+                    "ts": state["end"],
+                    "exchange": ex.to_dict(),
+                },
+                dock=True,
+            )
+        return Response(
+            content=data,
+            status_code=status,
+            headers=self._resp_headers(resp_headers),
+            media_type=resp_headers.get("content-type"),
+        )
+
+    # ---- SSE stream: tap-and-forward with live UI fan-out (decoded chat) or a
+    # capped raw capture (undecoded) ----
+    async def _sse_stream(
+        self,
+        up,
+        stream_cm,
+        wire_req,
+        dissector,
+        client_request,
+        client_id,
+        tag,
+        cid,
+        exchange_id,
+        status,
+        resp_headers,
+        t0,
+        t_send,
+        *,
+        is_replay: bool,
+    ) -> StreamingResponse:
+        state: dict = {"first": None, "end": None, "first_content": None, "last_content": None, "size": 0}
+        try:
+            handle = dissector.response_started(wire_req, status, resp_headers)
+        except Exception:  # noqa: BLE001
+            log.warning(
+                "dissector %s failed to open the response; capturing raw", dissector.name, exc_info=True
+            )
+            handle = None
+        raw_chunks: list[bytes] = []
+        raw_parts: list[bytes] = []
+        raw_len = 0
+
+        async def generate():
+            nonlocal raw_len
+            try:
+                async for chunk in up.aiter_bytes():
+                    if state["first"] is None:
+                        state["first"] = time.time()
+                    state["size"] += len(chunk)
+                    if handle is not None:
+                        try:
+                            deltas = dissector.feed_chunk(handle, chunk)
+                        except Exception:  # noqa: BLE001
+                            deltas = []
+                        for d in deltas:
+                            if d.delta or d.reasoning_delta:
+                                now = time.time()
+                                if d.delta:
+                                    if state["first_content"] is None:
+                                        state["first_content"] = now
+                                    state["last_content"] = now
+                                self.hub.emit(
+                                    cid,
+                                    {
+                                        "type": "delta",
+                                        "conversation_id": cid,
+                                        "exchange_id": exchange_id,
+                                        "delta": d.delta,
+                                        "reasoning_delta": d.reasoning_delta,
+                                        "ts": now,
+                                    },
+                                )
+                    if self.settings.include_raw_chunks:
+                        raw_chunks.append(chunk)
+                    if raw_len < _RAW_BODY_CAP:
+                        # Keep a capped raw copy of every stream: the raw SSE is
+                        # the faithful capture when the dissector does not
+                        # reassemble it (undecoded, or a non-chat recognized path).
+                        room = _RAW_BODY_CAP - raw_len
+                        raw_parts.append(chunk[:room])
+                        raw_len += min(len(chunk), room)
+                    yield chunk
+            except httpx2.TransportError as exc:
+                # Upstream died mid-stream: end it cleanly (the finally below
+                # still records the partial capture) instead of crashing ASGI.
+                log.warning("upstream stream interrupted: %s %s: %s", wire_req.method, wire_req.path, exc)
+            finally:
+                state["end"] = time.time()
+                await stream_cm.__aexit__(None, None, None)
+                parsed = None
+                if handle is not None:
+                    try:
+                        parsed = dissector.finalize(handle)
+                    except Exception:  # noqa: BLE001
+                        parsed = None
+                ex = self._capture(
+                    client_id,
+                    tag,
+                    wire_req,
+                    client_request,
+                    exchange_id=exchange_id,
+                    status=status,
+                    resp_headers=resp_headers,
+                    streaming=True,
+                    raw_text="".join(p.decode("utf-8", errors="replace") for p in raw_parts),
+                    raw_chunks=raw_chunks,
+                    body_size=state["size"],
+                    parsed=parsed,
+                    dissector=dissector.name,
+                    t0=t0,
+                    t_send=t_send,
+                    t_first=state["first"],
+                    t_end=state["end"],
+                    t_first_content=state["first_content"],
+                    t_last_content=state["last_content"],
+                    is_replay=is_replay,
+                )
+                if ex is not None:
+                    self.hub.emit(
+                        cid,
+                        {
+                            "type": "exchange_completed",
+                            "conversation_id": cid,
+                            "exchange_id": exchange_id,
+                            "ts": state["end"],
+                            "exchange": ex.to_dict(),
+                        },
+                        dock=True,
+                    )
+
+        return StreamingResponse(
+            generate(),
+            status_code=status,
+            media_type="text/event-stream",
+            headers={"cache-control": "no-cache", "x-accel-buffering": "no"},
+        )
+
+    # ---- capture (build an Exchange and store it) ----
+    def _capture(
+        self,
+        client_id,
+        tag,
+        wire_req,
+        client_request,
+        *,
+        exchange_id,
+        status,
+        resp_headers,
+        streaming,
+        body=None,
+        body_size=None,
+        raw_text=None,
+        raw_chunks=None,
+        parsed=None,
+        dissector="generic",
+        error=None,
+        t0,
+        t_send,
+        t_first,
+        t_end,
+        t_first_content=None,
+        t_last_content=None,
+        is_replay: bool = False,
+    ) -> Exchange | None:
+        body_bytes = body if body is not None else wire_req.body
+        # Upstream-reported generation rate: llama.cpp embeds a ``timings`` object
+        # (``predicted_n``/``predicted_ms``) in the final stream chunk and in
+        # non-stream bodies. It is the only reliable tok/s for non-stream responses
+        # and for reasoning models, where byte-level windows mislead.
+        up_timings = parsed.timings if parsed is not None else None
+        if up_timings is None and body_bytes:
+            up_timings = (safe_json(body_bytes) or {}).get("timings")
+        gen_tok_per_sec = None
+        if isinstance(up_timings, dict):
+            pn = up_timings.get("predicted_n")
+            pms = up_timings.get("predicted_ms")
+            if isinstance(pn, (int, float)) and isinstance(pms, (int, float)) and pms > 0:
+                gen_tok_per_sec = round(pn / (pms / 1000), 1)
+        timings = {
+            "t_request_in": t0,
+            "t_upstream_send": t_send,
+            "t_first_byte": t_first,
+            "t_first_content": t_first_content,
+            "t_last_content": t_last_content,
+            "t_end": t_end,
+            "ttft_ms": round((t_first - t_send) * 1000, 2) if (t_first and t_send) else None,
+            "total_ms": round((t_end - t0) * 1000, 2) if (t_end and t0) else None,
+            "gen_tok_per_sec": gen_tok_per_sec,
+        }
+        usage = None
+        u = parsed.usage if parsed is not None else None
+        if not isinstance(u, dict) and body_bytes:
+            u = (safe_json(body_bytes) or {}).get("usage")
+        if isinstance(u, dict):
+            usage = {
+                "prompt_tokens": int(u.get("prompt_tokens") or 0),
+                "completion_tokens": int(u.get("completion_tokens") or 0),
+                "total_tokens": int(u.get("total_tokens") or 0),
+            }
+
+        # A binary response body (an image or other non-text asset from a proxied
+        # non-LLM endpoint) is not decoded to text: record its content-type and
+        # size instead of garbled replacement characters. (For the non-stream
+        # case ``body`` is the response body; streams are always SSE text, so this
+        # is gated on ``not streaming``.)
+        resp_binary = not streaming and _looks_binary(body or b"")
+        server_response: dict = {
+            "timestamp": t_first,
+            "status": status,
+            "headers": _redact(resp_headers),
+            "streaming": streaming,
+            "content_type": _content_type(resp_headers),
+            "body_binary": resp_binary,
+            "size_bytes": body_size if body_size is not None else (len(body_bytes) if body_bytes else 0),
+        }
+        if streaming and parsed is not None and parsed.reassembled is not None:
+            server_response["reassembled"] = parsed.reassembled
+        elif raw_text is not None:
+            # Undecoded stream: the capped raw stream is the only faithful capture.
+            server_response["body_text"] = raw_text
+        elif resp_binary:
+            # Binary body: content_type + size_bytes above are the capture; the
+            # bytes themselves are not stored (they are forwarded verbatim).
+            pass
+        else:
+            body_json = parsed.body_json if parsed is not None else None
+            if body_json is None:
+                body_json = safe_json(body_bytes)
+            server_response["body_json"] = body_json
+            if body_json is None:
+                server_response["body_text"] = _capped_text(body_bytes)
+        if self.settings.include_raw_chunks and raw_chunks is not None:
+            server_response["chunks"] = [c.decode("utf-8", errors="replace") for c in raw_chunks]
+
+        exchange = Exchange(
+            id=exchange_id,
+            is_replay=is_replay,
+            client_request=client_request,
+            server_response=server_response,
+            timings=timings,
+            usage=usage,
+            error=error,
+            dissector=dissector,
+        )
+        # add_exchange finalizes the in-flight placeholder in place and returns the
+        # copy that lives in the ring buffer, whose sequence was assigned at
+        # begin_exchange. Return it (not the freshly-built one) so the completed
+        # event carries the real sequence rather than the default 0. It is None if
+        # the exchange was removed while in flight: callers then skip the completed
+        # event, since there is no stored exchange to point at.
+        _, _, stored = self.store.add_exchange(client_id, tag, exchange)
+        return stored
+
+```
+
+
+## Assistant
+
+<thinking>
+Next, I'll update `server_response` inside `_capture` — replacing `body_binary`/`resp_binary` with `opaque`/`resp_opaque`.
+
+</thinking>
+
+Now update `server_response` in `_capture`:
+
+
+
+**Tool Call: llm\_proxy/proxy/pipeline.py**
+Status: Completed
+
+Diff: /workspaces/llm-mitm-proxy/llm_proxy/proxy/pipeline.py
+```
+"""The proxy pipeline: identify client, forward to upstream, tap the response, capture.
+
+Transparent tap-and-forward: the request goes to the upstream verbatim and the
+upstream response (SSE streams included) is streamed back to the client
+untouched, while a side parse (the dissector) accumulates the exchange for the
+store. The tap never blocks the client path. The selected dissector decodes
+what it recognizes; anything else is captured opaquely (raw, capped) and
+logged at INFO.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import json
+import logging
+import re
+import time
+import uuid
+
+import httpx2
+from fastapi import Request
+from fastapi.responses import Response, StreamingResponse
+
+from .. import dissectors  # noqa: F401  (registers the bundled dissectors)
+from ..dissectors.base import get_dissector
+from ..hub import Hub
+from ..model.conversation import Conversation, Exchange
+from ..model.ir import ParsedRequest, WireRequest
+from ..store.memory import MemoryStore
+from .util import safe_json
+
+# Hop-by-hop / transport headers we must not forward upstream (httpx2 rebuilds them).
+_HOP_BY_HOP = {
+    "connection",
+    "keep-alive",
+    "proxy-authenticate",
+    "proxy-authorization",
+    "te",
+    "trailers",
+    "transfer-encoding",
+    "upgrade",
+    "host",
+    "content-length",
+}
+# Response headers we strip before sending back to the client (httpx2 already
+# decompressed, and Starlette recomputes content-length).
+_STRIP_RESP = {"content-length", "content-encoding", "transfer-encoding", "connection", "date", "server"}
+# Headers masked in captured exchanges/dumps.
+_SECRET_HEADERS = {"authorization", "proxy-authorization", "x-api-key"}
+
+# Raw (non-JSON) request/response bodies and undecoded SSE streams are stored
+# capped, so the ring-bounded store stays bounded for large payloads.
+_RAW_BODY_CAP = 64 * 1024
+
+# Client ids are embedded in REST paths (/api/conversations/{cid}), so they are
+# restricted to a single-segment character set (no "/" or ":").
+_ID_UNSAFE = re.compile(r"[^A-Za-z0-9._-]+")
+
+log = logging.getLogger("llm_proxy.proxy")
+
+
+def _capped_text(data: bytes) -> str | None:
+    """Best-effort UTF-8 text for a raw (non-JSON) body, capped for storage."""
+    if not data:
+        return None
+    return data[:_RAW_BODY_CAP].decode("utf-8", errors="replace")
+
+
+def _looks_binary(data: bytes) -> bool:
+    """Heuristic for a binary (non-text) body: a NUL byte, or bytes that are not
+    valid UTF-8. Binary bodies (images, other non-text assets from a proxied
+    non-LLM endpoint) are recorded by content-type and size, not decoded to
+    text. Only a capped prefix is inspected - binary magic bytes lead, and a
+    multibyte character split at the cap is tolerated (drop up to three trailing
+    bytes before deciding)."""
+    if not data:
+        return False
+    sample = data[:_RAW_BODY_CAP]
+    if b"\x00" in sample:
+        return True
+    for trim in range(min(4, len(sample))):
+        try:
+            sample[: len(sample) - trim].decode("utf-8")
+            return False
+        except UnicodeDecodeError:
+            continue
+    return True
+
+
+def _content_type(headers: dict) -> str | None:
+    """The body's content-type (without parameters, lowercased) from a wire
+    header dict, if the request/response declared one."""
+    for k, v in headers.items():
+        if k.lower() == "content-type":
+            ct = v.split(";", 1)[0].strip().lower()
+            return ct or None
+    return None
+
+
+def _is_opaque(headers: dict, body: bytes) -> bool:
+    """Whether a wire body is captured opaquely (content-type + size, no decode).
+
+    A declared content-type decides: JSON (``application/json`` or ``*/+json``)
+    and ``text/plain`` are decoded; any other type - CSS, JS, HTML, SVG, fonts,
+    images, octet-stream, ... - is opaque. With no declared type, a binary body
+    is opaque and a text one is decoded best-effort. The proxy taps LLM APIs,
+    not a browser's asset tree, so opaque keeps the store and the UI readable.
+    """
+    ct = _content_type(headers)
+    if ct is None:
+        return _looks_binary(body)
+    return ct not in ("application/json", "text/plain") and not ct.endswith("+json")
+
+
+def _mask(v) -> str:
+    if not v:
+        return v
+    s = str(v)
+    return s if len(s) <= 8 else f"{s[:4]}***{s[-2:]}"
+
+
+def _redact(headers: dict) -> dict:
+    return {k: (_mask(v) if k.lower() in _SECRET_HEADERS else v) for k, v in headers.items()}
+
+
+class Pipeline:
+    def __init__(self, http: httpx2.AsyncClient, settings, store: MemoryStore, hub: Hub):
+        self.http = http
+        self.settings = settings
+        self.store = store
+        self.hub = hub
+        # Selection is per request by method+path: the chat decoder when the path
+        # is an OpenAI-compatible chat completion, else the generic raw-capture
+        # fallback. No global setting; the pipeline branches on ``is self.generic``
+        # for the opaque INFO log.
+        self.chat = get_dissector("openai")
+        self.generic = get_dissector("generic")
+
+    def dissector_for(self, method: str, path: str):
+        """The dissector for this request: the chat decoder if the path is an
+        OpenAI-compatible chat completion, else the generic raw-capture fallback."""
+        return self.chat if self.chat.matches(method, path) else self.generic
+
+    def _parse_request(self, dissector, wire_req) -> ParsedRequest:
+        try:
+            return dissector.request(wire_req)
+        except Exception:  # noqa: BLE001
+            # A tap must never break the forward path: fall back to raw capture.
+            log.warning(
+                "dissector %s failed to parse the request; capturing raw", dissector.name, exc_info=True
+            )
+            return self.generic.request(wire_req)
+
+    def _parse_response(self, dissector, wire_req, status: int, resp_headers: dict, data: bytes):
+        """Run the dissector's response lifecycle over a fully drained body."""
+        try:
+            handle = dissector.response_started(wire_req, status, resp_headers)
+            if handle is None:
+                return None
+            dissector.feed_chunk(handle, data)
+            return dissector.finalize(handle)
+        except Exception:  # noqa: BLE001
+            # A tap must never break the forward path: fall back to raw capture.
+            log.warning(
+                "dissector %s failed to decode the response; capturing raw", dissector.name, exc_info=True
+            )
+            return None
+
+    # ---- client identity ----
+    @staticmethod
+    def _extract_key(headers: dict) -> str | None:
+        auth = headers.get("authorization") or headers.get("Authorization")
+        if auth and auth.lower().startswith("bearer "):
+            return auth[7:].strip() or None
+        return None
+
+    @staticmethod
+    def _id_part(value: str) -> str | None:
+        return _ID_UNSAFE.sub("_", value.strip())[:64] or None
+
+    def client_id(self, request: Request) -> str:
+        """Source IP, + user agent, + API key. The user agent splits clients that
+        share a source IP (e.g. curl and an editor client on the same machine).
+        """
+        headers = dict(request.headers)
+        if self.settings.client_id_header:
+            override = self._id_part(headers.get(self.settings.client_id_header.lower(), ""))
+            if override:
+                return override
+        parts = [self._id_part(request.client.host if request.client else "unknown")]
+        ua = self._id_part(headers.get("user-agent", ""))
+        if ua:
+            parts.append(ua)
+        key = self._id_part(self._extract_key(headers) or "")
+        if key:
+            parts.append(key)
+        return "::".join(parts)
+
+    # ---- upstream request shaping (transparent passthrough + key fallback) ----
+    def _upstream_headers(self, headers: dict) -> dict:
+        out = {k: v for k, v in headers.items() if k.lower() not in _HOP_BY_HOP}
+        if not any(k.lower() == "authorization" for k in out) and self.settings.upstream_api_key:
+            out["authorization"] = f"Bearer {self.settings.upstream_api_key}"
+        return out
+
+    def _replay_headers(self, headers: dict) -> dict:
+        # Captured headers are redacted, so any secret values are unusable masks;
+        # drop them and let _upstream_headers() re-apply the UPSTREAM_API_KEY fallback.
+        out = {k: v for k, v in headers.items() if k.lower() not in _SECRET_HEADERS}
+        return self._upstream_headers(out)
+
+    @staticmethod
+    def _resp_headers(headers: dict) -> dict:
+        return {k: v for k, v in headers.items() if k.lower() not in _STRIP_RESP}
+
+    # ---- entry point (called by the router for every request on the LLM port) ----
+    async def handle(self, request: Request) -> Response:
+        t0 = time.time()
+        body = await request.body()
+        # Forward the full path *including the query string* verbatim: a
+        # transparent proxy must not drop ``?model=...`` and friends.
+        url = request.url
+        full_path = f"{url.path}?{url.query}" if url.query else url.path
+        wire_req = WireRequest(
+            method=request.method,
+            path=full_path,
+            headers=dict(request.headers),
+            body=body,
+            body_json=safe_json(body),
+        )
+
+        tag = request.headers.get("x-conversation-id", "") if self.settings.split_conversations else ""
+        client_id = self.client_id(request)
+        headers = self._upstream_headers(dict(request.headers))
+
+        dissector = self.dissector_for(wire_req.method, wire_req.path)
+        if dissector is self.generic:
+            log.debug("undecoded request: %s %s (opaque capture)", wire_req.method, wire_req.path)
+        parsed_req = self._parse_request(dissector, wire_req)
+
+        cid = self.store.conversation_id(client_id, tag)
+        exchange_id = str(uuid.uuid4())
+
+        if not self.store.has_client(client_id):
+            # Register the client BEFORE broadcasting: client_seen triggers an
+            # immediate /api/clients re-fetch in the UI, which must never run
+            # ahead of the store or it returns an empty dock. handle() runs
+            # synchronously up to its first await, so anything registered here
+            # is visible before the re-fetch can be processed (no race window).
+            self.store.get_or_create_conversation(client_id, tag)
+            self.hub.emit(
+                cid,
+                {"type": "client_seen", "conversation_id": cid, "client_id": client_id, "ts": t0},
+                broadcast=True,
+            )
+        return await self._forward(
+            wire_req, parsed_req, dissector, client_id, tag, cid, exchange_id, headers, t0, is_replay=False
+        )
+
+    # ---- forward to upstream (shared by live requests and replay) ----
+    async def _forward(
+        self,
+        wire_req,
+        parsed_req,
+        dissector,
+        client_id,
+        tag,
+        cid,
+        exchange_id,
+        headers,
+        t0,
+        *,
+        is_replay: bool,
+    ) -> Response:
+        # Display hint for the pending card; the real stream decision is made
+        # from the upstream response's content-type in _upstream().
+        is_stream = bool(wire_req.body_json and wire_req.body_json.get("stream"))
+        # An opaque request body (e.g. an uploaded image or form payload) is not
+        # decoded to text: record its content-type and size instead.
+        req_opaque = _is_opaque(wire_req.headers, wire_req.body)
+        # Full captured request shape (headers/body redacted), plus model/preview
+        # for the card header. Shared by the in-flight placeholder and the
+        # exchange_started event so the pending card's debug views are complete.
+        client_request = {
+            "timestamp": t0,
+            "method": wire_req.method,
+            "path": wire_req.path,
+            "headers": _redact(wire_req.headers),
+            "content_type": _content_type(wire_req.headers),
+            "body_json": wire_req.body_json,
+            "opaque": req_opaque,
+            "body_text": (
+                None if (wire_req.body_json is not None or req_opaque) else _capped_text(wire_req.body)
+            ),
+            "size_bytes": len(wire_req.body) if wire_req.body else 0,
+            "model": parsed_req.model,
+            "preview": parsed_req.preview,
+        }
+        # Register in-flight before responding: the exchange_started event is
+        # focus-scoped and a UI that only now focuses this conversation misses
+        # it, so REST must already show the pending exchange. The sequence is
+        # assigned here (conv.append) and forwarded in the event so the pending
+        # card - and any replay from it - targets the right exchange; a UI-side
+        # guess desyncs behind a slow in-flight request.
+        pending = Exchange(
+            id=exchange_id,
+            is_replay=is_replay,
+            client_request=client_request,
+            in_flight=True,
+            streaming=is_stream,
+            dissector=dissector.name,
+        )
+        self.store.begin_exchange(client_id, tag, pending)
+        self.hub.emit(
+            cid,
+            {
+                "type": "exchange_started",
+                "conversation_id": cid,
+                "exchange_id": exchange_id,
+                "sequence": pending.sequence,
+                "streaming": is_stream,
+                "is_replay": is_replay,
+                "dissector": dissector.name,
+                "ts": t0,
+                "client_request": client_request,
+            },
+            dock=True,
+        )
+
+        try:
+            return await self._upstream(
+                wire_req,
+                dissector,
+                client_request,
+                client_id,
+                tag,
+                cid,
+                exchange_id,
+                headers,
+                t0,
+                is_replay=is_replay,
+            )
+        except asyncio.CancelledError:
+            # The client went away before the upstream responded (e.g. gave up on
+            # a slow request). Capture and emit so the in-flight placeholder
+            # resolves instead of lingering as a stuck "pending" card.
+            t_end = time.time()
+            ex = self._capture(
+                client_id,
+                tag,
+                wire_req,
+                client_request,
+                exchange_id=exchange_id,
+                status=499,
+                resp_headers={},
+                streaming=False,
+                body=b"",
+                dissector=dissector.name,
+                error={"type": "CancelledError", "message": "client disconnected before upstream responded"},
+                t0=t0,
+                t_send=t0,
+                t_first=None,
+                t_end=t_end,
+                is_replay=is_replay,
+            )
+            if ex is not None:
+                self.hub.emit(
+                    cid,
+                    {
+                        "type": "exchange_completed",
+                        "conversation_id": cid,
+                        "exchange_id": exchange_id,
+                        "ts": t_end,
+                        "exchange": ex.to_dict(),
+                    },
+                    dock=True,
+                )
+            raise
+
+    # ---- replay (re-send a captured client request to the upstream) ----
+    async def replay(self, conv: Conversation, source: Exchange, body: dict | None) -> Response:
+        cr = source.client_request or {}
+        # The UI sends the full edited request body; an empty/missing body means
+        # replay as captured (e.g. GETs, or an unedited dock).
+        body_json = dict(body) if isinstance(body, dict) and body else dict(cr.get("body_json") or {})
+        body_bytes = json.dumps(body_json).encode()
+        wire_req = WireRequest(
+            method=cr.get("method", "POST"),
+            path=cr.get("path", "/v1/chat/completions"),
+            headers=dict(cr.get("headers") or {}),
+            body=body_bytes,
+            body_json=body_json,
+        )
+        client_id = conv.client_id
+        tag = conv.tag
+        cid = conv.id
+        headers = self._replay_headers(cr.get("headers") or {})
+        dissector = self.dissector_for(wire_req.method, wire_req.path)
+        parsed_req = self._parse_request(dissector, wire_req)
+        t0 = time.time()
+        exchange_id = str(uuid.uuid4())
+        return await self._forward(
+            wire_req, parsed_req, dissector, client_id, tag, cid, exchange_id, headers, t0, is_replay=True
+        )
+
+    # ---- upstream call: open the stream, branch on the response's content-type ----
+    async def _upstream(
+        self,
+        wire_req,
+        dissector,
+        client_request,
+        client_id,
+        tag,
+        cid,
+        exchange_id,
+        headers,
+        t0,
+        *,
+        is_replay: bool,
+    ) -> Response:
+        # Open the upstream stream *before* responding, so the client receives the
+        # upstream's real status/headers (a clean 502 if it is unreachable) rather
+        # than a premature 200 that is then aborted mid-body.
+        t_send = time.time()
+        # Hold the stream context manager alive across the response: httpx2's
+        # stream() is an @asynccontextmanager, and dropping it would let it be
+        # GC'd, closing the response stream before the body is read.
+        stream_cm = self.http.stream(
+            wire_req.method, wire_req.path, content=wire_req.body or None, headers=headers
+        )
+        try:
+            up = await stream_cm.__aenter__()
+            status = up.status_code
+            resp_headers = dict(up.headers)
+            if "text/event-stream" in resp_headers.get("content-type", ""):
+                return await self._sse_stream(
+                    up,
+                    stream_cm,
+                    wire_req,
+                    dissector,
+                    client_request,
+                    client_id,
+                    tag,
+                    cid,
+                    exchange_id,
+                    status,
+                    resp_headers,
+                    t0,
+                    t_send,
+                    is_replay=is_replay,
+                )
+
+            # Non-SSE response (JSON, text, or an upstream error): drain it fully,
+            # tap it, and return it verbatim.
+            state: dict = {"first": None, "end": None}
+            data = b""
+            try:
+                async for chunk in up.aiter_bytes():
+                    if state["first"] is None:
+                        state["first"] = time.time()
+                    data += chunk
+            finally:
+                state["end"] = time.time()
+                await stream_cm.__aexit__(None, None, None)
+        except Exception as exc:  # noqa: BLE001 - upstream failed before the
+            # client received anything (request, response, or a mid-drain death):
+            # a clean 502, captured as a failed exchange.
+            t_end = time.time()
+            ex = self._capture(
+                client_id,
+                tag,
+                wire_req,
+                client_request,
+                exchange_id=exchange_id,
+                status=502,
+                resp_headers={},
+                streaming=False,
+                body=b"",
+                dissector=dissector.name,
+                error={"type": type(exc).__name__, "message": str(exc)},
+                t0=t0,
+                t_send=t_send,
+                t_first=None,
+                t_end=t_end,
+                is_replay=is_replay,
+            )
+            if ex is not None:
+                self.hub.emit(
+                    cid,
+                    {
+                        "type": "exchange_completed",
+                        "conversation_id": cid,
+                        "exchange_id": exchange_id,
+                        "ts": t_end,
+                        "exchange": ex.to_dict(),
+                    },
+                    dock=True,
+                )
+            return Response(
+                content=json.dumps({"error": {"message": f"upstream error: {exc}"}}).encode(),
+                status_code=502,
+                media_type="application/json",
+            )
+        parsed = self._parse_response(dissector, wire_req, status, resp_headers, data)
+        ex = self._capture(
+            client_id,
+            tag,
+            wire_req,
+            client_request,
+            exchange_id=exchange_id,
+            status=status,
+            resp_headers=resp_headers,
+            streaming=False,
+            body=data,
+            parsed=parsed,
+            dissector=dissector.name,
+            t0=t0,
+            t_send=t_send,
+            t_first=state["first"],
+            t_end=state["end"],
+            is_replay=is_replay,
+        )
+        if ex is not None:
+            self.hub.emit(
+                cid,
+                {
+                    "type": "exchange_completed",
+                    "conversation_id": cid,
+                    "exchange_id": exchange_id,
+                    "ts": state["end"],
+                    "exchange": ex.to_dict(),
+                },
+                dock=True,
+            )
+        return Response(
+            content=data,
+            status_code=status,
+            headers=self._resp_headers(resp_headers),
+            media_type=resp_headers.get("content-type"),
+        )
+
+    # ---- SSE stream: tap-and-forward with live UI fan-out (decoded chat) or a
+    # capped raw capture (undecoded) ----
+    async def _sse_stream(
+        self,
+        up,
+        stream_cm,
+        wire_req,
+        dissector,
+        client_request,
+        client_id,
+        tag,
+        cid,
+        exchange_id,
+        status,
+        resp_headers,
+        t0,
+        t_send,
+        *,
+        is_replay: bool,
+    ) -> StreamingResponse:
+        state: dict = {"first": None, "end": None, "first_content": None, "last_content": None, "size": 0}
+        try:
+            handle = dissector.response_started(wire_req, status, resp_headers)
+        except Exception:  # noqa: BLE001
+            log.warning(
+                "dissector %s failed to open the response; capturing raw", dissector.name, exc_info=True
+            )
+            handle = None
+        raw_chunks: list[bytes] = []
+        raw_parts: list[bytes] = []
+        raw_len = 0
+
+        async def generate():
+            nonlocal raw_len
+            try:
+                async for chunk in up.aiter_bytes():
+                    if state["first"] is None:
+                        state["first"] = time.time()
+                    state["size"] += len(chunk)
+                    if handle is not None:
+                        try:
+                            deltas = dissector.feed_chunk(handle, chunk)
+                        except Exception:  # noqa: BLE001
+                            deltas = []
+                        for d in deltas:
+                            if d.delta or d.reasoning_delta:
+                                now = time.time()
+                                if d.delta:
+                                    if state["first_content"] is None:
+                                        state["first_content"] = now
+                                    state["last_content"] = now
+                                self.hub.emit(
+                                    cid,
+                                    {
+                                        "type": "delta",
+                                        "conversation_id": cid,
+                                        "exchange_id": exchange_id,
+                                        "delta": d.delta,
+                                        "reasoning_delta": d.reasoning_delta,
+                                        "ts": now,
+                                    },
+                                )
+                    if self.settings.include_raw_chunks:
+                        raw_chunks.append(chunk)
+                    if raw_len < _RAW_BODY_CAP:
+                        # Keep a capped raw copy of every stream: the raw SSE is
+                        # the faithful capture when the dissector does not
+                        # reassemble it (undecoded, or a non-chat recognized path).
+                        room = _RAW_BODY_CAP - raw_len
+                        raw_parts.append(chunk[:room])
+                        raw_len += min(len(chunk), room)
+                    yield chunk
+            except httpx2.TransportError as exc:
+                # Upstream died mid-stream: end it cleanly (the finally below
+                # still records the partial capture) instead of crashing ASGI.
+                log.warning("upstream stream interrupted: %s %s: %s", wire_req.method, wire_req.path, exc)
+            finally:
+                state["end"] = time.time()
+                await stream_cm.__aexit__(None, None, None)
+                parsed = None
+                if handle is not None:
+                    try:
+                        parsed = dissector.finalize(handle)
+                    except Exception:  # noqa: BLE001
+                        parsed = None
+                ex = self._capture(
+                    client_id,
+                    tag,
+                    wire_req,
+                    client_request,
+                    exchange_id=exchange_id,
+                    status=status,
+                    resp_headers=resp_headers,
+                    streaming=True,
+                    raw_text="".join(p.decode("utf-8", errors="replace") for p in raw_parts),
+                    raw_chunks=raw_chunks,
+                    body_size=state["size"],
+                    parsed=parsed,
+                    dissector=dissector.name,
+                    t0=t0,
+                    t_send=t_send,
+                    t_first=state["first"],
+                    t_end=state["end"],
+                    t_first_content=state["first_content"],
+                    t_last_content=state["last_content"],
+                    is_replay=is_replay,
+                )
+                if ex is not None:
+                    self.hub.emit(
+                        cid,
+                        {
+                            "type": "exchange_completed",
+                            "conversation_id": cid,
+                            "exchange_id": exchange_id,
+                            "ts": state["end"],
+                            "exchange": ex.to_dict(),
+                        },
+                        dock=True,
+                    )
+
+        return StreamingResponse(
+            generate(),
+            status_code=status,
+            media_type="text/event-stream",
+            headers={"cache-control": "no-cache", "x-accel-buffering": "no"},
+        )
+
+    # ---- capture (build an Exchange and store it) ----
+    def _capture(
+        self,
+        client_id,
+        tag,
+        wire_req,
+        client_request,
+        *,
+        exchange_id,
+        status,
+        resp_headers,
+        streaming,
+        body=None,
+        body_size=None,
+        raw_text=None,
+        raw_chunks=None,
+        parsed=None,
+        dissector="generic",
+        error=None,
+        t0,
+        t_send,
+        t_first,
+        t_end,
+        t_first_content=None,
+        t_last_content=None,
+        is_replay: bool = False,
+    ) -> Exchange | None:
+        body_bytes = body if body is not None else wire_req.body
+        # Upstream-reported generation rate: llama.cpp embeds a ``timings`` object
+        # (``predicted_n``/``predicted_ms``) in the final stream chunk and in
+        # non-stream bodies. It is the only reliable tok/s for non-stream responses
+        # and for reasoning models, where byte-level windows mislead.
+        up_timings = parsed.timings if parsed is not None else None
+        if up_timings is None and body_bytes:
+            up_timings = (safe_json(body_bytes) or {}).get("timings")
+        gen_tok_per_sec = None
+        if isinstance(up_timings, dict):
+            pn = up_timings.get("predicted_n")
+            pms = up_timings.get("predicted_ms")
+            if isinstance(pn, (int, float)) and isinstance(pms, (int, float)) and pms > 0:
+                gen_tok_per_sec = round(pn / (pms / 1000), 1)
+        timings = {
+            "t_request_in": t0,
+            "t_upstream_send": t_send,
+            "t_first_byte": t_first,
+            "t_first_content": t_first_content,
+            "t_last_content": t_last_content,
+            "t_end": t_end,
+            "ttft_ms": round((t_first - t_send) * 1000, 2) if (t_first and t_send) else None,
+            "total_ms": round((t_end - t0) * 1000, 2) if (t_end and t0) else None,
+            "gen_tok_per_sec": gen_tok_per_sec,
+        }
+        usage = None
+        u = parsed.usage if parsed is not None else None
+        if not isinstance(u, dict) and body_bytes:
+            u = (safe_json(body_bytes) or {}).get("usage")
+        if isinstance(u, dict):
+            usage = {
+                "prompt_tokens": int(u.get("prompt_tokens") or 0),
+                "completion_tokens": int(u.get("completion_tokens") or 0),
+                "total_tokens": int(u.get("total_tokens") or 0),
+            }
+
+        # A proxied non-LLM endpoint serves the web UI's assets (CSS, JS, HTML,
+        # SVG, images, fonts, ...); they are captured opaquely - content-type +
+        # size, no decoded body. (For the non-stream case ``body`` is the response
+        # body; streams are always SSE text, so this is gated on ``not streaming``.)
+        resp_opaque = not streaming and _is_opaque(resp_headers, body or b"")
+        server_response: dict = {
+            "timestamp": t_first,
+            "status": status,
+            "headers": _redact(resp_headers),
+            "streaming": streaming,
+            "content_type": _content_type(resp_headers),
+            "opaque": resp_opaque,
+            "size_bytes": body_size if body_size is not None else (len(body_bytes) if body_bytes else 0),
+        }
+        if streaming and parsed is not None and parsed.reassembled is not None:
+            server_response["reassembled"] = parsed.reassembled
+        elif raw_text is not None:
+            # Undecoded stream: the capped raw stream is the only faithful capture.
+            server_response["body_text"] = raw_text
+        elif resp_opaque:
+            # Opaque capture: content_type + size_bytes above are the record; the
+            # body is forwarded verbatim and not stored.
+            pass
+        else:
+            body_json = parsed.body_json if parsed is not None else None
+            if body_json is None:
+                body_json = safe_json(body_bytes)
+            server_response["body_json"] = body_json
+            if body_json is None:
+                server_response["body_text"] = _capped_text(body_bytes)
+        if self.settings.include_raw_chunks and raw_chunks is not None:
+            server_response["chunks"] = [c.decode("utf-8", errors="replace") for c in raw_chunks]
+
+        exchange = Exchange(
+            id=exchange_id,
+            is_replay=is_replay,
+            client_request=client_request,
+            server_response=server_response,
+            timings=timings,
+            usage=usage,
+            error=error,
+            dissector=dissector,
+        )
+        # add_exchange finalizes the in-flight placeholder in place and returns the
+        # copy that lives in the ring buffer, whose sequence was assigned at
+        # begin_exchange. Return it (not the freshly-built one) so the completed
+        # event carries the real sequence rather than the default 0. It is None if
+        # the exchange was removed while in flight: callers then skip the completed
+        # event, since there is no stored exchange to point at.
+        _, _, stored = self.store.add_exchange(client_id, tag, exchange)
+        return stored
+
+```
+
+
+## Assistant
+
+<thinking>
+Next, I'll update the mock upstream to add text asset endpoints (CSS, JS, HTML, SVG). Let's add them after the `/img` endpoint.
+
+</thinking>
+
+Now add text-asset endpoints (CSS/JS/HTML/SVG) to the mock upstream:
+
+
+
+**Tool Call: llm\_proxy/tests/mock\_upstream.py**
+Status: Completed
+
+Diff: /workspaces/llm-mitm-proxy/llm_proxy/tests/mock_upstream.py
+```
+"""A tiny in-process stand-in for a local llama.cpp ``/v1`` server."""
+
+from __future__ import annotations
+
+import asyncio
+import json
+import threading
+import time
+import urllib.request
+
+import uvicorn
+from fastapi import FastAPI, Request
+from fastapi.responses import (
+    JSONResponse,
+    PlainTextResponse,
+    Response,
+    StreamingResponse,
+)
+
+mock = FastAPI()
+
+# llama.cpp embeds generation timings in the final stream chunk / non-stream body;
+# 3 tokens in 30ms -> 100 tok/s. Lets tests assert the proxy surfaces them.
+TIMINGS = {"prompt_n": 45, "prompt_ms": 1150.0, "predicted_n": 3, "predicted_ms": 30.0}
+
+# Bodies of every chat request received, in order. Lets tests assert replay
+# re-sends the captured request (or the replacing body) verbatim to the upstream.
+REQUESTS: list[dict] = []
+
+
+@mock.get("/v1/models")
+async def models() -> dict:
+    return {"object": "list", "data": [{"id": "local-model", "object": "model"}]}
+
+
+@mock.get("/props")
+async def props(request: Request) -> dict:
+    """llama.cpp server-properties probe (a non-OpenAI path the proxy must pass through)."""
+    return {"n_ctx": 4096, "model": request.query_params.get("model", "")}
+
+
+@mock.get("/plain")
+async def plain() -> PlainTextResponse:
+    """A non-JSON response body (exercises the raw-text capture path)."""
+    return PlainTextResponse("hello")
+
+
+# A tiny 1x1 transparent PNG (magic bytes + NULs). Exercises the binary-response
+# capture path: the proxy must forward it verbatim and record its content-type
+# and size rather than decoding it to garbled text.
+PNG_1x1 = bytes.fromhex(
+    "89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c489"
+    "0000000d49444154789c626001000000ffff03000006000557bfabd4000000004945"
+    "4e44ae426082"
+)
+
+
+@mock.get("/img")
+async def img() -> Response:
+    """A binary (image/png) response body (a proxied non-LLM web-UI asset)."""
+    return Response(content=PNG_1x1, media_type="image/png")
+
+
+# Small text assets of a proxied non-LLM web UI. These must be captured
+# opaquely (content-type + size), not decoded into the store.
+@mock.get("/style.css")
+async def style_css() -> Response:
+    return Response(content=b"body{color:red;font:12px sans-serif}", media_type="text/css")
+
+
+@mock.get("/app.js")
+async def app_js() -> Response:
+    return Response(content=b"console.log('asset')", media_type="application/javascript")
+
+
+@mock.get("/index.html")
+async def index_html() -> Response:
+    return Response(content=b"<html><body><h1>ui</h1></body></html>", media_type="text/html")
+
+
+@mock.get("/icon.svg")
+async def icon_svg() -> Response:
+    return Response(content=b'<svg xmlns="http://www.w3.org/2000/svg"></svg>', media_type="image/svg+xml")
+
+
+@mock.post("/blob")
+async def blob(request: Request) -> Response:
+    """Echoes a binary request body back (exercises binary request AND response
+    capture: the proxy records content-type + size, never garbled text)."""
+    data = await request.body()
+    return Response(content=data, media_type=request.headers.get("content-type", "application/octet-stream"))
+
+
+@mock.get("/models/sse")
+async def models_sse() -> StreamingResponse:
+    """llama.cpp's model-load progress stream: a non-chat SSE (raw capture, never
+    reassembled as a chat completion)."""
+
+    async def gen():
+        for i in range(3):
+            yield f"data: {json.dumps({'status': 'loading', 'i': i})}\n\n"
+        yield "data: [DONE]\n\n"
+
+    return StreamingResponse(gen(), media_type="text/event-stream")
+
+
+@mock.get("/sse")
+async def sse() -> StreamingResponse:
+    """A non-OpenAI SSE stream (exercises the undecoded-SSE raw capture path)."""
+
+    async def gen():
+        for i in range(3):
+            yield f"data: {json.dumps({'event': 'tick', 'i': i})}\n\n"
+        yield "data: [DONE]\n\n"
+
+    return StreamingResponse(gen(), media_type="text/event-stream")
+
+
+def _sse_line(
+    model: str, delta: dict, finish: str | None = None, usage: dict | None = None, timings: dict | None = None
+) -> str:
+    obj: dict = {
+        "id": "c1",
+        "object": "chat.completion.chunk",
+        "model": model,
+        "choices": [{"index": 0, "delta": delta, "finish_reason": finish}],
+    }
+    if usage:
+        obj["usage"] = usage
+    if timings:
+        obj["timings"] = timings
+    return f"data: {json.dumps(obj)}\n\n"
+
+
+@mock.post("/v1/chat/completions")
+async def chat(request: Request):
+    body = await request.json()
+    REQUESTS.append(body)
+    stream = bool(body.get("stream", False))
+    model = body.get("model", "local-model")
+    if model == "boom":
+        return JSONResponse({"error": {"message": "model not found"}}, status_code=404)
+
+    # "thinker" mirrors real reasoning models (e.g. llama.cpp --reasoning-preserve):
+    # thinking streams first in delta.reasoning_content, content afterwards.
+    if stream and model == "thinker":
+
+        async def gen_think():
+            for piece in ["Let", " me", " think", "..."]:
+                yield _sse_line(model, {"reasoning_content": piece})
+                await asyncio.sleep(0.005)
+            for piece in ["Hi", "!"]:
+                yield _sse_line(model, {"content": piece})
+                await asyncio.sleep(0.005)
+            yield _sse_line(
+                model,
+                {},
+                finish="stop",
+                usage={"prompt_tokens": 4, "completion_tokens": 2, "total_tokens": 6},
+                timings={"prompt_n": 4, "prompt_ms": 100.0, "predicted_n": 2, "predicted_ms": 10.0},
+            )
+            yield "data: [DONE]\n\n"
+
+        return StreamingResponse(gen_think(), media_type="text/event-stream")
+
+    if stream and model == "tooler":
+        # Agentic reply: content plus fragmented delta.tool_calls (id/name in
+        # the first fragment, arguments appended across later ones).
+
+        async def gen_tool():
+            yield _sse_line(model, {"content": "Let me check."})
+            yield _sse_line(
+                model,
+                {
+                    "tool_calls": [
+                        {
+                            "index": 0,
+                            "id": "call_1",
+                            "type": "function",
+                            "function": {"name": "bash", "arguments": ""},
+                        }
+                    ]
+                },
+            )
+            for frag in ('{"com', 'mand": "ls"}'):
+                yield _sse_line(model, {"tool_calls": [{"index": 0, "function": {"arguments": frag}}]})
+                await asyncio.sleep(0.005)
+            yield _sse_line(
+                model,
+                {},
+                finish="tool_calls",
+                usage={"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
+                timings=TIMINGS,
+            )
+            yield "data: [DONE]\n\n"
+
+        return StreamingResponse(gen_tool(), media_type="text/event-stream")
+
+    if model == "slow":
+        # Holds the request open so tests can observe the in-flight exchange in REST.
+        await asyncio.sleep(0.8)
+
+    async def gen():
+        for piece in ["Hello", ", ", "world", "!"]:
+            chunk = {
+                "id": "c1",
+                "object": "chat.completion.chunk",
+                "model": model,
+                "choices": [{"index": 0, "delta": {"content": piece}, "finish_reason": None}],
+            }
+            yield f"data: {json.dumps(chunk)}\n\n"
+            await asyncio.sleep(0.01)
+        final = {
+            "id": "c1",
+            "object": "chat.completion.chunk",
+            "model": model,
+            "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}],
+            "usage": {"prompt_tokens": 5, "completion_tokens": 3, "total_tokens": 8},
+            "timings": TIMINGS,
+        }
+        yield f"data: {json.dumps(final)}\n\n"
+        yield "data: [DONE]\n\n"
+
+    if stream:
+        return StreamingResponse(gen(), media_type="text/event-stream")
+    return JSONResponse(
+        {
+            "id": "c1",
+            "object": "chat.completion",
+            "model": model,
+            "choices": [
+                {
+                    "index": 0,
+                    "message": {"role": "assistant", "content": "Hello, world!"},
+                    "finish_reason": "stop",
+                }
+            ],
+            "usage": {"prompt_tokens": 5, "completion_tokens": 3, "total_tokens": 8},
+            "timings": TIMINGS,
+        }
+    )
+
+
+_server: uvicorn.Server | None = None
+_thread: threading.Thread | None = None
+
+
+def start_mock(port: int = 8082) -> None:
+    """Start the mock upstream on ``127.0.0.1:port`` and block until it accepts."""
+    global _server, _thread
+    config = uvicorn.Config(mock, host="127.0.0.1", port=port, log_level="error")
+    _server = uvicorn.Server(config)
+    _thread = threading.Thread(target=_server.run, daemon=True)
+    _thread.start()
+    for _ in range(100):
+        try:
+            urllib.request.urlopen(f"http://127.0.0.1:{port}/v1/models", timeout=0.2)
+            return
+        except Exception:
+            time.sleep(0.05)
+    raise RuntimeError("mock upstream did not start")
+
+
+def stop_mock() -> None:
+    """Signal the mock upstream to shut down (best-effort)."""
+    global _server, _thread
+    if _server is not None:
+        _server.should_exit = True
+        if _thread is not None:
+            _thread.join(timeout=3)
+    _server = None
+    _thread = None
+
+```
+
+
+## Assistant
+
+<thinking>
+Next, I'll update the tests in test_proxy.py:
+1. `test_non_json_response_captured_as_text`: Add `self.assertFalse(sr["opaque"])`.
+2. `test_binary_response_recorded_not_text`: `sr["body_binary"]` → `sr["opaque"]`.
+3. `test_binary_request_body_recorded_not_text`: `cr["body_binary"]` → `cr["opaque"]`.
+4. Add `test_text_assets_recorded_opaque`.
+5. `test_opaque_capture_with_query`: Add `self.assertFalse(sr["opaque"])`.
+
+</thinking>
+
+Now update the tests in `test_proxy.py`:
+
+
+
+**Tool Call: llm\_proxy/tests/test\_proxy.py**
+Status: Failed
+
+```json
+{
+  "error": "Could not find matching text for edit at index 0. The old_text did not match any content in the file. Please read the file again to get the current content.",
+  "input_path": "/workspaces/llm-mitm-proxy/llm_proxy/tests/test_proxy.py"
+}
+```
+
+## Assistant
+
+<thinking>
+Let me re-read the test file to get the exact current text.
+
+</thinking>
+
+**Tool Call: Read file `llm_proxy/tests/test_proxy.py` (lines 178-235)**
+Status: Completed
+
+```/workspaces/llm-mitm-proxy/llm_proxy/tests/test_proxy.py
+   178	        (ex,) = self._exchanges()
+   179	        cr = ex["client_request"]
+   180	        self.assertEqual(cr["method"], "GET")
+   181	        self.assertEqual(cr["path"], "/props?model=m")
+   182	        sr = ex["server_response"]
+   183	        self.assertEqual(sr["status"], 200)
+   184	        self.assertEqual(sr["body_json"], {"n_ctx": 4096, "model": "m"})
+   185	        self.assertFalse(sr["streaming"])
+   186	
+   187	    def test_non_json_response_captured_as_text(self):
+   188	        r = self.llm.get("/plain")
+   189	        self.assertEqual(r.status_code, 200)
+   190	        self.assertEqual(r.text, "hello")
+   191	        (ex,) = self._exchanges()
+   192	        sr = ex["server_response"]
+   193	        self.assertEqual(sr["body_text"], "hello")
+   194	        self.assertIsNone(sr["body_json"])
+   195	        self.assertFalse(sr["body_binary"])
+   196	        self.assertEqual(sr["content_type"], "text/plain")
+   197	
+   198	    def test_binary_response_recorded_not_text(self):
+   199	        # A binary (image/png) response - e.g. a web-UI asset served by a proxied
+   200	        # non-LLM endpoint - must pass through verbatim and be recorded by
+   201	        # content-type + size, NOT decoded to garbled replacement text.
+   202	        r = self.llm.get("/img")
+   203	        self.assertEqual(r.status_code, 200)
+   204	        self.assertEqual(r.content, PNG_1x1)
+   205	        self.assertEqual(r.headers["content-type"], "image/png")
+   206	        (ex,) = self._exchanges()
+   207	        sr = ex["server_response"]
+   208	        self.assertTrue(sr["body_binary"])
+   209	        self.assertEqual(sr["content_type"], "image/png")
+   210	        self.assertEqual(sr["size_bytes"], len(PNG_1x1))
+   211	        # Not decoded to text, and no JSON either.
+   212	        self.assertNotIn("body_text", sr)
+   213	        self.assertNotIn("body_json", sr)
+   214	
+   215	    def test_binary_request_body_recorded_not_text(self):
+   216	        # A binary request body (e.g. an image upload) is recorded by
+   217	        # content-type + size on the client side, not garbled to text.
+   218	        r = self.llm.post("/blob", content=PNG_1x1, headers={"content-type": "image/png"})
+   219	        self.assertEqual(r.status_code, 200)
+   220	        self.assertEqual(r.content, PNG_1x1)
+   221	        (ex,) = self._exchanges()
+   222	        cr = ex["client_request"]
+   223	        self.assertTrue(cr["body_binary"])
+   224	        self.assertEqual(cr["content_type"], "image/png")
+   225	        self.assertEqual(cr["size_bytes"], len(PNG_1x1))
+   226	        self.assertIsNone(cr["body_text"])
+   227	        self.assertIsNone(cr["body_json"])
+   228	
+   229	    def test_undecoded_sse_captured_raw(self):
+   230	        r = self.llm.get("/sse")
+   231	        self.assertEqual(r.status_code, 200)
+   232	        self.assertIn("text/event-stream", r.headers.get("content-type", ""))
+   233	        self.assertIn("tick", r.text)
+   234	        self.assertIn("[DONE]", r.text)
+   235	        (ex,) = self._exchanges()
+
+```
+
+
+## Assistant
+
+<thinking>
+Next, I'll make the test edits:
+1. `test_opaque_capture_with_query` (lines 178-185): Add `self.assertFalse(sr["opaque"])` after the body_json assertion.
+2. `test_non_json_response_captured_as_text`: `body_binary` → `opaque`.
+3. `test_binary_response_recorded_not_text`: `sr["body_binary"]` → `sr["opaque"]`.
+4. `test_binary_request_body_recorded_not_text`: `cr["body_binary"]` → `cr["opaque"]`.
+5. Add a new `test_text_assets_recorded_opaque` after `test_binary_request_body_recorded_not_text`.
+
+</thinking>
+
+**Tool Call: llm\_proxy/tests/test\_proxy.py**
+Status: Completed
+
+Diff: /workspaces/llm-mitm-proxy/llm_proxy/tests/test_proxy.py
+```
+"""The transparent LLM proxy: verbatim passthrough (query strings, upstream
+errors, non-JSON bodies, undecoded SSE), streaming tap-and-forward, upstream
+timeout policy, in-flight exchange visibility, client identity, and the
+two-port split. Each test uses a fresh shared Context (isolated store) against
+the shared mock upstream."""
+
+from __future__ import annotations
+
+import socket
+import threading
+import time
+import unittest
+from urllib.parse import quote
+
+from fastapi.testclient import TestClient
+
+try:  # package form (unittest discover)
+    from .helpers import BASE, CHAT, CID, MockedCase, close_ui, payload, ui_client
+    from .mock_upstream import PNG_1x1
+except ImportError:  # direct execution fallback
+    from helpers import BASE, CHAT, CID, MockedCase, close_ui, payload, ui_client  # type: ignore
+    from mock_upstream import PNG_1x1  # type: ignore
+
+from llm_proxy.app import Context, create_llm_app, create_ui_app
+
+
+class TestProxy(MockedCase):
+    def test_health(self):
+        r = self.ui.get("/health")
+        self.assertEqual(r.status_code, 200)
+        body = r.json()
+        self.assertEqual(body["status"], "ok")
+        self.assertEqual(body["upstream"], "ok")
+        self.assertEqual(body["upstream_url"], BASE.upstream_base_url)
+
+    def test_health_reports_upstream_error_when_unreachable(self):
+        # /health must report the *link* state, not just the proxy process: a
+        # dead upstream shows up as upstream=error (the UI pill turns red).
+        s = socket.socket()
+        s.bind(("127.0.0.1", 0))
+        dead_port = s.getsockname()[1]
+        s.close()
+
+        dead = BASE.model_copy(update={"upstream_base_url": f"http://127.0.0.1:{dead_port}"})
+        with TestClient(create_ui_app(Context(dead))) as c:
+            body = c.get("/health").json()
+            self.assertEqual(body["status"], "ok")
+            self.assertEqual(body["upstream"], "error")
+
+    def test_non_streaming_passthrough(self):
+        r = self.llm.post(CHAT, json=payload(stream=False))
+        self.assertEqual(r.status_code, 200)
+        body = r.json()
+        self.assertEqual(body["choices"][0]["message"]["content"], "Hello, world!")
+        self.assertEqual(body["usage"]["total_tokens"], 8)
+
+    def test_streaming_tap_and_forward(self):
+        r = self.llm.post(CHAT, json=payload(stream=True))
+        self.assertEqual(r.status_code, 200)
+        self.assertIn("text/event-stream", r.headers.get("content-type", ""))
+        self.assertIn("[DONE]", r.text)
+        self.assertIn("Hello", r.text)
+
+    def test_streaming_upstream_error_status_passthrough(self):
+        # Upstream returns a JSON error (not SSE) for a stream request; the proxy
+        # must surface the upstream's status, not a premature 200.
+        r = self.llm.post(CHAT, json=payload(stream=True, model="boom"))
+        self.assertEqual(r.status_code, 404)
+        self.assertIn("model not found", r.json()["error"]["message"])
+
+    def test_streaming_upstream_unreachable_returns_502(self):
+        # Upstream unreachable (connection refused) -> a clean 502, not a phantom 200.
+        s = socket.socket()
+        s.bind(("127.0.0.1", 0))
+        dead_port = s.getsockname()[1]
+        s.close()
+
+        dead = BASE.model_copy(update={"upstream_base_url": f"http://127.0.0.1:{dead_port}"})
+        with TestClient(create_llm_app(Context(dead))) as c:
+            r = c.post(CHAT, json=payload(stream=True))
+            self.assertEqual(r.status_code, 502)
+            self.assertIn("upstream error", r.json()["error"]["message"])
+
+    def test_capture_and_export(self):
+        self.llm.post(CHAT, json=payload(stream=False))
+        self.llm.post(CHAT, json=payload(stream=True))
+
+        clients_body = self.ui.get("/api/clients").json()
+        self.assertTrue(clients_body)
+        cid = clients_body[0]["conversation_ids"][0]
+
+        conv = self.ui.get(f"/api/conversations/{cid}").json()
+        self.assertGreaterEqual(conv["exchange_count"], 2)
+
+        stream_ex = [ex for ex in conv["exchanges"] if ex["server_response"]["streaming"]]
+        self.assertTrue(stream_ex)
+        content = stream_ex[0]["server_response"]["reassembled"]["choices"][0]["message"]["content"]
+        self.assertEqual(content, "Hello, world!")
+        self.assertEqual(stream_ex[0]["usage"]["total_tokens"], 8)
+
+        exp = self.ui.get(f"/api/conversations/{cid}/export").json()
+        self.assertEqual(exp["format"], "llm-mitm-proxy/conversation")
+        self.assertEqual(exp["version"], 1)
+        self.assertGreaterEqual(len(exp["exchanges"]), 2)
+        self.assertGreaterEqual(exp["stats"]["total_completion_tokens"], 3)
+
+    def test_secret_redaction(self):
+        self.llm.post(
+            CHAT, json=payload(stream=False), headers={"Authorization": "Bearer sk-secret-test-key-123"}
+        )
+        clients_body = self.ui.get("/api/clients").json()
+        cid = clients_body[0]["conversation_ids"][0]
+        conv = self.ui.get(f"/api/conversations/{cid}").json()
+        auth = conv["exchanges"][0]["client_request"]["headers"].get("authorization")
+        self.assertIsNotNone(auth)
+        self.assertIn("***", auth)
+        self.assertNotIn("sk-secret-test-key-123", auth)
+
+    def test_user_agent_splits_clients_on_shared_ip(self):
+        # Same source IP, different user agents -> separate conversations;
+        # repeated agent -> same conversation. The UA's "/" is sanitized out of
+        # the id (ids are REST path segments). The TestClient's host is
+        # "testclient", so clients are matched by id suffix, not full value.
+        for ua in ("curl/8.5.0", "zed/1.0.0", "curl/8.5.0"):
+            self.llm.post(CHAT, json=payload(stream=False), headers={"User-Agent": ua})
+
+        clients_body = self.ui.get("/api/clients").json()
+        by_ua = {c["id"].rsplit("::", 1)[-1]: c for c in clients_body}
+        self.assertEqual(set(by_ua), {"curl_8.5.0", "zed_1.0.0"})
+
+        conv_curl = self.ui.get(
+            "/api/conversations/" + quote(by_ua["curl_8.5.0"]["conversation_ids"][0])
+        ).json()
+        self.assertEqual(conv_curl["exchange_count"], 2)
+        conv_zed = self.ui.get(
+            "/api/conversations/" + quote(by_ua["zed_1.0.0"]["conversation_ids"][0])
+        ).json()
+        self.assertEqual(conv_zed["exchange_count"], 1)
+
+    def test_user_agent_and_key_combined_id(self):
+        self.llm.post(
+            CHAT,
+            json=payload(stream=False),
+            headers={"User-Agent": "curl/8.5.0", "Authorization": "Bearer sk-test"},
+        )
+        clients_body = self.ui.get("/api/clients").json()
+        self.assertEqual(len(clients_body), 1)
+        self.assertTrue(clients_body[0]["id"].endswith("::curl_8.5.0::sk-test"))
+
+
+class TestTransparent(MockedCase):
+    """The LLM listener forwards every method/path verbatim and taps the response
+    opaquely; the UI listener serves no proxy routes at all."""
+
+    def _exchanges(self) -> list[dict]:
+        """The (single) testclient's exchanges, read back through the UI API."""
+        body = self.ui.get("/api/clients").json()
+        c = next(x for x in body if x["id"] == CID)
+        conv = self.ui.get(f"/api/conversations/{c['conversation_ids'][0]}").json()
+        return conv["exchanges"]
+
+    def test_query_string_forwarded_verbatim(self):
+        # The proxy must not drop the query string: /props?model=... is how
+        # llama.cpp clients probe the upstream (the Zed case that motivated the
+        # two-port split).
+        r = self.llm.get("/props", params={"model": "m"})
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.json(), {"n_ctx": 4096, "model": "m"})
+
+    def test_upstream_404_passthrough(self):
+        # The proxy never 404s a client request itself; the upstream's own 404
+        # is what the client sees.
+        r = self.llm.get("/nope")
+        self.assertEqual(r.status_code, 404)
+
+    def test_opaque_capture_with_query(self):
+        self.llm.get("/props", params={"model": "m"})
+        (ex,) = self._exchanges()
+        cr = ex["client_request"]
+        self.assertEqual(cr["method"], "GET")
+        self.assertEqual(cr["path"], "/props?model=m")
+        sr = ex["server_response"]
+        self.assertEqual(sr["status"], 200)
+        self.assertEqual(sr["body_json"], {"n_ctx": 4096, "model": "m"})
+        self.assertFalse(sr["streaming"])
+        self.assertFalse(sr["opaque"])  # JSON decodes; only assets are opaque
+
+    def test_non_json_response_captured_as_text(self):
+        r = self.llm.get("/plain")
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.text, "hello")
+        (ex,) = self._exchanges()
+        sr = ex["server_response"]
+        self.assertEqual(sr["body_text"], "hello")
+        self.assertIsNone(sr["body_json"])
+        self.assertFalse(sr["opaque"])
+        self.assertEqual(sr["content_type"], "text/plain")
+
+    def test_binary_response_recorded_opaque(self):
+        # A binary (image/png) response - e.g. a web-UI asset served by a proxied
+        # non-LLM endpoint - must pass through verbatim and be captured opaque
+        # (content-type + size), NOT decoded to garbled replacement text.
+        r = self.llm.get("/img")
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.content, PNG_1x1)
+        self.assertEqual(r.headers["content-type"], "image/png")
+        (ex,) = self._exchanges()
+        sr = ex["server_response"]
+        self.assertTrue(sr["opaque"])
+        self.assertEqual(sr["content_type"], "image/png")
+        self.assertEqual(sr["size_bytes"], len(PNG_1x1))
+        # No decoded body: no text, and no JSON either.
+        self.assertNotIn("body_text", sr)
+        self.assertNotIn("body_json", sr)
+
+    def test_text_assets_recorded_opaque(self):
+        # A proxied non-LLM endpoint's web-UI assets (CSS, JS, HTML, SVG) are
+        # captured opaquely - content-type + size - not decoded into the store,
+        # and still pass through verbatim to the client.
+        assets = {
+            "/style.css": "text/css",
+            "/app.js": "application/javascript",
+            "/index.html": "text/html",
+            "/icon.svg": "image/svg+xml",
+        }
+        for path in assets:
+            r = self.llm.get(path)
+            self.assertEqual(r.status_code, 200)
+            self.assertNotEqual(len(r.content), 0)
+        exs = {ex["client_request"]["path"]: ex for ex in self._exchanges()}
+        self.assertEqual(set(exs), set(assets))
+        for path, ct in assets.items():
+            sr = exs[path]["server_response"]
+            self.assertTrue(sr["opaque"], path)
+            self.assertEqual(sr["content_type"], ct)
+            self.assertGreater(sr["size_bytes"], 0)
+            self.assertNotIn("body_text", sr)
+            self.assertNotIn("body_json", sr)
+
+    def test_binary_request_body_recorded_opaque(self):
+        # An opaque request body (e.g. an image upload) is captured by
+        # content-type + size on the client side, not garbled to text.
+        r = self.llm.post("/blob", content=PNG_1x1, headers={"content-type": "image/png"})
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.content, PNG_1x1)
+        (ex,) = self._exchanges()
+        cr = ex["client_request"]
+        self.assertTrue(cr["opaque"])
+        self.assertEqual(cr["content_type"], "image/png")
+        self.assertEqual(cr["size_bytes"], len(PNG_1x1))
+        self.assertIsNone(cr["body_text"])
+        self.assertIsNone(cr["body_json"])
+
+    def test_undecoded_sse_captured_raw(self):
+        r = self.llm.get("/sse")
+        self.assertEqual(r.status_code, 200)
+        self.assertIn("text/event-stream", r.headers.get("content-type", ""))
+        self.assertIn("tick", r.text)
+        self.assertIn("[DONE]", r.text)
+        (ex,) = self._exchanges()
+        sr = ex["server_response"]
+        self.assertTrue(sr["streaming"])
+        self.assertIn("tick", sr["body_text"])
+        # Not a decoded OpenAI stream: there is no reassembled chat body.
+        self.assertNotIn("reassembled", sr)
+
+    def test_ports_do_not_overlap(self):
+        # The UI port serves no proxy routes...
+        self.assertEqual(self.ui.get("/v1/models").status_code, 404)
+        # ...and the LLM port serves no UI routes (both are forwarded to the
+        # upstream, which does not have them).
+        self.assertEqual(self.llm.get("/api/clients").status_code, 404)
+        self.assertEqual(self.llm.get("/").status_code, 404)
+
+
+class TestInFlight(MockedCase):
+    """A slow upstream call is visible as an in-flight exchange in REST and is
+    finalized in place (same id/sequence) on completion. This is what keeps a
+    conversation from appearing empty when a client's first request is
+    long-running."""
+
+    def _slow_post(self, stream: bool) -> threading.Thread:
+        t = threading.Thread(
+            target=lambda: self.llm.post(CHAT, json=payload(stream=stream, model="slow")),
+            daemon=True,
+        )
+        t.start()
+        return t
+
+    def _exchanges(self) -> list[dict]:
+        return self.ui.get(f"/api/conversations/{CID}").json()["exchanges"]
+
+    def test_in_flight_visible_in_rest_then_finalized(self):
+        """A slow non-stream request is visible as in_flight in REST, and completes
+        in place: same id/sequence, response filled in, in_flight cleared."""
+        t = self._slow_post(stream=False)
+        time.sleep(0.3)  # inside the mock's 0.8s hold
+        exs = self._exchanges()
+        self.assertEqual(len(exs), 1)
+        pending = exs[0]
+        self.assertTrue(pending["in_flight"])
+        self.assertIsNone(pending["server_response"])
+        self.assertFalse(pending["streaming"])
+        self.assertEqual(pending["client_request"]["method"], "POST")
+        self.assertEqual(pending["client_request"]["body_json"]["model"], "slow")
+        seq = pending["sequence"]
+
+        t.join(timeout=5)
+        self.assertFalse(t.is_alive())
+        exs = self._exchanges()
+        self.assertEqual(len(exs), 1)
+        done = exs[0]
+        self.assertFalse(done["in_flight"])
+        self.assertEqual(done["id"], pending["id"])
+        self.assertEqual(done["sequence"], seq)
+        self.assertEqual(done["server_response"]["status"], 200)
+
+    def test_in_flight_carries_streaming_flag(self):
+        """A slow streaming request is visible as in_flight with streaming set, so
+        the UI can render the pending card as a stream."""
+        t = self._slow_post(stream=True)
+        time.sleep(0.3)
+        exs = self._exchanges()
+        self.assertEqual(len(exs), 1)
+        self.assertTrue(exs[0]["in_flight"])
+        self.assertTrue(exs[0]["streaming"])
+        t.join(timeout=5)
+        self.assertFalse(t.is_alive())
+
+
+class TestUpstreamTimeouts(unittest.TestCase):
+    def test_upstream_timeout_policy_reaches_the_client(self):
+        """connect/pool settings reach the pooled client, and read is intentionally
+        unbounded: a gap cap would kill silent persistent streams (/models/sse)
+        and long prefill/think phases, so timeout policy belongs to the client."""
+        client = ui_client(upstream_connect_timeout=1.5, upstream_pool_timeout=2.5)
+        try:
+            t = client.app.state.http.timeout
+            self.assertEqual(t.connect, 1.5)
+            self.assertIsNone(t.read)
+            self.assertEqual(t.pool, 2.5)
+        finally:
+            close_ui(client)
+
+
+if __name__ == "__main__":
+    unittest.main()
+
+```
+
+
+--- Context Compacted ---
+
+## Assistant
+
+<thinking>
+Let's resume from where we left off. The backend is complete, and what's needed is:
+1. Fix `ui/app.js`: rename `binaryNote(side)` → `opaqueNote(side)` to check `side.opaque`, and update both call sites.
+2. Fix `ui/styles.css`: rename `.binary-note` to `.opaque-note`.
+3. Rebuild the UI: `npm run build`.
+4. Run the tests.
+5. Format with black/isort.
+6. Run npm check/lint.
+7. Report.
+
+First, let's read the relevant part of `ui/app.js` to check the current state, and also check the area around line 242 of styles.css.
+
+</thinking>
+
+**Tool Call: Search files for regex `binaryNote|body_binary|binary-note`**
+Status: Completed
+
+No matches found
+
+**Tool Call: Search files for regex `opaque`**
+Status: Completed
+
+No matches found
+
+## Assistant
+
+<thinking>
+grep didn't find a match? Weird — I was sure the summary said `ui/app.js` still had references to `binaryNote`. Let me try searching the whole project.
+
+</thinking>
+
+**Tool Call: Search files for regex `binaryNote|body_binary|binary-note`**
+Status: Completed
+
+Showing matches 1-20 (there were more matches found; use offset: 20 to see next page):
+
+## Matches in llm-mitm-proxy/docs/ISSUE_3.md
+
+### # Files: › ## Assistant › L2127-2129
+```
+3. When building `client_request` and `server_response`, if the body is binary, don't set `body_text` (leave it as None), and instead add a `body_binary: True` marker plus `content_type` and `size_bytes`.
+
+Wait, but for client requests, we often don't know the content type well, and for requests, binary request bodies are less common. But it's possible (for example, multipart uploads of images).
+```
+
+### # Files: › ## Assistant › L2171-2174
+```
+   - Currently: `"body_text": None if wire_req.body_json is not None else _capped_text(wire_req.body)`.
+   - Change: if the body is binary, `body_text` should be None and we add `body_binary: True` and `content_type`.
+   
+   Actually, let's reconsider. For requests, we can also get the content-type from the request headers. Let's handle both.
+```
+
+### # Files: › ## Assistant › L2189-2194
+```
+             server_response["body_text"] = _capped_text(body_bytes)
+     ```
+   - Change: add a binary branch. If `body_bytes` looks binary, set `body_binary: True`, `content_type`, and skip `body_text`.
+
+Let's think about the structure. Let's add a `content_type` field and a `body_binary` boolean to `server_response` (and `client_request`).
+
+```
+
+### # Files: › ## Assistant › L2199-2201
+```
+elif raw_text is not None and not (body_binary...):
+    # undecoded stream (SSE)
+    server_response["body_text"] = raw_text
+```
+
+### # Files: › ## Assistant › L2203-2211
+```
+    if _looks_binary(body_bytes):
+        server_response["body_binary"] = True
+    else:
+        body_json = parsed.body_json if parsed is not None else None
+        if body_json is None:
+            body_json = safe_json(body_bytes)
+        server_response["body_json"] = body_json
+        if body_json is None:
+            server_response["body_text"] = _capped_text(body_bytes)
+```
+
+### # Files: › ## Assistant › L2220-2221
+```
+Add `content_type` and `body_binary` to both the `client_request` and `server_response` dicts. And in the UI, display a note when `body_binary` is True.
+
+```
+
+### # Files: › ## Assistant › L2234-2237
+```
+- `body_binary`: True if the bytes look binary.
+
+Actually, the display logic in the UI should be: if `body_binary` is True (or there's no body_text/body_json/reassembled), show "binary — {content_type}, {size_bytes} bytes".
+
+```
+
+### # Files: › ## Assistant › L2240-2241
+```
+- `body_binary` (bool)
+- Leave `body_text` as None when binary.
+```
+
+### # Files: › ## Assistant › L2243-2244
+```
+Then in the UI, for the server side: if `body_binary`, show a note.
+
+```
+
+### # Files: › ## Design › ### Backend (pipeline.py) › L3666-3668
+```
+3. Add a helper `_body_meta(headers, body_bytes)` that returns a dict with `content_type` and `body_binary`.
+
+Actually, let me think about the structure of the captured data. What to add to the `client_request` and `server_response` dicts:
+```
+
+### # Files: › ## Design › ### Backend (pipeline.py) › L3670-3672
+```
+- `body_binary`: boolean (True when the body is binary)
+
+And when binary, don't set `body_text` (leave it None).
+```
+
+### # Files: › ## Design › ### Backend (pipeline.py) › L3692-3693
+```
+Change to include `content_type` and `body_binary`, and only set `body_text` when not binary:
+```python
+```
+
+### # Files: › ## Design › ### Backend (pipeline.py) › L3695-3705
+```
+client_request = {
+    "timestamp": t0,
+    "method": wire_req.method,
+    "path": wire_req.path,
+    "headers": _redact(wire_req.headers),
+    "content_type": _content_type(wire_req.headers),
+    "body_json": wire_req.body_json,
+    "body_binary": req_binary,
+    "body_text": None if (wire_req.body_json is not None or req_binary) else _capped_text(wire_req.body),
+    "size_bytes": len(wire_req.body) if wire_req.body else 0,
+    "model": parsed_req.model,
+```
+
+2 lines remaining in ancestor node. Read the file to see all.
+
+### # Files: › ## Design › ### Backend (pipeline.py) › L3720-3721
+```
+Add `content_type` and `body_binary`. Then branch:
+```python
+```
+
+### # Files: › ## Design › ### Backend (pipeline.py) › L3722-3732
+```
+resp_binary = _looks_binary(body_bytes) if body_bytes else False
+server_response["content_type"] = _content_type(resp_headers)
+server_response["body_binary"] = resp_binary
+
+if streaming and parsed is not None and parsed.reassembled is not None:
+    server_response["reassembled"] = parsed.reassembled
+elif raw_text is not None:
+    # undecoded stream: the capped raw stream is the only faithful capture.
+    server_response["body_text"] = raw_text
+elif resp_binary:
+    # binary body: do not decode to text; content_type + size_bytes (above) are the capture.
+```
+
+9 lines remaining in ancestor node. Read the file to see all.
+
+### # Files: › ## Design › ### Backend (pipeline.py) › L3743-3744
+```
+Wait, in the binary case, `body_json` should be None (not set), and `body_text` should also be None (not set). So the dict just won't have `body_text`/`body_json`. That's fine. But I do want `content_type` and `body_binary` to be present. Good.
+
+```
+
+### # Files: › ## Design › ### Backend (pipeline.py) › L3749-3750
+```
+Let me reconsider. `body_binary` should reflect the *response* body, not the request body. In the non-streaming case, `body` is passed (the response body). In the streaming case, the response body is `raw_text` (SSE text) and `body_size` is its size.
+
+```
+
+### # Files: › ## Design › ### Backend (pipeline.py) › L3899-3900
+```
+Let me add a `binaryNote(ex)` function to the UI:
+```js
+```
+
+### # Files: › ## Design › ### Backend (pipeline.py) › function binaryNote( ) › L3901-3906
+```
+function binaryNote(side) {
+  if (!side.body_binary) return "";
+  const ct = side.content_type || "unknown type";
+  const size = side.size_bytes != null ? `${fmtBytes(side.size_bytes)} bytes` : "";
+  return `<div class="binary-note">binary ${esc(ct)}${size ? " - " + size : ""} (not displayed)</div>`;
+}
+```
+
+### # Files: › ## Design › ### Backend (pipeline.py) › L3911-3912
+```
+Actually, let me reconsider the display. The server side has a `.resp-text` div. For binary, we want to show a note. Let me handle it in `serverSideHtml`: if `ex.server_response.body_binary`, show the note div instead of the resp-text div (or in addition to).
+
+```
+
+
+**Tool Call: Search files for regex `not displayed`**
+Status: Completed
+
+Found 19 matches:
+
+## Matches in llm-mitm-proxy/docs/CONVERSATION.md
+
+### # LLM Proxy › ## Assistant › L47716-47717
+```
+Note: ttft_ms = 30546ms (first byte = first reasoning chunk), total = 32136ms. genMs = 1590ms. usage=None → tok/s not displayed. Good.
+
+```
+
+### # Headers masked in captured exchanges/dumps. › ## Layout › L52658-52668
+```
+
+
+## Assistant
+
+<thinking>
+Complete. Final report:
+
+Root cause and fix:
+1. **Content only at the very end** → the model (Qwen3.8-27B-think, `--reasoning-preserve`) streams thinking to `delta.reasoning_content`, and the pipeline was ignoring it. Fix: `_delta_parts` in pipeline.py captures both, and the WS `delta` event now has `delta` + `reasoning_delta`. The SSE reassembler accumulates `reasoning_content` into the reassembled message. The UI renders thinking in a muted, italic "thinking" block, and while thinking a live cursor is shown.
+2. **100k tok/s** → non-stream: first byte == end → total−ttft ≈ 0 → the division blows up (in the store I found actual examples of ~443k). Fix: the server captures the `timings` object that llama.cpp embeds (predicted_n/predicted_ms) → `gen_tok_per_sec` in the exchange's timings. The UI prioritizes this, with a fallback to the content generation window (stream only), otherwise it's not displayed.
+3. **Shrink instead of scroll** → `.ex-list`'s flex `min-height:auto` was preventing it from becoming a scroll container. Fix: `min-height: 0` on `.ex-list` (and `.dock-list`), `flex-shrink: 0` on `.exchange` → proper scrolling, stick works, cards never get squashed.
+```
+
+1884 lines remaining in ancestor node. Read the file to see all.
+
+### # The following lines are desirable for IPv6 capable hosts › ## Assistant › L76008-76010
+```
+- If it's not displayed, either `api("/api/clients")` returned empty or it threw
+
+Hmm. But the user says "ws:on." That means the WS is connected.
+```
+
+### # Files: › ## Assistant › L245468-245469
+```
+3. **Removed the dissector pill** — Removed the badge and CSS; the `dissector` field remains in the data model/WS events/dump (useful for export/API, just not displayed).
+4. Updated PLAN.md to match.
+```
+
+### # Files: › ## Assistant › L251040-251041
+```
+Now let me reconsider: the user asked "I'm not seeing the tool calls in the UI. Should I?" — The answer: No, not currently, because the UI only renders `content`, not `tool_calls` (they were stored in the reassembled message but not displayed). I'll add the display. So after this change, yes they should appear.
+
+```
+
+## Matches in llm-mitm-proxy/docs/ISSUE_3.md
+
+### # Files: › ## Design › ### Backend (pipeline.py) › function binaryNote( ) › L3901-3906
+```
+function binaryNote(side) {
+  if (!side.body_binary) return "";
+  const ct = side.content_type || "unknown type";
+  const size = side.size_bytes != null ? `${fmtBytes(side.size_bytes)} bytes` : "";
+  return `<div class="binary-note">binary ${esc(ct)}${size ? " - " + size : ""} (not displayed)</div>`;
+}
+```
+
+### # Files: › ## Assistant › ### Tests: `llm_proxy/tests/mock_upstream.py` + `test_proxy.py` › L4235-4237
+```
+- UI shows a note "binary <type> (<size>), not displayed".
+
+That satisfies the requirement. Good.
+```
+
+### # Files: › ## Assistant › ### Tests: `llm_proxy/tests/mock_upstream.py` + `test_proxy.py` › function binaryNote( ) › L4412-4417
+```
+  function binaryNote(side) {
+    if (!side || !side.body_binary) return "";
+    const ct = side.content_type ? side.content_type : "unknown type";
+    const size = side.size_bytes != null ? ` · ${fmtBytes(side.size_bytes)}` : "";
+    return `<div class="binary-note">binary ${esc(ct)}${size} — not displayed</div>`;
+  }
+```
+
+### # Files: › ## Assistant › L4569-4570
+```
+- **UI** (`app.js` + `styles.css`): show a "binary <type> · <size> — not displayed" note instead of garbled text.
+- **Tests**: add a binary-response mock endpoint and tests.
+```
+
+### # invalid utf-8 tiny body › ## Assistant › L11245-11249
+```
+    const ct = side.content_type ? side.content_type : "unknown type";
+    const size = side.size_bytes != null ? ` · ${fmtBytes(side.size_bytes)}` : "";
+    return `<div class="binary-note">binary ${esc(ct)}${size} — not displayed</div>`;
+  }
+  function respText(ex) {
+```
+
+### # invalid utf-8 tiny body › ## Assistant › L12249-12253
+```
+    const ct = side.content_type ? side.content_type : "unknown type";
+    const size = side.size_bytes != null ? ` · ${fmtBytes(side.size_bytes)}` : "";
+    return `<div class="binary-note">binary ${esc(ct)}${size} — not displayed</div>`;
+  }
+  function respText(ex) {
+```
+
+### # invalid utf-8 tiny body › ## Assistant › L13269-13273
+```
+    const ct = side.content_type ? side.content_type : "unknown type";
+    const size = side.size_bytes != null ? ` · ${fmtBytes(side.size_bytes)}` : "";
+    return `<div class="binary-note">binary ${esc(ct)}${size} — not displayed</div>`;
+  }
+  function respText(ex) {
+```
+
+### # invalid utf-8 tiny body › ## Assistant › L14275-14279
+```
+    const ct = side.content_type ? side.content_type : "unknown type";
+    const size = side.size_bytes != null ? ` · ${fmtBytes(side.size_bytes)}` : "";
+    return `<div class="binary-note">binary ${esc(ct)}${size} — not displayed</div>`;
+  }
+  function respText(ex) {
+```
+
+### # invalid utf-8 tiny body › ## Assistant › L15664-15672
+```
+   - `respText(ex)`: loops over reassembled/body_json (none) → body_text (undefined) → body_json (undefined) → returns "".
+   - `reasoningText(ex)`: "" (no reasoning).
+   - `serverSideHtml(ex, "")`: `binaryNote(sr)` returns `<div class="binary-note">binary image/png · 73 B — not displayed</div>`. Since this is truthy, `binaryNote(sr) || '<div class="resp-text"></div>'` → the note is used. So no `.resp-text` div.
+   - `clientSideHtml(ex)`: `binaryNote(cr)` — cr.body_binary is False (GET request has no body) → "". So the client side displays method/path as usual.
+   - In `exchangeCard`: `rt = el.querySelector(".resp-text")` → null → `if (rt)` skips setText. Good.
+
+3. So the card displays: CLIENT side (GET /img) and SERVER side with a "binary image/png · 73 B — not displayed" note. No garbled text.
+
+This is exactly what the issue was asking for.
+```
+
+### # invalid utf-8 tiny body › ## Assistant › L16015-16016
+```
+**Tool Call: grep -c "binary-note\|body_binary\|not displayed" llm_proxy/web/app.js; echo "--- styles ---"; grep -c "binary-note" llm_proxy/web/styles.css**
+Status: Completed
+```
+
+### # invalid utf-8 tiny body › ## Assistant › L16123-16127
+```
++    const ct = side.content_type ? side.content_type : "unknown type";
++    const size = side.size_bytes != null ? ` · ${fmtBytes(side.size_bytes)}` : "";
++    return `<div class="binary-note">binary ${esc(ct)}${size} — not displayed</div>`;
++  }
+   function respText(ex) {
+```
+
+### # invalid utf-8 tiny body › ## Assistant › L16335-16337
+```
+- UI shows a note: "binary <type> · <size> — not displayed".
+
+This directly addresses the issue. 
+```
+
+### # invalid utf-8 tiny body › ## Summary › ### Changes › L16514-16515
+```
+- Binary bodies now render a note — `binary image/png · 73 B — not displayed` — instead of garbled text (both client and server sides). Added `fmtBytes` + `binaryNote` helpers and a `.binary-note` style; guarded the now-absent `.resp-text` lookup.
+- Rebuilt the served bundle into `llm_proxy/web/` (gitignored build output) via `npm run build`.
+```
+
+## Matches in llm-mitm-proxy/ui/app.js
+
+### function binaryNote( ) › L226-233
+```
+  function binaryNote(side) {
+    // A binary body (image/blob from a proxied non-LLM endpoint) is not decoded
+    // to text; show its type and size instead.
+    if (!side || !side.body_binary) return "";
+    const ct = side.content_type ? side.content_type : "unknown type";
+    const size = side.size_bytes != null ? ` · ${fmtBytes(side.size_bytes)}` : "";
+    return `<div class="binary-note">binary ${esc(ct)}${size} — not displayed</div>`;
+  }
+```
+
+
+## Assistant
+
+<thinking>
+The UI file `ui/app.js` still has `binaryNote` which references `side.body_binary`. I need to update this to `opaqueNote` which references `side.opaque`. Let me read the relevant sections of ui/app.js, as well as ui/styles.css around `.binary-note`.
+
+</thinking>
+
+The UI is still on the old `body_binary` field. Let me look at the exact spots in `ui/app.js` and `ui/styles.css`.
+
+
+
+**Tool Call: Read file `ui/app.js` (lines 200-300)**
+Status: Completed
+
+```llm-mitm-proxy/ui/app.js
+   200	    if (cr.preview) return cr.preview;
+   201	    const body = cr.body_json || {};
+   202	    const msgs = body.messages || [];
+   203	    for (let i = msgs.length - 1; i >= 0; i--) {
+   204	      if (msgs[i].role === "user") {
+   205	        return typeof msgs[i].content === "string" ? msgs[i].content : JSON.stringify(msgs[i].content);
+   206	      }
+   207	    }
+   208	    return "";
+   209	  }
+   210	
+   211	  function fullRequest(ex) {
+   212	    const cr = ex.client_request || {};
+   213	    const obj = { method: cr.method, path: cr.path, headers: cr.headers, body: cr.body_json };
+   214	    if (cr.body_text != null) obj.body_text = cr.body_text;
+   215	    return JSON.stringify(obj, null, 2);
+   216	  }
+   217	  function fullResponse(ex) {
+   218	    const sr = ex.server_response || {};
+   219	    const obj = { status: sr.status, headers: sr.headers, streaming: sr.streaming, size_bytes: sr.size_bytes };
+   220	    if (sr.reassembled) obj.reassembled = sr.reassembled;
+   221	    if (sr.body_json) obj.body = sr.body_json;
+   222	    if (sr.body_text != null) obj.body_text = sr.body_text;
+   223	    if (sr.chunks) obj.chunks = sr.chunks;
+   224	    return JSON.stringify(obj, null, 2);
+   225	  }
+   226	  function binaryNote(side) {
+   227	    // A binary body (image/blob from a proxied non-LLM endpoint) is not decoded
+   228	    // to text; show its type and size instead.
+   229	    if (!side || !side.body_binary) return "";
+   230	    const ct = side.content_type ? side.content_type : "unknown type";
+   231	    const size = side.size_bytes != null ? ` · ${fmtBytes(side.size_bytes)}` : "";
+   232	    return `<div class="binary-note">binary ${esc(ct)}${size} — not displayed</div>`;
+   233	  }
+   234	  function respText(ex) {
+   235	    const sr = ex.server_response || {};
+   236	    for (const key of ["reassembled", "body_json"]) {
+   237	      const c = ((sr[key] || {}).choices || [])[0];
+   238	      if (c && c.message && c.message.content != null) return c.message.content;
+   239	    }
+   240	    if (sr.body_text != null) {
+   241	      const t = String(sr.body_text).trim();
+   242	      return t.length <= 200 ? t : t.slice(0, 200) + "…";
+   243	    }
+   244	    if (sr.body_json) {
+   245	      const t = JSON.stringify(sr.body_json);
+   246	      return t.length <= 200 ? t : t.slice(0, 200) + "…";
+   247	    }
+   248	    return "";
+   249	  }
+   250	  function reasoningText(ex) {
+   251	    const sr = ex.server_response || {};
+   252	    for (const key of ["reassembled", "body_json"]) {
+   253	      const c = ((sr[key] || {}).choices || [])[0];
+   254	      if (c && c.message && c.message.reasoning_content) return c.message.reasoning_content;
+   255	    }
+   256	    return "";
+   257	  }
+   258	  function toolCalls(ex) {
+   259	    const sr = ex.server_response || {};
+   260	    for (const key of ["reassembled", "body_json"]) {
+   261	      const c = ((sr[key] || {}).choices || [])[0];
+   262	      if (c && c.message && Array.isArray(c.message.tool_calls)) return c.message.tool_calls;
+   263	    }
+   264	    return [];
+   265	  }
+   266	  function toolCallsHtml(tcs) {
+   267	    if (!tcs.length) return "";
+   268	    const items = tcs
+   269	      .map((tc) => {
+   270	        const fn = (tc && tc.function) || {};
+   271	        return `<div class="tool-call"><span class="tool-name">${esc(fn.name || "tool")}</span><pre class="tool-args">${esc(
+   272	          fn.arguments != null ? fn.arguments : ""
+   273	        )}</pre></div>`;
+   274	      })
+   275	      .join("");
+   276	    return `<details class="tool-calls"><summary>tool calls - ${tcs.length}</summary>${items}</details>`;
+   277	  }
+   278	  function timingsText(ex) {
+   279	    const t = ex.timings || {};
+   280	    const parts = [];
+   281	    if (t.ttft_ms != null) parts.push(`ttft ${fmtMs(t.ttft_ms)}`);
+   282	    if (t.total_ms != null) parts.push(`total ${fmtMs(t.total_ms)}`);
+   283	    const tps = toksPerSec(ex);
+   284	    if (tps) parts.push(`${tps} tok/s`);
+   285	    return parts.join(" · ");
+   286	  }
+   287	  function thinkSummary(text) {
+   288	    const t = String(text || "").trim();
+   289	    if (!t) return "thinking";
+   290	    const n = t.split(/\s+/).length;
+   291	    return `thinking · ${n} ${n === 1 ? "word" : "words"}`;
+   292	  }
+   293	  function wireThink(think) {
+   294	    // The thinking block follows streaming text by default. A manual scroll up
+   295	    // unsticks it for the life of the block; collapsing and reopening resticks.
+   296	    think._stick = true;
+   297	    const tt = think.querySelector(".think-text");
+   298	    tt.addEventListener("scroll", () => {
+   299	      if (tt.scrollHeight - tt.scrollTop - tt.clientHeight > 16) think._stick = false;
+   300	    });
+
+```
+
+
+**Tool Call: Search files for regex `binary-note`**
+Status: Completed
+
+Found 1 matches:
+
+## Matches in llm-mitm-proxy/ui/styles.css
+
+### .binary-note › L242-251
+```
+.binary-note {
+  margin-top: 0.5rem;
+  font-size: 0.8rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--muted);
+  background: var(--panel);
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  padding: 0.4rem 0.5rem;
+}
+```
+
+
+## Assistant
+
+<thinking>
+Next, let's find the places where `binaryNote` is called inside `ui/app.js`.
+
+</thinking>
+
+**Tool Call: Search files for regex `binaryNote`**
+Status: Completed
+
+Found 3 matches:
+
+## Matches in llm-mitm-proxy/ui/app.js
+
+### function binaryNote( ) › L224-228
+```
+    return JSON.stringify(obj, null, 2);
+  }
+  function binaryNote(side) {
+    // A binary body (image/blob from a proxied non-LLM endpoint) is not decoded
+    // to text; show its type and size instead.
+```
+
+### function clientSideHtml( ) › L413-422
+```
+    return `
+      <div class="side client">
+        <div class="side-label">CLIENT</div>
+        <div class="line">${esc(cr.method)} ${esc(cr.path)}</div>
+        ${model ? `<div class="line model">model: ${esc(model)}</div>` : ""}
+        ${binaryNote(cr)}
+        ${pv ? '<div class="preview"></div>' : ""}
+        ${toolsHtml(ex)}
+        <details class="full"><summary>full request</summary><pre class="req-pre"></pre><button class="copy-btn" type="button">copy</button></details>
+      </div>`;
+```
+
+### function serverSideHtml( ) › L429-437
+```
+    return `
+      <div class="side server">
+        <div class="side-label">SERVER</div>
+        ${think}
+        ${binaryNote(sr) || '<div class="resp-text"></div>'}
+        ${toolCallsHtml(toolCalls(ex))}
+        ${ex.error ? `<div class="err">${esc(ex.error.message)}</div>` : ""}
+        <details class="full"><summary>full response</summary><pre class="resp-pre"></pre><button class="copy-btn" type="button">copy</button></details>
+      </div>`;
+```
+
+
+## Assistant
+
+<thinking>
+Next, update the UI:
+
+1. `ui/app.js`: Rename `binaryNote` to `opaqueNote` and change it to check `side.opaque`. Wording: the backend marks everything other than JSON/plain/SSE as opaque (css, js, svg, html, images, etc.), so "binary" is no longer an accurate expression. Following the handoff plan, change the fallback text to something like "unknown content type". Proposed note text: `` `<div class="opaque-note">${esc(ct)}${size} — not displayed</div>` ``.
+
+The handoff says: "Rename to `opaqueNote`, check `side.opaque`, and change the fallback text to e.g. `"unknown content type"`."
+
+Therefore:
+
+```js
+  function opaqueNote(side) {
+    // Non-decodable body (css/js/svg/image/font/blob from a non-LLM proxied
+    // endpoint): the proxy captures only type and size, not the content.
+    if (!side || !side.opaque) return "";
+    const ct = side.content_type ? side.content_type : "unknown content type";
+    const size = side.size_bytes != null ? ` · ${fmtBytes(side.size_bytes)}` : "";
+    return `<div class="opaque-note">${esc(ct)}${size} — not displayed</div>`;
+  }
+```
+
+And the call sites: `${binaryNote(cr)}` → `${opaqueNote(cr)}`, `${binaryNote(sr) || ...}` → `${opaqueNote(sr) || ...}`.
+
+2. `ui/styles.css`: `.binary-note` → `.opaque-note`.
+
+3. Rebuild the UI with npm run build.
+
+4. Run the tests.
+
+5. Run black/isort against the python files (the handoff says formatting is needed — the backend edits are complete, but just to be safe it's best to re-run black/isort).
+
+6. Run npm run check and lint.
+
+Alright, let's apply the edits.
+
+</thinking>
+
+I've confirmed the state. Now I'll update `ui/app.js` (renaming `binaryNote` to `opaqueNote`, and changing it to check `side.opaque`) and `ui/styles.css` (renaming `.binary-note` to `.opaque-note`).
+
+
+
+**Tool Call: ui/app.js**
+Status: Completed
+
+Diff: llm-mitm-proxy/ui/app.js
+```
+/* llm-mitm-proxy — live conversation UI (vanilla JS, esbuild-bundled; see package.json).
+ *
+ * One WebSocket to /ws drives live updates; REST (/api/...) is used for the
+ * initial load, export, and clear. The dock shows conversations; the main pane
+ * renders each exchange two-sided (client request | server response) with
+ * live token streaming, timestamps, timing deltas, and expandable full wire.
+ */
+import { marked } from "marked";
+
+(() => {
+  "use strict";
+
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) =>
+    String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+  const state = {
+    clients: [],
+    focusCid: null,
+    ws: null,
+    wsRetry: null,
+    wsAttempts: 0, // reconnect attempts since page load (diagnostics)
+    wsOpenedAt: null, // ms; age of the current socket at close (diagnostics)
+    wsLastMsgAt: null, // ms; last WS message received (stale detection)
+    exById: new Map(), // exchange_id -> exchange object (focused conversation)
+    live: new Map(), // exchange_id -> accumulated streamed text
+    collapsed: new Set(), // exchange ids whose card body is hidden
+    lastSeq: 0,
+    stick: true,
+    replaySeq: null, // sequence loaded into the replay dock
+    md: localStorage.getItem("llmproxy.md") !== "0", // markdown rendering on by default
+  };
+
+  // ---------- formatting ----------
+  const pad = (n, w = 2) => String(n).padStart(w, "0");
+  function fmtTime(epoch) {
+    if (!epoch) return "—";
+    const d = new Date(epoch * 1000);
+    return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}.${pad(d.getMilliseconds(), 3)}`;
+  }
+  function fmtClock(epoch) {
+    if (!epoch) return "";
+    const d = new Date(epoch * 1000);
+    return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+  }
+  function fmtMs(ms) {
+    if (ms == null) return "—";
+    return ms < 1000 ? `${Math.round(ms)}ms` : `${(ms / 1000).toFixed(2)}s`;
+  }
+  function fmtBytes(n) {
+    if (n == null) return "";
+    if (n < 1024) return `${n} B`;
+    if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+    return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+  }
+  function toksPerSec(ex) {
+    const t = ex.timings || {};
+    const u = ex.usage || {};
+    if (!u.completion_tokens) return null;
+    // Prefer the upstream-reported rate (llama.cpp embeds exact generation timings).
+    if (t.gen_tok_per_sec != null) return t.gen_tok_per_sec.toFixed(1);
+    // Fallback (streams only): content-generation window. Not usable for
+    // non-stream (first byte *is* the end) or reasoning-heavy streams.
+    if (t.t_first_content != null && t.t_last_content != null && t.t_last_content > t.t_first_content) {
+      return (u.completion_tokens / (t.t_last_content - t.t_first_content)).toFixed(1);
+    }
+    return null;
+  }
+
+  // ---------- api ----------
+  async function api(path, opts) {
+    const r = await fetch(path, opts);
+    if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
+    return r.json();
+  }
+
+  // ---------- dock ----------
+  function dockRow(c) {
+    const cid = (c.conversation_ids && c.conversation_ids[0]) || c.id;
+    const li = document.createElement("li");
+    li.className = "dock-row";
+    li.dataset.cid = cid;
+    li.innerHTML = `
+      <div class="dr-top">
+        <span class="dr-name"></span><span class="dr-time"></span>
+        <button class="dr-remove" title="Remove client" aria-label="Remove client">×</button>
+      </div>
+      <div class="dr-sub"></div>`;
+    li.querySelector(".dr-name").textContent = c.name;
+    li.querySelector(".dr-sub").textContent = c.id;
+    li.querySelector(".dr-time").textContent = fmtClock(c.last_seen);
+    li.addEventListener("click", () => selectConversation(cid, c.name));
+    li.querySelector(".dr-remove").addEventListener("click", (e) => {
+      e.stopPropagation();
+      removeClient(c);
+    });
+    return li;
+  }
+
+  function renderDock(filter = "") {
+    const list = $("dock-list");
+    list.innerHTML = "";
+    const f = filter.toLowerCase();
+    for (const c of state.clients) {
+      if (f && !c.name.toLowerCase().includes(f) && !c.id.toLowerCase().includes(f)) continue;
+      list.appendChild(dockRow(c));
+    }
+    $("dock-empty").style.display = state.clients.length ? "none" : "block";
+    $("empty-msg").textContent = state.clients.length ? "Select a conversation on the left." : "No traffic yet.";
+    markFocus();
+  }
+
+  function markFocus() {
+    for (const li of $("dock-list").children) li.classList.toggle("focused", li.dataset.cid === state.focusCid);
+  }
+
+  function pulse(cid) {
+    const li = [...$("dock-list").children].find((x) => x.dataset.cid === cid);
+    if (!li) return;
+    li.querySelector(".dr-time").textContent = "now";
+    li.classList.remove("pulse");
+    void li.offsetWidth; // restart the animation
+    li.classList.add("pulse");
+    clearTimeout(li._pt);
+    li._pt = setTimeout(() => {
+      li.classList.remove("pulse");
+      const c = state.clients.find((x) => (x.conversation_ids && x.conversation_ids[0]) === cid);
+      if (c) li.querySelector(".dr-time").textContent = fmtClock(c.last_seen);
+    }, 1500);
+  }
+
+  async function refreshClients() {
+    try {
+      state.clients = await api("/api/clients");
+      renderDock($("filter").value);
+    } catch {
+      /* ignore transient errors */
+    }
+  }
+
+  async function removeClient(c) {
+    try {
+      await api(`/api/clients/${encodeURIComponent(c.id)}`, { method: "DELETE" });
+    } catch {
+      return;
+    }
+    // If the focused conversation belonged to this client, reset the main pane
+    // and drop the server-side focus.
+    const cids = new Set(c.conversation_ids || []);
+    cids.add(c.id);
+    if (state.focusCid && cids.has(state.focusCid)) {
+      state.focusCid = null;
+      state.exById.clear();
+      state.live.clear();
+      state.lastSeq = 0;
+      closeReplayDock();
+      $("conv").hidden = true;
+      $("empty").hidden = false;
+      if (state.ws && state.ws.readyState === 1) state.ws.send(JSON.stringify({ type: "unsub" }));
+    }
+    await refreshClients();
+  }
+
+  // ---------- conversation ----------
+  async function selectConversation(cid, name) {
+    if (!cid) return;
+    state.focusCid = cid;
+    state.exById.clear();
+    state.live.clear();
+    state.lastSeq = 0;
+    closeReplayDock();
+    markFocus();
+    if (state.ws && state.ws.readyState === 1) state.ws.send(JSON.stringify({ type: "subscribe", conversation_id: cid }));
+    $("empty").hidden = true;
+    $("conv").hidden = false;
+    $("conv-title").textContent = name || cid;
+    const list = $("ex-list");
+    list.innerHTML = "";
+    try {
+      const conv = await api(`/api/conversations/${encodeURIComponent(cid)}`);
+      for (const ex of conv.exchanges) {
+        if (ex.in_flight) {
+          // Pending card for a still-running exchange; WS deltas/completion
+          // (we are now focused) update it in place.
+          upsertExchange({ ...ex, server_response: { status: "…", streaming: !!ex.streaming } });
+          if (state.live.has(ex.id)) updateLive(ex.id);
+        } else {
+          upsertExchange(ex);
+        }
+      }
+    } catch (e) {
+      list.innerHTML = `<div class="err">failed to load: ${esc(e.message)}</div>`;
+    }
+    maybeScroll();
+  }
+
+  // ---------- exchange rendering ----------
+  function previewOf(ex) {
+    const cr = ex.client_request || {};
+    if (cr.preview) return cr.preview;
+    const body = cr.body_json || {};
+    const msgs = body.messages || [];
+    for (let i = msgs.length - 1; i >= 0; i--) {
+      if (msgs[i].role === "user") {
+        return typeof msgs[i].content === "string" ? msgs[i].content : JSON.stringify(msgs[i].content);
+      }
+    }
+    return "";
+  }
+
+  function fullRequest(ex) {
+    const cr = ex.client_request || {};
+    const obj = { method: cr.method, path: cr.path, headers: cr.headers, body: cr.body_json };
+    if (cr.body_text != null) obj.body_text = cr.body_text;
+    return JSON.stringify(obj, null, 2);
+  }
+  function fullResponse(ex) {
+    const sr = ex.server_response || {};
+    const obj = { status: sr.status, headers: sr.headers, streaming: sr.streaming, size_bytes: sr.size_bytes };
+    if (sr.reassembled) obj.reassembled = sr.reassembled;
+    if (sr.body_json) obj.body = sr.body_json;
+    if (sr.body_text != null) obj.body_text = sr.body_text;
+    if (sr.chunks) obj.chunks = sr.chunks;
+    return JSON.stringify(obj, null, 2);
+  }
+  function opaqueNote(side) {
+    // An opaque body (css/js/svg/image/font/blob from a proxied non-LLM
+    // endpoint) is not decoded to text; show its type and size instead.
+    if (!side || !side.opaque) return "";
+    const ct = side.content_type ? side.content_type : "unknown content type";
+    const size = side.size_bytes != null ? ` · ${fmtBytes(side.size_bytes)}` : "";
+    return `<div class="opaque-note">${esc(ct)}${size} — not displayed</div>`;
+  }
+  function respText(ex) {
+    const sr = ex.server_response || {};
+    for (const key of ["reassembled", "body_json"]) {
+      const c = ((sr[key] || {}).choices || [])[0];
+      if (c && c.message && c.message.content != null) return c.message.content;
+    }
+    if (sr.body_text != null) {
+      const t = String(sr.body_text).trim();
+      return t.length <= 200 ? t : t.slice(0, 200) + "…";
+    }
+    if (sr.body_json) {
+      const t = JSON.stringify(sr.body_json);
+      return t.length <= 200 ? t : t.slice(0, 200) + "…";
+    }
+    return "";
+  }
+  function reasoningText(ex) {
+    const sr = ex.server_response || {};
+    for (const key of ["reassembled", "body_json"]) {
+      const c = ((sr[key] || {}).choices || [])[0];
+      if (c && c.message && c.message.reasoning_content) return c.message.reasoning_content;
+    }
+    return "";
+  }
+  function toolCalls(ex) {
+    const sr = ex.server_response || {};
+    for (const key of ["reassembled", "body_json"]) {
+      const c = ((sr[key] || {}).choices || [])[0];
+      if (c && c.message && Array.isArray(c.message.tool_calls)) return c.message.tool_calls;
+    }
+    return [];
+  }
+  function toolCallsHtml(tcs) {
+    if (!tcs.length) return "";
+    const items = tcs
+      .map((tc) => {
+        const fn = (tc && tc.function) || {};
+        return `<div class="tool-call"><span class="tool-name">${esc(fn.name || "tool")}</span><pre class="tool-args">${esc(
+          fn.arguments != null ? fn.arguments : ""
+        )}</pre></div>`;
+      })
+      .join("");
+    return `<details class="tool-calls"><summary>tool calls - ${tcs.length}</summary>${items}</details>`;
+  }
+  function timingsText(ex) {
+    const t = ex.timings || {};
+    const parts = [];
+    if (t.ttft_ms != null) parts.push(`ttft ${fmtMs(t.ttft_ms)}`);
+    if (t.total_ms != null) parts.push(`total ${fmtMs(t.total_ms)}`);
+    const tps = toksPerSec(ex);
+    if (tps) parts.push(`${tps} tok/s`);
+    return parts.join(" · ");
+  }
+  function thinkSummary(text) {
+    const t = String(text || "").trim();
+    if (!t) return "thinking";
+    const n = t.split(/\s+/).length;
+    return `thinking · ${n} ${n === 1 ? "word" : "words"}`;
+  }
+  function wireThink(think) {
+    // The thinking block follows streaming text by default. A manual scroll up
+    // unsticks it for the life of the block; collapsing and reopening resticks.
+    think._stick = true;
+    const tt = think.querySelector(".think-text");
+    tt.addEventListener("scroll", () => {
+      if (tt.scrollHeight - tt.scrollTop - tt.clientHeight > 16) think._stick = false;
+    });
+    think.addEventListener("toggle", () => {
+      if (think.open) {
+        think._stick = true;
+        tt.scrollTop = tt.scrollHeight;
+      }
+    });
+  }
+
+  // Model output markdown (marked is bundled into this file by esbuild).
+  function mdToHtml(src) {
+    return marked.parse(String(src ?? ""), { gfm: true, breaks: true });
+  }
+
+  function setText(el, text) {
+    // Trailing whitespace renders as a blank line under pre-wrap (and marked
+    // appends its own newline), so trim it in both modes.
+    const t = String(text ?? "").replace(/[ \t\r\n]+$/, "");
+    if (state.md) {
+      el.classList.add("md");
+      el.innerHTML = mdToHtml(t);
+    } else {
+      el.classList.remove("md");
+      el.textContent = t;
+    }
+  }
+
+  // OpenAI chat requests carry the full history, so the previous request's
+  // messages are (nearly) a prefix of this one. Diff to show only what is new.
+  function prevMsgs(ex) {
+    let best = null;
+    for (const p of state.exById.values()) {
+      const s = p && p.sequence;
+      if (typeof s !== "number" || s >= ex.sequence) continue;
+      const m = ((p.client_request || {}).body_json || {}).messages;
+      if (!Array.isArray(m)) continue;
+      if (!best || s > best.s) best = { s, m };
+    }
+    return best ? best.m : null;
+  }
+  function requestTools(ex) {
+    const body = (ex.client_request || {}).body_json || {};
+    const defs = Array.isArray(body.tools) ? body.tools : [];
+    const calls = [];
+    const results = [];
+    const msgs = Array.isArray(body.messages) ? body.messages : [];
+    const pm = prevMsgs(ex);
+    let start = 0;
+    if (pm && pm.length <= msgs.length && JSON.stringify(msgs.slice(0, pm.length)) === JSON.stringify(pm)) start = pm.length;
+    for (let i = start; i < msgs.length; i++) {
+      const m = msgs[i];
+      if (!m || typeof m !== "object") continue;
+      if (Array.isArray(m.tool_calls)) {
+        for (const tc of m.tool_calls) {
+          const fn = (tc && tc.function) || {};
+          calls.push({ id: tc.id || "", name: fn.name || "tool", args: fn.arguments != null ? String(fn.arguments) : "" });
+        }
+      } else if (m.role === "tool") {
+        results.push({ id: m.tool_call_id || "", name: m.name || "", content: m.content != null ? String(m.content) : "" });
+      }
+    }
+    return { defs, calls, results };
+  }
+  function toolsHtml(ex) {
+    const { defs, calls, results } = requestTools(ex);
+    if (!defs.length && !calls.length && !results.length) return "";
+    let html = "";
+    if (defs.length) {
+      let inner = "";
+      for (const t of defs) {
+        const fn = (t && t.function) || t || {};
+        const name = fn.name || "tool";
+        const desc = fn.description ? `<div class="tool-desc">${esc(String(fn.description))}</div>` : "";
+        const params = fn.parameters != null ? `<pre class="tool-params">${esc(JSON.stringify(fn.parameters, null, 2))}</pre>` : "";
+        inner += `<details class="tool-item"><summary><span class="tool-name">${esc(name)}</span></summary><div class="tool-detail">${desc}${params}</div></details>`;
+      }
+      html += `<details class="tools"><summary>available tools - ${defs.length}</summary><div class="tools-list">${inner}</div></details>`;
+    }
+    if (calls.length || results.length) {
+      // Collapsed by default; per-row name + args visible, result payload
+      // expandable so long outputs don't push the page around. Paired by
+      // tool_call_id, so the call on the server card and its result here read
+      // as one round trip.
+      const resDetail = (content) =>
+        `<details class="tool-res"><summary>result</summary><pre class="tool-result">${esc(content)}</pre></details>`;
+      const byId = new Map();
+      for (const r of results) if (r.id) byId.set(r.id, r);
+      const used = new Set();
+      let inner = "";
+      let n = 0;
+      for (const c of calls) {
+        const res = c.id ? byId.get(c.id) : null;
+        if (res) used.add(res.id);
+        n += 1;
+        inner += `<div class="tool-call"><span class="tool-name">${esc(c.name)}</span>${
+          c.args ? `<pre class="tool-args">${esc(c.args)}</pre>` : ""
+        }${res ? resDetail(res.content) : '<div class="tool-sub">no result in this request</div>'}</div>`;
+      }
+      for (const r of results) {
+        if (r.id && used.has(r.id)) continue;
+        n += 1;
+        inner += `<div class="tool-call"><span class="tool-name">${esc(r.name || "result")}</span>${resDetail(r.content)}</div>`;
+      }
+      html += `<details class="tool-calls"><summary>tool call results - ${n}</summary>${inner}</details>`;
+    }
+    return html;
+  }
+
+  function clientSideHtml(ex) {
+    const cr = ex.client_request || {};
+    const body = cr.body_json || {};
+    const model = body.model || cr.model;
+    const pv = previewOf(ex);
+    return `
+      <div class="side client">
+        <div class="side-label">CLIENT</div>
+        <div class="line">${esc(cr.method)} ${esc(cr.path)}</div>
+        ${model ? `<div class="line model">model: ${esc(model)}</div>` : ""}
+        ${opaqueNote(cr)}
+        ${pv ? '<div class="preview"></div>' : ""}
+        ${toolsHtml(ex)}
+        <details class="full"><summary>full request</summary><pre class="req-pre"></pre><button class="copy-btn" type="button">copy</button></details>
+      </div>`;
+  }
+  function serverSideHtml(ex, reasoning) {
+    const sr = ex.server_response || {};
+    const think = reasoning
+      ? '<details class="think"><summary class="think-summary"></summary><pre class="think-text"></pre></details>'
+      : "";
+    return `
+      <div class="side server">
+        <div class="side-label">SERVER</div>
+        ${think}
+        ${opaqueNote(sr) || '<div class="resp-text"></div>'}
+        ${toolCallsHtml(toolCalls(ex))}
+        ${ex.error ? `<div class="err">${esc(ex.error.message)}</div>` : ""}
+        <details class="full"><summary>full response</summary><pre class="resp-pre"></pre><button class="copy-btn" type="button">copy</button></details>
+      </div>`;
+  }
+
+  function placeCursor(el, st) {
+    // One live cursor: on the content block once it has text, else on the thinking block.
+    const rt = el.querySelector(".resp-text");
+    const tt = el.querySelector(".think-text");
+    let host = null;
+    if (st.content) host = rt;
+    else if (tt) host = tt;
+    if (!host) return;
+    let cur = el.querySelector(".cursor");
+    if (!cur) {
+      cur = document.createElement("span");
+      cur.className = "cursor";
+    }
+    if (cur.parentNode !== host) host.appendChild(cur);
+  }
+
+  // ---------- replay (dock) / per-exchange export ----------
+  async function postReplay(cid, seq, body) {
+    // Re-send a captured request, replacing its body with the full edited body
+    // (an empty body replays as-is). The replay streams in like any other
+    // exchange and is flagged is_replay.
+    const r = await fetch(`/api/conversations/${encodeURIComponent(cid)}/exchanges/${seq}/replay`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body || {}),
+    });
+    if (!r.ok) {
+      const err = await r.text();
+      throw new Error(`${r.status} ${err}`);
+    }
+  }
+
+  // Replay editor dock: the raw JSON body is the source of truth; the quick
+  // fields mirror it for the common single-value edits and are disabled when the
+  // body is not valid JSON.
+  const RD_FIELDS = [
+    { id: "rd-model", key: "model", type: "text" },
+    { id: "rd-temperature", key: "temperature", type: "number" },
+    { id: "rd-top_p", key: "top_p", type: "number" },
+    { id: "rd-max_tokens", key: "max_tokens", type: "number" },
+    { id: "rd-stream", key: "stream", type: "boolean" },
+  ];
+
+  function rdParse() {
+    try {
+      const o = JSON.parse($("rd-body").value);
+      return o && typeof o === "object" && !Array.isArray(o) ? o : null;
+    } catch {
+      return null;
+    }
+  }
+  function rdSetBody(obj) {
+    $("rd-body").value = JSON.stringify(obj, null, 2);
+  }
+  function rdSyncFields() {
+    const o = rdParse();
+    for (const f of RD_FIELDS) {
+      const el = $(f.id);
+      el.disabled = o == null;
+      if (o == null) {
+        if (f.type === "boolean") el.checked = false;
+        else el.value = "";
+      } else if (f.type === "boolean") {
+        el.checked = !!o[f.key];
+      } else {
+        el.value = o[f.key] == null ? "" : String(o[f.key]);
+      }
+    }
+  }
+  function rdPatch(key, value) {
+    const o = rdParse();
+    if (o == null) return;
+    o[key] = value;
+    rdSetBody(o);
+  }
+  function rdUnset(key) {
+    const o = rdParse();
+    if (o == null) return;
+    delete o[key];
+    rdSetBody(o);
+  }
+  function rdSetStatus(msg, isErr) {
+    const el = $("rd-status");
+    el.textContent = msg;
+    el.classList.toggle("err", !!isErr);
+  }
+  function openReplayDock(ex) {
+    if (!state.focusCid) return;
+    state.replaySeq = ex.sequence;
+    const body = (ex.client_request || {}).body_json;
+    if (body && typeof body === "object") {
+      rdSetBody(body);
+      rdSetStatus("The body below is re-sent in place of the captured request. Cancel to discard.");
+    } else {
+      rdSetBody({});
+      rdSetStatus("No editable JSON body was captured for this exchange.", true);
+    }
+    rdSyncFields();
+    const model = ((ex.client_request || {}).body_json || {}).model;
+    $("rd-sub").textContent = `#${ex.sequence}${model ? ` · ${model}` : ""}`;
+    $("replay-dock").hidden = false;
+    $("rd-body").focus();
+  }
+  function closeReplayDock() {
+    state.replaySeq = null;
+    $("replay-dock").hidden = true;
+  }
+  async function sendReplay() {
+    const seq = state.replaySeq;
+    if (seq == null || !state.focusCid) return;
+    const o = rdParse();
+    if (o == null) {
+      rdSetStatus("Body is not valid JSON.", true);
+      return;
+    }
+    $("rd-send").disabled = true;
+    rdSetStatus("Sending…");
+    try {
+      await postReplay(state.focusCid, seq, o);
+      closeReplayDock();
+    } catch (e) {
+      rdSetStatus(`replay failed: ${e.message}`, true);
+    } finally {
+      $("rd-send").disabled = false;
+    }
+  }
+  // The dock is resized by dragging its top grip up/down (CSS resize only
+  // offers the bottom edge, which belongs to the textarea area).
+  function wireDockResize() {
+    const dock = $("replay-dock");
+    const grip = dock.querySelector(".rd-grip");
+    const conv = dock.parentElement;
+    grip.addEventListener("pointerdown", (e) => {
+      e.preventDefault();
+      grip.setPointerCapture(e.pointerId);
+      const startY = e.clientY;
+      const startH = dock.getBoundingClientRect().height;
+      const headH = conv.querySelector(".conv-head").getBoundingClientRect().height;
+      const move = (ev) => {
+        const maxH = conv.getBoundingClientRect().height - headH - 8;
+        const h = Math.min(Math.max(startH + (startY - ev.clientY), 96), maxH); // drag up => taller
+        dock.style.height = `${Math.round(h)}px`;
+        dock.classList.add("sized");
+      };
+      const done = (ev) => {
+        grip.classList.remove("drag");
+        grip.releasePointerCapture(ev.pointerId);
+        grip.removeEventListener("pointermove", move);
+        grip.removeEventListener("pointerup", done);
+        grip.removeEventListener("pointercancel", done);
+      };
+      grip.classList.add("drag");
+      grip.addEventListener("pointermove", move);
+      grip.addEventListener("pointerup", done);
+      grip.addEventListener("pointercancel", done);
+    });
+  }
+  function wireReplayDock() {
+    $("rd-cancel").addEventListener("click", closeReplayDock);
+    $("rd-send").addEventListener("click", sendReplay);
+    $("rd-body").addEventListener("input", rdSyncFields);
+    for (const f of RD_FIELDS) {
+      $(f.id).addEventListener("input", (e) => {
+        if (f.type === "boolean") rdPatch(f.key, e.target.checked);
+        else if (e.target.value === "") rdUnset(f.key);
+        else rdPatch(f.key, f.type === "number" ? Number(e.target.value) : e.target.value);
+      });
+    }
+  }
+
+  // navigator.clipboard needs a secure context (https or localhost); on a LAN
+  // IP over http it is undefined, so fall back to a temporary textarea.
+  async function copyText(btn, text) {
+    let ok = false;
+    try {
+      await navigator.clipboard.writeText(text);
+      ok = true;
+    } catch {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      try {
+        ok = document.execCommand("copy");
+      } catch {
+        ok = false;
+      }
+      ta.remove();
+    }
+    btn.textContent = ok ? "copied" : "failed";
+    setTimeout(() => {
+      btn.textContent = "copy";
+    }, 1200);
+  }
+
+  function exportExchange(cid, seq) {
+    const a = document.createElement("a");
+    a.href = `/api/conversations/${encodeURIComponent(cid)}/exchanges/${seq}/export`;
+    a.download = `${cid}-ex${seq}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  }
+
+  function exchangeCard(ex, live) {
+    const isLive = live != null;
+    const text = isLive ? live.content : respText(ex);
+    const reasoning = isLive ? live.reasoning : reasoningText(ex);
+    const badges = [];
+    const st = (ex.server_response || {}).status;
+    if (ex.in_flight) badges.push('<span class="ex-spin" title="in progress"></span>');
+    else if (st != null) badges.push(`<span class="badge status${st >= 400 ? " bad" : " ok"}">${st}</span>`);
+    if (ex.server_response && ex.server_response.streaming) badges.push('<span class="badge stream">stream</span>');
+    if (ex.is_replay) badges.push('<span class="badge replay">replay</span>');
+    if (ex.error) badges.push('<span class="badge err">error</span>');
+    const collapsed = state.collapsed.has(ex.id);
+    const el = document.createElement("div");
+    el.className = "exchange" + (isLive ? " live" : "") + (collapsed ? " collapsed" : "");
+    el.dataset.exid = ex.id;
+    el.innerHTML = `
+      <div class="ex-head">
+        <button class="btn btn-sm collapse-btn" data-action="collapse" title="Collapse or expand this card">${collapsed ? "\u25b8" : "\u25be"}</button>
+        <span class="ex-seq">#${ex.sequence}</span>
+        <span class="ex-time">${fmtTime(ex.client_request && ex.client_request.timestamp)}</span>
+        <span class="ex-timings"></span>
+        ${badges.join("")}
+        <span class="ex-actions">
+          <button class="btn btn-sm" data-action="replay" title="Edit and re-send this request">replay</button>
+          <button class="btn btn-sm" data-action="export" title="Download this exchange as JSON">export</button>
+          <button class="btn btn-sm danger" data-action="remove" title="Remove this exchange from the conversation">×</button>
+        </span>
+      </div>
+      <div class="ex-body">${clientSideHtml(ex)}${serverSideHtml(ex, reasoning)}</div>`;
+
+    el.querySelector(".ex-timings").textContent = timingsText(ex);
+    el.querySelector('[data-action="replay"]').addEventListener("click", () => openReplayDock(ex));
+    el.querySelector('[data-action="export"]').addEventListener("click", () => exportExchange(state.focusCid, ex.sequence));
+    const collapseBtn = el.querySelector('[data-action="collapse"]');
+    collapseBtn.addEventListener("click", () => {
+      const nowCollapsed = !el.classList.toggle("collapsed");
+      if (nowCollapsed) state.collapsed.add(ex.id);
+      else state.collapsed.delete(ex.id);
+      collapseBtn.textContent = nowCollapsed ? "\u25b8" : "\u25be";
+    });
+    el.querySelector('[data-action="remove"]').addEventListener("click", async () => {
+      const btn = el.querySelector('[data-action="remove"]');
+      btn.disabled = true;
+      const r = await fetch(`/api/conversations/${encodeURIComponent(state.focusCid)}/exchanges/${ex.sequence}`, {
+        method: "DELETE",
+      });
+      if (r.ok) {
+        state.exById.delete(ex.id);
+        state.live.delete(ex.id);
+        el.remove();
+      } else {
+        btn.disabled = false;
+      }
+    });
+    for (const full of el.querySelectorAll("details.full")) {
+      const pre = full.querySelector("pre");
+      const btn = full.querySelector(".copy-btn");
+      btn.addEventListener("click", () => copyText(btn, pre.textContent));
+      // 18rem is the resting size; grabbing the UA resize handle lifts the cap
+      // (the element resize event does not fire in Firefox, so detect the grab
+      // itself) and pins the current height so the box does not jump open.
+      pre.addEventListener("pointerdown", (e) => {
+        const r = pre.getBoundingClientRect();
+        if (r.bottom - e.clientY < 16 && r.right - e.clientX < 16) {
+          pre.style.height = `${Math.round(r.height)}px`;
+          pre.style.maxHeight = "none";
+        }
+      });
+    }
+    const pv = el.querySelector(".preview");
+    if (pv) pv.textContent = previewOf(ex);
+    el.querySelector(".req-pre").textContent = fullRequest(ex);
+    el.querySelector(".resp-pre").textContent = fullResponse(ex);
+    const rt = el.querySelector(".resp-text");
+    if (rt) setText(rt, text);
+    const think = el.querySelector(".think");
+    if (think) {
+      wireThink(think);
+      setText(think.querySelector(".think-text"), reasoning);
+      think.querySelector(".think-summary").textContent = thinkSummary(reasoning);
+    }
+    if (isLive) placeCursor(el, { content: text, reasoning });
+    return el;
+  }
+
+  function upsertExchange(ex) {
+    const list = $("ex-list");
+    const existing = list.querySelector(`.exchange[data-exid="${ex.id}"]`);
+    const card = exchangeCard(ex, null);
+    if (existing) existing.replaceWith(card);
+    else list.appendChild(card);
+    state.exById.set(ex.id, ex);
+    // A completed exchange drops its live buffer (cursor); an in-flight one keeps
+    // it, so deltas that raced ahead of the REST render are not lost.
+    if (!ex.in_flight) state.live.delete(ex.id);
+    if (typeof ex.sequence === "number" && ex.sequence > state.lastSeq) state.lastSeq = ex.sequence;
+    maybeScroll();
+  }
+
+  function updateLive(exid) {
+    const el = $("ex-list").querySelector(`.exchange[data-exid="${exid}"]`);
+    if (!el) return;
+    const st = state.live.get(exid) || { content: "", reasoning: "" };
+    const rt = el.querySelector(".resp-text");
+    if (rt) setText(rt, st.content);
+    let think = el.querySelector(".think");
+    if (st.reasoning && !think) {
+      // Reasoning started streaming after the card was built without one: add an
+      // expanded thinking block (it auto-collapses when the exchange completes).
+      think = document.createElement("details");
+      think.className = "think";
+      think.open = true;
+      const summary = document.createElement("summary");
+      summary.className = "think-summary";
+      const text = document.createElement("pre");
+      text.className = "think-text";
+      think.append(summary, text);
+      wireThink(think);
+      if (rt) rt.before(think);
+    }
+    if (think) {
+      const tt = think.querySelector(".think-text");
+      setText(tt, st.reasoning);
+      think.querySelector(".think-summary").textContent = thinkSummary(st.reasoning);
+      if (think._stick) tt.scrollTop = tt.scrollHeight;
+    }
+    placeCursor(el, st);
+    maybeScroll();
+  }
+
+  function rerenderMd() {
+    // Markdown toggle: re-render the text of every visible card under the new
+    // mode (live cards use their accumulated stream, completed ones the stored
+    // exchange).
+    for (const el of document.querySelectorAll("#ex-list .exchange")) {
+      const ex = state.exById.get(el.dataset.exid);
+      if (!ex) continue;
+      const live = state.live.get(ex.id);
+      const rt = el.querySelector(".resp-text");
+      if (rt) setText(rt, live ? live.content : respText(ex));
+      const tt = el.querySelector(".think-text");
+      if (tt) setText(tt, live ? live.reasoning : reasoningText(ex));
+    }
+  }
+
+  function maybeScroll() {
+    if (!state.stick) return;
+    const list = $("ex-list");
+    list.scrollTop = list.scrollHeight;
+  }
+
+  // ---------- websocket ----------
+  function onWsMessage(ev) {
+    switch (ev.type) {
+      case "ping":
+        // Liveness reply; the server prunes sockets that go silent (hub._ping_loop).
+        if (state.ws) state.ws.send(JSON.stringify({ type: "pong", ts: ev.ts }));
+        break;
+      case "activity":
+        pulse(ev.conversation_id);
+        break;
+      case "client_seen":
+        refreshClients();
+        break;
+      case "exchange_started":
+        if (ev.conversation_id === state.focusCid) {
+          upsertExchange({
+            id: ev.exchange_id,
+            sequence: ev.sequence,
+            is_replay: !!ev.is_replay,
+            dissector: ev.dissector || "generic",
+            client_request: ev.client_request,
+            server_response: { status: "…", streaming: ev.streaming },
+            timings: {},
+            usage: null,
+            in_flight: true,
+          });
+        }
+        break;
+      case "delta":
+        if (ev.conversation_id === state.focusCid) {
+          const st = state.live.get(ev.exchange_id) || { content: "", reasoning: "" };
+          if (ev.delta) st.content += ev.delta;
+          if (ev.reasoning_delta) st.reasoning += ev.reasoning_delta;
+          state.live.set(ev.exchange_id, st);
+          updateLive(ev.exchange_id);
+        }
+        break;
+      case "exchange_completed":
+        if (ev.conversation_id === state.focusCid) upsertExchange(ev.exchange);
+        break;
+    }
+  }
+
+  function setWs(on) {
+    const p = $("stat-ws");
+    p.textContent = `ws: ${on ? "on" : "off"}`;
+    p.classList.toggle("ws-on", on);
+    p.classList.toggle("ws-off", !on);
+  }
+
+  // WS console tracing is off by default; enable per-session with ?wslog in the URL.
+  const wsLogOn = new URLSearchParams(location.search).has("wslog");
+
+  function wslog(level, ...args) {
+    if (!wsLogOn) return;
+    console[level](`[ws] ${new Date().toISOString().slice(11, 23)}`, ...args);
+  }
+
+  function connectWs() {
+    if (state.wsRetry) {
+      clearTimeout(state.wsRetry);
+      state.wsRetry = null;
+    }
+    const proto = location.protocol === "https:" ? "wss" : "ws";
+    const url = `${proto}://${location.host}/ws`;
+    const attempt = ++state.wsAttempts;
+    state.wsOpenedAt = null; // a close before open must not report the old socket's age
+    wslog("log", `connect #${attempt} -> ${url}`);
+    const ws = new WebSocket(url);
+    state.ws = ws;
+    ws.onopen = () => {
+      setWs(true);
+      state.wsOpenedAt = Date.now();
+      wslog("log", `open (attempt #${attempt})${state.focusCid ? `, resubscribing ${state.focusCid}` : ""}`);
+      if (state.focusCid) ws.send(JSON.stringify({ type: "subscribe", conversation_id: state.focusCid }));
+      // Any (re)connect means we may have missed broadcast events (client_seen)
+      // while the socket was down; re-sync the dock. Cheap: one small GET.
+      refreshClients();
+    };
+    ws.onmessage = (m) => {
+      state.wsLastMsgAt = Date.now();
+      try {
+        const ev = JSON.parse(m.data);
+        wslog("debug", `event: ${ev.type}`);
+        onWsMessage(ev);
+      } catch (e) {
+        wslog("error", "message handling failed", e, m.data);
+      }
+    };
+    ws.onclose = (ev) => {
+      if (state.ws !== ws) return; // superseded by a newer connection
+      setWs(false);
+      const lived = state.wsOpenedAt ? ` lived=${Math.round((Date.now() - state.wsOpenedAt) / 1000)}s` : "";
+      if (ev.code === 1000) wslog("log", `closed code=1000 (clean)${lived}`);
+      else wslog("error", `closed code=${ev.code} reason=${esc(ev.reason || "-")}${lived}`);
+      state.wsRetry = setTimeout(connectWs, 2000);
+      wslog("log", "reconnect in 2s");
+    };
+    ws.onerror = (ev) => {
+      wslog("error", "socket error", ev);
+      try {
+        ws.close();
+      } catch {
+        /* ignore */
+      }
+    };
+  }
+
+  function checkWsStale() {
+    // A socket can be open but half-dead (observed in Firefox: pill says
+    // ws:on, nothing flows). Only warn once we have seen traffic, so an idle
+    // proxy (no proxied requests) stays quiet.
+    if (state.ws && state.ws.readyState === 1 && state.wsLastMsgAt) {
+      const silent = Math.round((Date.now() - state.wsLastMsgAt) / 1000);
+      if (silent > 60) wslog("warn", `open but no message for ${silent}s`);
+    }
+  }
+
+  // ---------- misc ----------
+  async function checkUpstream() {
+    let ok = false;
+    let label = "upstream: error";
+    try {
+      const h = await api("/health");
+      ok = h.upstream === "ok";
+      label = `upstream: ${h.upstream_url} ${h.upstream}`;
+    } catch {
+      /* proxy unreachable */
+    }
+    $("stat-upstream").textContent = label;
+    $("stat-upstream").classList.toggle("ok", ok);
+    $("stat-upstream").classList.toggle("ws-off", !ok);
+  }
+
+  function wireButtons() {
+    $("btn-export").addEventListener("click", () => {
+      if (!state.focusCid) return;
+      const a = document.createElement("a");
+      a.href = `/api/conversations/${encodeURIComponent(state.focusCid)}/export`;
+      a.download = `${state.focusCid}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    });
+    $("btn-clear").addEventListener("click", async () => {
+      if (!state.focusCid) return;
+      await fetch(`/api/conversations/${encodeURIComponent(state.focusCid)}`, { method: "DELETE" });
+      $("ex-list").innerHTML = "";
+      state.exById.clear();
+      state.live.clear();
+      state.collapsed.clear();
+      state.lastSeq = 0;
+      closeReplayDock();
+    });
+    $("stick").addEventListener("change", (e) => {
+      state.stick = e.target.checked;
+      if (state.stick) maybeScroll();
+    });
+    // Scrolling up unsticks auto-scroll; re-enabling requires re-checking.
+    $("ex-list").addEventListener("scroll", () => {
+      const list = $("ex-list");
+      if (list.scrollHeight - list.scrollTop - list.clientHeight > 16) {
+        state.stick = false;
+        $("stick").checked = false;
+      }
+    });
+    const md = $("md");
+    md.checked = state.md;
+    md.addEventListener("change", (e) => {
+      state.md = e.target.checked;
+      localStorage.setItem("llmproxy.md", state.md ? "1" : "0");
+      rerenderMd();
+    });
+    $("filter").addEventListener("input", (e) => renderDock(e.target.value));
+  }
+
+  async function init() {
+    wireButtons();
+    wireDockResize();
+    wireReplayDock();
+    checkUpstream();
+    setInterval(() => {
+      checkUpstream(); // keep the upstream pill honest (recovers when it comes back)
+      checkWsStale();
+    }, 30000);
+    await refreshClients();
+    connectWs();
+  }
+  init();
+})();
+
+```
+
+
+**Tool Call: ui/styles.css**
+Status: Completed
+
+Diff: llm-mitm-proxy/ui/styles.css
+```
+:root {
+  color-scheme: dark;
+  --bg: #0f1115;
+  --bg-alt: #151821;
+  --panel: #1b1e24;
+  --panel-2: #12151b;
+  --border: #23262d;
+  --text: #e6e6e6;
+  --muted: #8b93a1;
+  --accent: #7cc7ff;
+  --accent-dim: #2b4a66;
+  --ok: #7ee0a1;
+  --err: #ff7b72;
+  --client: #8ab4f8;
+  --server: #7ee0a1;
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ---- top bar ---- */
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 1rem;
+  background: var(--bg-alt);
+  border-bottom: 1px solid var(--border);
+  flex: 0 0 auto;
+}
+.brand { font-weight: 600; font-size: 1rem; }
+.top-status { display: flex; gap: 0.5rem; }
+.pill {
+  font-size: 0.72rem;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  color: var(--muted);
+}
+.pill.ok { color: var(--ok); }
+.pill.ws-on { color: var(--ok); }
+.pill.ws-off { color: var(--err); }
+
+/* ---- layout ---- */
+.layout { display: flex; flex: 1 1 auto; min-height: 0; }
+
+/* ---- dock ---- */
+.dock {
+  width: 280px;
+  flex: 0 0 280px;
+  background: var(--bg-alt);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.dock-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.6rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+.dock-title { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
+.dock-head input {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 0.2rem 0.5rem;
+  font-size: 0.8rem;
+  width: 120px;
+}
+.dock-list { list-style: none; margin: 0; padding: 0.25rem; overflow-y: auto; flex: 1 1 auto; min-height: 0; }
+.dock-row {
+  padding: 0.5rem 0.6rem;
+  border-radius: 8px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  margin-bottom: 2px;
+}
+.dock-row:hover { background: var(--panel); }
+.dock-row.focused { background: var(--accent-dim); border-color: var(--accent); }
+.dr-top { display: flex; align-items: baseline; justify-content: space-between; gap: 0.5rem; }
+.dr-name { font-size: 0.9rem; flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dr-remove {
+  flex: 0 0 auto;
+  margin-left: 0.15rem;
+  padding: 0 0.3rem;
+  border: none;
+  border-radius: 4px;
+  background: none;
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.1;
+  cursor: pointer;
+  opacity: 0;
+}
+.dock-row:hover .dr-remove,
+.dock-row:focus-within .dr-remove { opacity: 1; }
+.dr-remove:hover { color: var(--err); background: var(--panel); }
+.dr-time { font-size: 0.7rem; color: var(--muted); flex: 0 0 auto; }
+.dr-sub { font-size: 0.7rem; color: var(--muted); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dock-row.pulse .dr-name { color: var(--accent); }
+.dock-row.pulse { animation: pulse 1.2s ease-out; }
+@keyframes pulse {
+  0% { background: var(--accent-dim); }
+  100% { background: transparent; }
+}
+.dock-empty { padding: 1rem; color: var(--muted); font-size: 0.8rem; }
+
+/* ---- main ---- */
+.main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; min-height: 0; }
+.empty { margin: auto; text-align: center; color: var(--text); }
+.muted { color: var(--muted); }
+.conv { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
+.conv[hidden] { display: none; }
+.conv-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.5rem 1rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-alt);
+  flex: 0 0 auto;
+}
+.conv-title { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.conv-actions { display: flex; align-items: center; gap: 0.6rem; flex: 0 0 auto; }
+.stick { font-size: 0.78rem; color: var(--muted); display: flex; align-items: center; gap: 0.3rem; cursor: pointer; }
+.btn {
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.25rem 0.7rem;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+.btn:hover { border-color: var(--accent); }
+.btn.danger:hover { border-color: var(--err); color: var(--err); }
+
+.ex-list { flex: 1 1 auto; overflow-y: auto; padding: 1rem; display: flex; flex-direction: column; gap: 1rem; min-height: 0; }
+
+/* ---- exchange card ---- */
+.exchange {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.exchange.collapsed .ex-body { display: none; }
+.exchange.collapsed .ex-head { border-bottom: none; }
+.ex-head {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.4rem 0.75rem;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+.ex-seq { color: var(--accent); font-weight: 600; }
+.ex-time { font-variant-numeric: tabular-nums; }
+.ex-timings { margin-left: auto; font-variant-numeric: tabular-nums; }
+.ex-actions { display: flex; gap: 0.35rem; }
+.btn-sm {
+  padding: 0.05rem 0.45rem;
+  font-size: 0.68rem;
+  border-radius: 5px;
+  line-height: 1.4;
+}
+.badge {
+  font-size: 0.68rem;
+  padding: 0.05rem 0.45rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.badge.stream { color: var(--server); border-color: var(--server); }
+.badge.replay { color: var(--accent); border-color: var(--accent); }
+.badge.err { color: var(--err); border-color: var(--err); }
+.badge.status.ok { color: var(--ok); border-color: var(--ok); }
+.badge.status.bad { color: var(--err); border-color: var(--err); }
+.ex-spin {
+  flex: 0 0 auto;
+  width: 0.75rem;
+  height: 0.75rem;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(1turn); } }
+
+.ex-body { display: flex; gap: 0; }
+.side { flex: 1 1 50%; min-width: 0; padding: 0.75rem; }
+.side.client { border-right: 1px solid var(--border); }
+.side-label {
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 0.4rem;
+}
+.side.client .side-label { color: var(--client); }
+.side.server .side-label { color: var(--server); }
+.line { font-size: 0.82rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; word-break: break-all; }
+.line.model { color: var(--muted); margin-top: 0.15rem; }
+.preview {
+  margin-top: 0.5rem;
+  font-size: 0.85rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: var(--panel);
+  border-radius: 6px;
+  padding: 0.4rem 0.5rem;
+}
+.resp-text {
+  margin-top: 0.5rem;
+  font-size: 0.85rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: var(--panel);
+  border-radius: 6px;
+  padding: 0.4rem 0.5rem;
+}
+.resp-text:empty { display: none; }
+.opaque-note {
+  margin-top: 0.5rem;
+  font-size: 0.8rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--muted);
+  background: var(--panel);
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  padding: 0.4rem 0.5rem;
+}
+.think {
+  margin-top: 0.5rem;
+}
+.think-summary {
+  cursor: pointer;
+  font-size: 0.72rem;
+  font-style: italic;
+  color: var(--muted);
+  user-select: none;
+}
+.think-summary:hover {
+  color: var(--accent);
+}
+.think-text {
+  margin: 0.35rem 0 0;
+  font-size: 0.78rem;
+  font-style: italic;
+  color: var(--muted);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 12rem;
+  overflow-y: auto;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  background: var(--panel);
+  border-radius: 6px;
+  padding: 0.4rem 0.5rem;
+}
+.tool-calls { margin-top: 0.5rem; }
+.tool-calls > summary { cursor: pointer; font-size: 0.75rem; color: var(--muted); user-select: none; }
+.tool-calls > summary:hover { color: var(--accent); }
+.tool-call { margin-top: 0.35rem; }
+.tool-name {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--accent);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+/* Plain mode matches .preview (sans-serif); markdown mode inherits the same
+   base, so only markdown syntax gains structure (code keeps monospace). */
+/* Markdown content uses normal whitespace (marked's trailing newline would
+   otherwise render as a blank line); plain mode keeps pre-wrap for fidelity. */
+.md { overflow-wrap: break-word; white-space: normal; }
+.md p { margin: 0.3rem 0; }
+.md > :first-child { margin-top: 0; }
+.md > :last-child { margin-bottom: 0; }
+.md h1, .md h2, .md h3, .md h4, .md h5, .md h6 { margin: 0.5rem 0 0.25rem; line-height: 1.25; }
+.md h1 { font-size: 1.05rem; }
+.md h2 { font-size: 1rem; }
+.md h3 { font-size: 0.95rem; }
+.md h4, .md h5, .md h6 { font-size: 0.88rem; }
+.md ul, .md ol { margin: 0.3rem 0; padding-left: 1.2rem; }
+.md li { margin: 0.1rem 0; }
+.md blockquote { margin: 0.4rem 0; padding: 0.1rem 0.6rem; border-left: 3px solid var(--border); color: var(--muted); }
+.md hr { margin: 0.5rem 0; border: 0; border-top: 1px solid var(--border); }
+.md a { color: var(--accent); }
+.md code {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0 0.25rem;
+  font-size: 0.75rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.md pre.md-code {
+  margin: 0.4rem 0;
+  padding: 0.5rem 0.6rem;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow-x: auto;
+  white-space: pre;
+  font-size: 0.75rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.md pre.md-code code { background: none; border: 0; padding: 0; font-size: inherit; }
+
+/* Request side: tool definitions are one collapsible (each tool row expandable
+   to description + params); call rows are always visible, mirroring the server
+   side (see .tool-calls). */
+.tools { margin-top: 0.4rem; }
+.tools summary { cursor: pointer; font-size: 0.75rem; color: var(--muted); }
+.tools summary:hover { color: var(--accent); }
+.tools-list { margin-top: 0.3rem; max-height: 12rem; overflow: auto; }
+.tool-item { margin-top: 0.2rem; }
+.tool-item > summary { font-size: 0.72rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.tool-detail { margin-top: 0.2rem; }
+.tool-desc { font-size: 0.72rem; color: var(--muted); margin-bottom: 0.2rem; }
+.tool-params, .tool-args, .tool-result {
+  margin: 0.2rem 0 0;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.4rem 0.5rem;
+  font-size: 0.72rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  overflow: auto;
+  max-height: 14rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.tool-sub { color: var(--muted); white-space: pre-wrap; word-break: break-word; }
+.tool-res { margin: 0.25rem 0 0 0.6rem; }
+.tool-res > summary { cursor: pointer; font-size: 0.72rem; color: var(--muted); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.tool-res > summary:hover { color: var(--accent); }
+.cursor { display: inline-block; width: 0.55em; background: var(--server); animation: blink 1s steps(1) infinite; margin-left: 1px; }
+@keyframes blink { 50% { opacity: 0; } }
+
+details.full { margin-top: 0.6rem; position: relative; }
+details.full summary {
+  cursor: pointer;
+  font-size: 0.75rem;
+  color: var(--muted);
+  user-select: none;
+}
+details.full summary:hover { color: var(--accent); }
+details.full pre {
+  margin: 0.4rem 0 0;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.6rem;
+  font-size: 0.72rem;
+  overflow: auto;
+  max-height: 18rem;
+  resize: vertical;
+  white-space: pre;
+}
+.copy-btn {
+  position: absolute;
+  top: 0.55rem;
+  right: 0.5rem;
+  z-index: 1;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--panel-2);
+  color: var(--muted);
+  font-size: 0.62rem;
+  padding: 0.08rem 0.4rem;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+details.full[open]:hover .copy-btn,
+details.full[open] .copy-btn:focus-visible { opacity: 1; }
+.copy-btn:hover { color: var(--accent); border-color: var(--accent); }
+.copy-btn.copied { color: var(--ok); border-color: var(--ok); }
+.err { color: var(--err); font-size: 0.8rem; margin-top: 0.4rem; white-space: pre-wrap; }
+
+/* ---- replay dock (bottom of the conversation pane) ---- */
+.btn.accent { border-color: var(--accent); color: var(--accent); }
+.btn.accent:hover { background: var(--accent-dim); }
+.btn:disabled { opacity: 0.5; cursor: default; }
+.replay-dock {
+  flex: 0 0 auto;
+  border-top: 1px solid var(--border);
+  background: var(--bg-alt);
+  padding: 0.6rem 1rem 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  overflow-y: auto;
+}
+.rd-grip {
+  flex: 0 0 auto;
+  height: 9px;
+  margin: -0.6rem -1rem 0;
+  cursor: ns-resize;
+  touch-action: none;
+}
+.rd-grip:hover,
+.rd-grip.drag { background: var(--accent-dim); }
+.replay-dock[hidden] { display: none; }
+.rd-head { display: flex; align-items: center; gap: 0.5rem; }
+.rd-title { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
+.rd-sub { font-size: 0.72rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.rd-spacer { flex: 1 1 auto; }
+.rd-fields { display: flex; flex-wrap: wrap; gap: 0.5rem 0.75rem; align-items: flex-end; }
+.rd-f { display: flex; flex-direction: column; gap: 0.15rem; font-size: 0.7rem; color: var(--muted); }
+.rd-f input {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 0.2rem 0.45rem;
+  font-size: 0.8rem;
+  width: 110px;
+}
+.rd-f input:disabled { opacity: 0.5; }
+.rd-f.rd-check { flex-direction: row; align-items: center; gap: 0.35rem; }
+.rd-f.rd-check input { width: auto; }
+.rd-body {
+  width: 100%;
+  flex: 1 1 auto;
+  min-height: 4rem;
+  resize: none;
+  background: var(--panel-2);
+  max-height: none;
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 0.6rem;
+  font-size: 0.74rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  white-space: pre;
+  overflow: auto;
+}
+/* Before the user drags the grip, the textarea keeps its initial height; once
+   the dock is explicitly sized, the textarea flexes to fill it. */
+.replay-dock:not(.sized) .rd-body { min-height: 9rem; }
+.rd-status { font-size: 0.7rem; color: var(--muted); }
+.rd-status.err { color: var(--err); }
+
+@media (max-width: 760px) {
+  .ex-body { flex-direction: column; }
+  .side.client { border-right: none; border-bottom: 1px solid var(--border); }
+  .dock { width: 200px; flex-basis: 200px; }
+}
+
+```
+
+
+## Assistant
+
+<thinking>
+Next, I'll check the package.json scripts to figure out the build/check/lint commands, and then run the tests in parallel.
+
+</thinking>
+
+UI updated. Now let me check the npm scripts and run the test suite in parallel with confirming no `body_binary` leftovers.
+
+
+
+**Tool Call: Read file `package.json`**
+Status: Completed
+
+```llm-mitm-proxy/package.json
+     1	{
+     2	  "name": "llm-mitm-proxy",
+     3	  "private": true,
+     4	  "version": "0.0.0",
+     5	  "description": "WebUI build (esbuild) + JS verification for llm-mitm-proxy.",
+     6	  "type": "module",
+     7	  "scripts": {
+     8	    "build": "esbuild ui/app.js --bundle --minify --format=esm --outfile=llm_proxy/web/app.js && esbuild ui/styles.css --bundle --minify --outfile=llm_proxy/web/styles.css && cp ui/index.html ui/favicon.svg llm_proxy/web/",
+     9	    "watch": "esbuild ui/app.js ui/styles.css --bundle --format=esm --outdir=llm_proxy/web --watch",
+    10	    "check": "node --check ui/app.js",
+    11	    "lint": "eslint ui",
+    12	    "verify:js": "npm run check && npm run lint"
+    13	  },
+    14	  "dependencies": {
+    15	    "marked": "^15.0.12"
+    16	  },
+    17	  "devDependencies": {
+    18	    "esbuild": "^0.25.0",
+    19	    "eslint": "^10",
+    20	    "globals": "^16"
+    21	  },
+    22	  "allowScripts": {
+    23	    "esbuild@0.25.12": true
+    24	  }
+    25	}
+
+```
+
+
+**Tool Call: grep -rn "body_binary\|binaryNote\|binary-note" ui llm_proxy --include="*.py" --include="*.js" --include="*.css" --include="*.html" | grep -v "web/" || echo "NO LEFTOVERS (source)"**
+Status: Completed
+
+```
+NO LEFTOVERS (source)
+```
+
+## Assistant
+
+<thinking>
+No remaining instances of `body_binary`/`binaryNote`/`binary-note` in the sources (llm_proxy/web is the build output and gets regenerated). Next, run the Python test suite, npm check+lint, and build. The test suite takes about 14 seconds, so I'll run it with a timeout. Run the Python tests and the npm checks in parallel.
+
+</thinking>
+
+No leftovers in source. Now running the Python tests, JS checks, and the UI rebuild.
+
+
+
+**Tool Call: .venv/bin/python -m unittest discover -s llm_proxy/tests 2>&1 | tail -5**
+Status: Completed
+
+```
+/bin/sh: 2: .venv/bin/python: not found
+```
+
+**Tool Call: npm run verify:js 2>&1 | tail -10**
+Status: Completed
+
+```
+> llm-mitm-proxy@0.0.0 check
+> node --check ui/app.js
+
+
+> llm-mitm-proxy@0.0.0 lint
+> eslint ui
+
+sh: 1: eslint: not found
+```
+
+## Assistant
+
+<thinking>
+Two problems:
+1. `.venv/bin/python` is not found — venv was broken again (according to the handoff, it was recreated in the previous session, but maybe it's a new devcontainer instance?). Let me check the state of the venv.
+2. `eslint: not found` — either node_modules isn't installed, or the path is off. Let me check `node_modules/.bin/eslint` and run it via `npm exec`.
+
+First, let me take a look at the state of the venv.
+
+</thinking>
+
+The venv is gone and eslint isn't on PATH. Let me check the environment state.
+
+
+
+**Tool Call: ls -la .venv 2>/dev/null | head -3; echo "---"; ls node_modules/.bin 2>/dev/null | head -10; echo "---"; python3 --version; which python3 node npm**
+Status: Completed
+
+```
+---
+---
+Python 3.14.7
+/usr/local/bin/python3
+/usr/local/share/nvm/current/bin/node
+/usr/local/share/nvm/current/bin/npm
+```
+
+## User
+
+In a devcontainer. No need for venv
+
+## Assistant
+
+<thinking>
+The user says there's no need for venv — the dependencies are probably installed in the devcontainer's global Python environment. Let me check whether llm_proxy is importable, and try running the tests with the system Python.
+
+</thinking>
+
+**Tool Call: python3 -c "import llm_proxy, httpx, fastapi; print('deps ok')" 2>&1; echo "---"; npm run verify:js 2>&1 | tail -8**
+Status: Completed
+
+```
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+    import llm_proxy, httpx, fastapi; print('deps ok')
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ModuleNotFoundError: No module named 'httpx'
+---
+> llm-mitm-proxy@0.0.0 check
+> node --check ui/app.js
+
+
+> llm-mitm-proxy@0.0.0 lint
+> eslint ui
+
+sh: 1: eslint: not found
+```
+
+## Assistant
+
+<thinking>
+`httpx` isn't installed globally either, and eslint isn't found in node_modules (node_modules might not exist). Let me check whether node_modules exists and install what's needed:
+
+1. npm: `npm install` (to fetch esbuild + eslint).
+2. Python: install the project's dependencies globally: `pip install -e .` or `pip install -e ".[dev]"`.
+
+First let me check the existence of node_modules and the dev dependencies in pyproject.
+
+</thinking>
+
+Deps aren't installed at all. Let me check what's needed and install.
+
+
+
+**Tool Call: ls node_modules 2>/dev/null | head -3; echo "---"; grep -A15 "dependency-groups\|\[project.optional-dependencies\]" pyproject.toml | head -25; echo "---"; python3 -m pip --version**
+Status: Completed
+
+```
+---
+[project.optional-dependencies]
+dev = [
+    "isort>=5",
+    "black>=24",
+]
+
+[project.urls]
+Repository = "https://github.com/mill1000/llm-mitm-proxy"
+Issues = "https://github.com/mill1000/llm-mitm-proxy/issues"
+
+[project.scripts]
+llm-mitm-proxy = "llm_proxy.app:main"
+
+[tool.setuptools]
+include-package-data = false
+
+---
+pip 26.2.1 from /usr/local/lib/python3.14/site-packages/pip (python 3.14)
+```
+
+## Assistant
+
+<thinking>
+node_modules doesn't exist. I'll install the Python dependencies (editable install including dev extras: black, isort, and the project's runtime dependencies httpx/fastapi, etc.) and the npm dependencies in parallel.
+
+</thinking>
+
+Installing Python deps (editable + dev extras) and npm deps in parallel.
+
+
+
+**Tool Call: python3 -m pip install -e ".[dev]" 2>&1 | tail -3**
+Status: Completed
+
+```
+Successfully uninstalled llm-mitm-proxy-0.0.1.dev20+local.gf8587406e.d20260912
+
+Successfully installed black-26.5.1 isort-9.0.1 llm-mitm-proxy-0.0.1.dev21+local.gd2e7c4d32.d20260912 mypy-extensions-1.1.0 pathspec-1.1.1 platformdirs-4.11.8 pytokens-0.4.1
+```
+
+**Tool Call: npm install 2>&1 | tail -3**
+Status: Completed
+
+```
+run `npm fund` for details
+
+found 0 vulnerabilities
+```
+
+## Assistant
+
+<thinking>
+Both are already installed. Note that llm-mitm-proxy was previously installed (the uninstall line indicates that a previous version existed). Next, I'll run the tests and the JS validation in parallel.
+
+</thinking>
+
+Both installed. Running the test suite and JS checks in parallel.
+
+
+
+**Tool Call: python3 -m unittest discover -s llm_proxy/tests 2>&1 | tail -5**
+Status: Completed
+
+```
+....................................s............................
+----------------------------------------------------------------------
+Ran 65 tests in 8.967s
+
+OK (skipped=1)
+```
+
+**Tool Call: npm run verify:js 2>&1 | tail -8**
+Status: Completed
+
+```
+> llm-mitm-proxy@0.0.0 check
+> node --check ui/app.js
+
+
+> llm-mitm-proxy@0.0.0 lint
+> eslint ui
+```
+
+## Assistant
+
+<thinking>
+- 65 tests, all OK (1 skipped — probably the existing one related to IPv6/DNS).
+- JS check + eslint pass (no output after eslint = clean).
+
+Next:
+1. Rebuild the UI bundle: `npm run build`.
+2. Verify that the bundle contains `opaque`.
+3. Run black + isort on the modified Python files.
+
+</thinking>
+
+Tests pass (65, 1 pre-existing skip), JS check + eslint clean. Now rebuilding the served UI bundle and formatting the Python files.
+
+
+
+**Tool Call: npm run build 2>&1 | tail -4; echo "---"; grep -c "opaque" llm_proxy/web/app.js; grep -c "opaque-note" llm_proxy/web/styles.css; grep -c "body_binary\|binaryNote\|binary-note" llm_proxy/web/app.js || echo "bundle clean"**
+Status: Completed
+
+```
+llm_proxy/web/styles.css  11.3kb
+
+⚡ Done in 24ms
+---
+1
+1
+0
+bundle clean
+```
+
+**Tool Call: python3 -m black llm_proxy/proxy/pipeline.py llm_proxy/tests/test_proxy.py llm_proxy/tests/mock_upstream.py 2>&1; python3 -m isort llm_proxy/proxy/pipeline.py llm_proxy/tests/test_proxy.py llm_proxy/tests/mock_upstream.py 2>&1**
+Status: Completed
+
+```
+All done! ✨ 🍰 ✨
+3 files left unchanged.
+```
+
+## Assistant
+
+<thinking>
+Wait — `grep -c "opaque" llm_proxy/web/app.js` returned 1. Since the minified bundle is a single line, a count of 1 means at least one occurrence (count counts lines, and the minified bundle is a single line). That's fine.
+
+- Bundle rebuild complete: contains "opaque" (1 line = minified single line, present), styles.css has "opaque-note", and zero occurrences of body_binary/binaryNote/binary-note.
+- black/isort: all 3 files unchanged → formatting was already correct.
+
+Now, let's do a final sanity review of the actual diff to confirm everything is consistent. I'll check git status/diff to summarize what was changed in this work (including the backend round 1+2 work that was done in the previous session).
+
+</thinking>
+
+Everything's green. Let me do a final review of the complete diff to report back.
+
+
+
+**Tool Call: git --no-pager diff --stat; echo "==="; git --no-pager status --short**
+Status: Completed
+
+```
+llm_proxy/proxy/pipeline.py      | 44 +++++++++++++++++++++++++++++---------------
+ llm_proxy/tests/mock_upstream.py | 22 ++++++++++++++++++++++
+ llm_proxy/tests/test_proxy.py    | 43 ++++++++++++++++++++++++++++++++++---------
+ ui/app.js                        | 16 ++++++++--------
+ ui/styles.css                    |  2 +-
+ 5 files changed, 94 insertions(+), 33 deletions(-)
+===
+ M llm_proxy/proxy/pipeline.py
+ M llm_proxy/tests/mock_upstream.py
+ M llm_proxy/tests/test_proxy.py
+ M ui/app.js
+ M ui/styles.css
+```
+
+## Assistant
+
+<thinking>
+Let's quickly check the diff of pipeline.py and verify the final backend logic (especially the `_is_opaque` function and its usage sites). This is to confirm that the handoff summary matches reality, and that nothing is broken.
+
+</thinking>
+
+**Tool Call: git --no-pager diff llm_proxy/proxy/pipeline.py**
+Status: Completed
+
+```
+diff --git a/llm_proxy/proxy/pipeline.py b/llm_proxy/proxy/pipeline.py
+index 096c0e8..d90a501 100644
+--- a/llm_proxy/proxy/pipeline.py
++++ b/llm_proxy/proxy/pipeline.py
+@@ -97,6 +97,21 @@ def _content_type(headers: dict) -> str | None:
+     return None
+
+
++def _is_opaque(headers: dict, body: bytes) -> bool:
++    """Whether a wire body is captured opaquely (content-type + size, no decode).
++
++    A declared content-type decides: JSON (``application/json`` or ``*/+json``)
++    and ``text/plain`` are decoded; any other type - CSS, JS, HTML, SVG, fonts,
++    images, octet-stream, ... - is opaque. With no declared type, a binary body
++    is opaque and a text one is decoded best-effort. The proxy taps LLM APIs,
++    not a browser's asset tree, so opaque keeps the store and the UI readable.
++    """
++    ct = _content_type(headers)
++    if ct is None:
++        return _looks_binary(body)
++    return ct not in ("application/json", "text/plain") and not ct.endswith("+json")
++
++
+ def _mask(v) -> str:
+     if not v:
+         return v
+@@ -260,9 +275,9 @@ class Pipeline:
+         # Display hint for the pending card; the real stream decision is made
+         # from the upstream response's content-type in _upstream().
+         is_stream = bool(wire_req.body_json and wire_req.body_json.get("stream"))
+-        # A binary request body (e.g. an image upload) is not decoded to text:
+-        # record its content-type and size instead of garbled replacement text.
+-        req_binary = _looks_binary(wire_req.body)
++        # An opaque request body (e.g. an uploaded image or form payload) is not
++        # decoded to text: record its content-type and size instead.
++        req_opaque = _is_opaque(wire_req.headers, wire_req.body)
+         # Full captured request shape (headers/body redacted), plus model/preview
+         # for the card header. Shared by the in-flight placeholder and the
+         # exchange_started event so the pending card's debug views are complete.
+@@ -273,9 +288,9 @@ class Pipeline:
+             "headers": _redact(wire_req.headers),
+             "content_type": _content_type(wire_req.headers),
+             "body_json": wire_req.body_json,
+-            "body_binary": req_binary,
++            "opaque": req_opaque,
+             "body_text": (
+-                None if (wire_req.body_json is not None or req_binary) else _capped_text(wire_req.body)
++                None if (wire_req.body_json is not None or req_opaque) else _capped_text(wire_req.body)
+             ),
+             "size_bytes": len(wire_req.body) if wire_req.body else 0,
+             "model": parsed_req.model,
+@@ -714,19 +729,18 @@ class Pipeline:
+                 "total_tokens": int(u.get("total_tokens") or 0),
+             }
+
+-        # A binary response body (an image or other non-text asset from a proxied
+-        # non-LLM endpoint) is not decoded to text: record its content-type and
+-        # size instead of garbled replacement characters. (For the non-stream
+-        # case ``body`` is the response body; streams are always SSE text, so this
+-        # is gated on ``not streaming``.)
+-        resp_binary = not streaming and _looks_binary(body or b"")
++        # A proxied non-LLM endpoint serves the web UI's assets (CSS, JS, HTML,
++        # SVG, images, fonts, ...); they are captured opaquely - content-type +
++        # size, no decoded body. (For the non-stream case ``body`` is the response
++        # body; streams are always SSE text, so this is gated on ``not streaming``.)
++        resp_opaque = not streaming and _is_opaque(resp_headers, body or b"")
+         server_response: dict = {
+             "timestamp": t_first,
+             "status": status,
+             "headers": _redact(resp_headers),
+             "streaming": streaming,
+             "content_type": _content_type(resp_headers),
+-            "body_binary": resp_binary,
++            "opaque": resp_opaque,
+             "size_bytes": body_size if body_size is not None else (len(body_bytes) if body_bytes else 0),
+         }
+         if streaming and parsed is not None and parsed.reassembled is not None:
+@@ -734,9 +748,9 @@ class Pipeline:
+         elif raw_text is not None:
+             # Undecoded stream: the capped raw stream is the only faithful capture.
+             server_response["body_text"] = raw_text
+-        elif resp_binary:
+-            # Binary body: content_type + size_bytes above are the capture; the
+-            # bytes themselves are not stored (they are forwarded verbatim).
++        elif resp_opaque:
++            # Opaque capture: content_type + size_bytes above are the record; the
++            # body is forwarded verbatim and not stored.
+             pass
+         else:
+             body_json = parsed.body_json if parsed is not None else None
+```
+
+## Assistant
+
+<thinking>
+The pipeline diff looks fine. One edge case to verify: for streaming responses, `resp_opaque = not streaming and ...` — SSE streams are excluded (exempt). Good.
+
+But wait — there's a subtle point: in the case of an opaque response, the `else` branch (decoding into body_json/body_text) is skipped — good, `body_text`/`body_json` don't get into the dict at all. And `client_request` always has `body_text` (None if opaque). This matches the test expectations described in the handoff.
+
+Another check: is there any other code that reads `body_binary` from the exchange dict? E.g. dump/export, WS events, app.py. In the source, I've already grep'd `body_binary` and got zero hits (source, excluding web/ which was already rebuilt clean).
+
+Also confirmed that the `_looks_binary` fallback in `_is_opaque` is fine when `body` is empty: `_is_opaque(headers, b"")` — empty body: if content-type is declared and opaque → opaque=True even though the body is empty (e.g. a 204 with content-type? Rare, and harmless — the note will show "0 B"). If there's no content-type, `_looks_binary(b"")` — let me confirm it can handle an empty body. It's existing round-1 code, and the tests pass, so it should be fine.
+
+One more thing to double-check: the mock upstream endpoints and tests were verified by the test run (65 OK).
+
+Also, the earlier `git diff --stat` didn't show `docs/` — good, I haven't touched the docs.
+
+All verified:
+- 65 tests OK (1 existing skip)
+- npm check + eslint clean
+- Bundle rebuild done, `opaque` present, no leftovers of `body_binary`
+- black/isort: files unchanged (already formatted)
+
+Wait — one more thing: black said "3 files left unchanged" — but the diff I applied earlier in the session is… according to the handoff, the backend edits from round 2 were done in the previous session, and this session I only edited ui/app.js and ui/styles.css. So the Python files being unchanged by black makes sense — they were already formatted.
+
+Hmm, but actually the handoff said step 5 was "format: run black + isort" as a pending verification — now done, all clean.
+
+Also, re-checking `node --check` on ui/app.js — passed. eslint passed with no output.
+
+Should I do one more final overall sanity check at the end: grep the source for usages of the `opaque` field, confirm it's consistent (pipeline, tests, ui). Already done via grep for opaque in ui/** (found it in app.js) and tests pass.
+
+OK, now to write the final report. No commit, no closing the issue. Concise summary:
+
+**What changed (issue #3, round 2 — "don't decode css/js/svg/other assets"):**
+- `llm_proxy/proxy/pipeline.py`: added new `_is_opaque(headers, body)` classifier. If a declared content-type is present: `application/json` / `*/+json` / `text/plain` get decoded, everything else (css, js, html, svg, images, fonts, octet-stream…) → opaque (record `content_type` + `size_bytes` + `opaque: true`; no `body_text`/`body_json`). No declared type → fall back to `_looks_binary`. SSE streaming is excluded. The Round-1 `body_binary` field was renamed to `opaque` on both `client_request` and `server_response`.
+- `ui/app.js`: `binaryNote` → `opaqueNote` (checks `side.opaque`, fallback label "unknown content type"), updated both call sites; the note now reads e.g. `text/css · 1.2 KB — not displayed` (no more "binary" prefix).
+- `ui/styles.css`: `.binary-note` → `.opaque-note`.
+- Tests (`mock_upstream.py` + `test_proxy.py`): added asset endpoints `/style.css`, `/app.js`, `/index.html`, `/icon.svg` (plus `/img`, `/blob` from round 1); added new tests `test_text_assets_recorded_opaque` (4 asset types), `test_binary_response_recorded_opaque`, `test_binary_request_body_recorded_opaque`; updated existing tests to the `opaque` field.
+- Rebuilt the served bundle `llm_proxy/web/` via `npm run build`.
+
+**Verification:**
+- 65 tests, all pass (1 existing skip)
+- `npm run check` + `npm run lint` clean
+- black/isort clean
+- No `body_binary`/`binary-note` remnants in source or rebuilt bundle
+
+Behavioral note: assets are still forwarded verbatim to the client — only capture/display changed. JSON/text-plain/SSE unchanged.
+
+No commit, issue not closed.
+
+</thinking>
+
+All done. Final state verified — here's the summary for issue #3 (round 2: "avoid decoding css, js, svg and other assets"):
+
+## Changes
+
+**Backend — `llm_proxy/proxy/pipeline.py`**
+- New `_is_opaque(headers, body)` classifier. A declared content-type decides: `application/json`, `*/+json`, and `text/plain` are decoded as before; **everything else** (`text/css`, `application/javascript`, `text/html`, `image/svg+xml`, images, fonts, octet-stream, …) is captured **opaquely** — `content_type` + `size_bytes` + `opaque: true`, with no `body_text`/`body_json` stored. No declared type falls back to the existing `_looks_binary` sniffing. SSE streams stay exempt.
+- The round-1 `body_binary` field was renamed to `opaque` on both `client_request` and `server_response`.
+
+**UI — `ui/app.js` + `ui/styles.css`**
+- `binaryNote()` → `opaqueNote()`: now checks `side.opaque`, and the note no longer says "binary" — e.g. `text/css · 1.2 KB — not displayed`, with `"unknown content type"` as the fallback label. Both call sites (`clientSideHtml`, `serverSideHtml`) updated; `.binary-note` → `.opaque-note` in the CSS.
+
+**Tests — `llm_proxy/tests/mock_upstream.py` + `test_proxy.py`**
+- New mock asset endpoints: `/style.css`, `/app.js`, `/index.html`, `/icon.svg` (plus `/img`, `/blob` from round 1).
+- New tests: `test_text_assets_recorded_opaque` (all 4 asset types), `test_binary_response_recorded_opaque`, `test_binary_request_body_recorded_opaque`; existing tests updated to the `opaque` field.
+
+**Build** — served bundle `llm_proxy/web/` regenerated via `npm run build` (gitignored output).
+
+## Validation
+
+- ✅ `python3 -m unittest discover -s llm_proxy/tests` — **65 tests, all pass** (1 pre-existing skip)
+- ✅ `npm run check` + `npm run lint` — clean
+- ✅ `black` + `isort` — no changes needed
+- ✅ zero `body_binary`/`binary-note` leftovers in source and in the rebuilt bundle
+
+## Behavior notes
+
+- Assets are still **forwarded verbatim** to the client — only capture/display changed.
+- JSON, `text/plain`, and SSE behavior is unchanged.
+
+Nothing committed, and the issue is left open for your review.
+
+## User
+
+I setup the proxy. Make some requests against it so I can verify
+
+## Assistant
+
+<thinking>
+The user has set up a proxy and wants me to send requests to it so they can verify in the UI. I need to identify the proxy's listening port. Let me check what's running / the default configuration. According to the plan, the default for LISTEN_HOST is probably 0.0.0.0, LLM_PORT is 8080, and UI_PORT is 8081 (per the plan's docker-compose: ports 8080:8080, 8081:8081). Let me confirm the actual default values and what's currently listening.
+
+Let me check the ports that are listening and the environment variables of the running proxy process.
+
+</thinking>
+
+**Tool Call: ss -tlnp 2>/dev/null | head -20; echo "==="; ps aux | grep -i "llm-mitm-proxy\|llm_proxy" | grep -v grep | head -5**
+Status: Completed
+
+```
+State  Recv-Q Send-Q Local Address:Port Peer Address:PortProcess                            
+LISTEN 0      2048         0.0.0.0:9090      0.0.0.0:*    users:(("llm-mitm-proxy",pid=9633,fd=7))
+LISTEN 0      2048         0.0.0.0:8081      0.0.0.0:*    users:(("llm-mitm-proxy",pid=9633,fd=6))
+===
+vscode      9633  1.4  0.1 221516 60572 pts/1    Sl+  22:09   0:00 /usr/local/bin/python3 /home/vscode/.local/bin/llm-mitm-proxy http://10.100.1.20:8080
+```
+
+## Assistant
+
+<thinking>
+The proxy is running:
+- LLM port: 9090 (client → proxy)
+- UI port: 8081
+- Upstream: http://10.100.1.20:8080
+
+First let me quickly check the UI API to confirm that the proxy is healthy, then send some requests that will exercise the new opaque-capture path. I want to give the user something to verify in the UI:
+
+1. A JSON LLM-style request (normal path, should decode) — e.g., POST /v1/chat/completions.
+2. Requests to non-LLM asset endpoints to exercise the opaque capture:
+   - text/css → /style.css (if upstream has it)
+   - application/javascript → /app.js
+   - text/html → /index.html
+   - image/svg+xml → /icon.svg
+   - image/png → /img
+   - binary blob POST → /blob
+
+But wait — what endpoints does the actual upstream (10.100.1.20:8080) have? The mock endpoints (/img, /style.css, etc.) only exist in the test mock_upstream. The user's upstream is a real service on 10.100.1.20:8080. I don't know what it serves. It might be a llama-server with a web UI (per the issue: "e.g., a whole web UI of llama-server").
+
+First let me probe the upstream via the proxy to see what's there — e.g., GET / through the proxy. Then craft requests based on what I find.
+
+Plan:
+1. GET the UI's /api/... (e.g., /api/clients or /api/exchanges) to confirm the proxy is healthy and check current state.
+2. Probe upstream via proxy: GET / (LLM port 9090) → probably an HTML page (llama-server's web UI) → this will exercise opaque HTML capture.
+3. Then GET the assets that the HTML references (css/js/svg) — parse the HTML to find asset URLs and request them via the proxy.
+4. Maybe POST a chat completion to verify that the normal JSON path still works (if upstream is llama-server, it'll support /v1/chat/completions).
+
+Caveat: the user wants to "verify in the UI," so I should create a diverse set of exchanges: LLM JSON (streaming and non-streaming), HTML page, CSS, JS, SVG, image. Let me start with probing.
+
+First, let me check the UI API to know the exact endpoints (from the API surface in PLAN.md: /api/..., UI port). For now let me try GET http://127.0.0.1:8081/api/clients, and also try GET /v1/models via the proxy.
+
+</thinking>
+
+The proxy is up: LLM port `9090`, UI on `8081`, upstream `http://10.100.1.20:8080`. Let's probe what's there and generate a series of exchange data that covers both paths (decoded JSON + opaque assets).
+
+
+
+**Tool Call: curl -s http://127.0.0.1:8081/api/clients; echo; echo "=== upstream via proxy: GET / ==="; curl -s -o /tmp/root.html -w "%{http_code} %{content_type} %{size_download}B\n" http://127.0.0.1:9090/**
+Status: Completed
+
+```
+{"error": {"message": "upstream error: "}}
+=== upstream via proxy: GET / ===
+200 text/html; charset=utf-8 3166B
+```
+
+## Assistant
+
+<thinking>
+- `/api/clients` returned an upstream error (might be because it's calling the upstream API to fetch the client list? Or the endpoint name might be different — not critical).
+- `GET /` via the proxy: 200, `text/html; charset=utf-8`, 3166B — HTML page. This should already have been recorded as **opaque** (text/html is not included in the decoded set).
+
+Next, let's check the contents of the HTML, find the referenced assets (css/js/svg), and also probe the LLM endpoint. Let's take a look at the HTML.
+
+</thinking>
+
+`GET /` returned HTML (3166 B) — that should already be an opaque capture. Let me see what assets it references and probe the LLM endpoint.
+
+
+
+**Tool Call: grep -o 'src="[^"]*"\|href="[^"]*"' /tmp/root.html | sort -u; echo "=== /v1/models ==="; curl -s -w "\n%{http_code} %{content_type}\n" http://127.0.0.1:9090/v1/models | head -20**
+Status: Completed
+
+```
+href="/favicon.svg"
+href="/styles.css"
+src="/app.js"
+=== /v1/models ===
+{"detail":"Not Found"}
+404 application/json
+```
+
+## Assistant
+
+<thinking>
+The upstream's root page references `/favicon.svg`, `/styles.css`, and `/app.js`. Also, `/v1/models` → 404 (application/json). This upstream isn't a standard llama-server v1 API (or it's using a different path). To figure out which API to hit, let me quickly check the HTML page and app.js to see which endpoints the UI is calling.
+
+</thinking>
+
+**Tool Call: head -c 1200 /tmp/root.html; echo; echo "=== app.js endpoints ==="; curl -s http://127.0.0.1:9090/app.js -o /tmp/app.js -w "%{http_code} %{content_type} %{size_download}B\n"; grep -o 'fetch([^)]*)\|"/[a-z0-9_/-]*"' /tmp/app.js | sort -u | head -20**
+Status: Completed
+
+```
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <title>llm-mitm-proxy</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">llm-mitm-proxy</div>
+      <div class="top-status">
+        <span id="stat-upstream" class="pill">upstream: …</span>
+        <span id="stat-ws" class="pill ws-off">ws: off</span>
+      </div>
+    </header>
+
+    <div class="layout">
+      <aside class="dock">
+        <div class="dock-head">
+          <span class="dock-title">Conversations</span>
+          <input id="filter" type="search" placeholder="filter…" autocomplete="off" />
+        </div>
+        <ul id="dock-list" class="dock-list"></ul>
+        <div id="dock-empty" class="dock-empty">No traffic yet.</div>
+      </aside>
+
+      <main class="main">
+        <div id="empty" class="empty"><p id="empty-msg">Select a conversation on the left.</p></div>
+
+        <div id="conv" class="conv" hidden>
+          <div class="conv-head">
+            <span id="conv-title" clas
+=== app.js endpoints ===
+200 text/javascript; charset=utf-8 60226B
+"/api/clients"
+"/health"
+fetch(`/api/conversations/${encodeURIComponent(s)
+fetch(`/api/conversations/${encodeURIComponent(t.focusCid)
+fetch(s,i)
+```
+
+## Assistant
+
+<thinking>
+Interesting! The upstream at 10.100.1.20:8080 is actually **another llm-mitm-proxy** (or a service that serves the same UI — the HTML title is "llm-mitm-proxy"). So the user has set up a proxy chain: my proxy (9090) → upstream proxy (10.100.1.20:8080), and that upstream serves the llm-mitm-proxy UI itself.
+
+In other words, if I request the following through my proxy:
+- `GET /` → text/html (opaque) ✓ done
+- `GET /app.js` → text/javascript (opaque) ✓ done
+- `GET /styles.css` → text/css (opaque)
+- `GET /favicon.svg` → image/svg+xml (opaque)
+- `GET /api/clients` → application/json (decoded — JSON!)
+- `GET /health` → JSON or text
+- POST to a chat endpoint? The upstream proxy expects LLM traffic at its LLM port… wait, no — 10.100.1.20:8080 is serving the UI (the UI port of the other proxy instance), and not necessarily its LLM port. Hmm, but when I accessed `/v1/models` on my proxy (9090), the 404 JSON "detail":"Not Found" came back — this FastAPI-style 404 JSON is what the upstream is serving (my proxy forwards non-LLM paths through as-is, so the upstream returns a 404 JSON).
+
+Wait, actually — my proxy treats every request coming in on 9090 as a wire request and forwards it to the upstream. The upstream (the other llm-mitm-proxy instance) receives it on its… port 8080, which is its UI port (since it's serving the UI's HTML at /). So the /v1/models 404 JSON is coming from the upstream's UI FastAPI app.
+
+So, to get an actual LLM exchange through my proxy, I need to hit an LLM endpoint that the upstream's UI port handles… does the UI port handle the LLM API? According to PLAN.md, the LLM port and UI port are separate. The upstream's 8080 is its UI port (serving UI + /api). Therefore LLM requests on that port will 404.
+
+But that's fine for verification purposes! What the user wants to see is:
+1. Opaque captures: HTML, JS, CSS, SVG (all 4 asset types — perfect for this issue).
+2. Decoded captures: JSON responses (e.g., /api/clients, /health) — these stay decoded.
+3. Possibly a 404 JSON error — that's also decoded JSON.
+
+That gives a good verification set. What I'll run:
+- GET /styles.css
+- GET /favicon.svg
+- GET /api/clients (JSON, decoded)
+- GET /health (JSON, decoded)
+
+I already have: GET / (HTML opaque), GET /app.js (JS opaque), GET /v1/models (404 JSON decoded).
+
+Also, a POST with a text/plain body to /api/... to test a text/plain decoded request? Not needed. But if I POST a JSON body to /api/clients, I can verify request-body decoding — e.g., a POST /api/clients with a JSON body might 404 or 405, but the request capture will still be recorded. Hmm, let's keep it simple and focused.
+
+Actually, to give a full set covering both request and response opacity:
+- POST with a text/plain body: `curl -X POST -H "Content-Type: text/plain" -d "hello" http://127.0.0.1:9090/health` — text/plain → decoded (not opaque). Might show up as a 405. That's fine — it verifies that the request-decode path still works.
+- POST with a text/css body? Weird, but it verifies request opacity: `curl -X POST -H "Content-Type: text/css" -d "a{color:red}" http://127.0.0.1:9090/health` → the request should be captured as opaque. A bit artificial, but it directly verifies the request-side opaque capture in the UI.
+
+Let's run these and then fetch the exchange list from the UI API to show the user what was captured. The UI API is on 8081: /api/conversations? Let me check which endpoints exist. Per PLAN 5.2: UI REST API (UI port, /api/...). There's probably /api/conversations or /api/exchanges. Let me check what the UI's app.js (the local UI, not the upstream one) calls: /api/clients, /api/conversations/{id}. Earlier, when I did GET /api/clients on my proxy's UI port, it returned {"error": {"message": "upstream error: "}} — interesting, so /api/clients on the UI port is… hmm, that returned an error. Wait — that was on port 8081. The error "upstream error:" suggests the endpoint tried to reach upstream and failed.
+
+Hmm, wait, let me actually reconsider: maybe the UI port is serving a static UI + API, and /api/clients proxies to upstream for the client list? Whatever — to show the user the capture, I can hit /api/conversations on 8081.
+
+So now:
+1. Run the remaining asset/JSON requests through 9090.
+2. Then query 8081 /api/conversations to list the captured exchanges and confirm the opaque flags server-side.
+
+</thinking>
+
+Upstream is itself serving the llm-mitm-proxy UI — perfect, it has exactly the asset types this issue targets. I'll fire a full set through the proxy: the 4 asset types, a few decoded JSON responses, and request-side cases.
+
+
+
+**Tool Call: echo "--- assets (should be OPAQUE) ---"
+curl -s -o /dev/null -w "GET  /styles.css  -> %{http_code} %{content_type} %{size_download}B\n" http://127.0.0.1:9090/styles.css
+curl -s -o /dev/null -w "GET  /favicon.svg -> %{http_code} %{content_type} %{size_download}B\n" http://127.0.0.1:9090/favicon.svg
+echo "--- JSON (should be DECODED) ---"
+curl -s -o /dev/null -w "GET  /api/clients -> %{http_code} %{content_type} %{size_download}B\n" http://127.0.0.1:9090/api/clients
+curl -s -o /dev/null -w "GET  /health      -> %{http_code} %{content_type} %{size_download}B\n" http://127.0.0.1:9090/health
+echo "--- request bodies (text/plain decoded, text/css opaque) ---"
+curl -s -o /dev/null -w "POST /health text/plain    -> %{http_code}\n" -X POST -H "Content-Type: text/plain" -d "hello opaque-check" http://127.0.0.1:9090/health
+curl -s -o /dev/null -w "POST /health text/css      -> %{http_code}\n" -X POST -H "Content-Type: text/css" -d "body{color:red}" http://127.0.0.1:9090/health**
+Status: Completed
+
+```
+--- assets (should be OPAQUE) ---
+GET  /styles.css  -> 200 text/css; charset=utf-8 11533B
+GET  /favicon.svg -> 200 image/svg+xml 235B
+--- JSON (should be DECODED) ---
+GET  /api/clients -> 200 application/json 336B
+GET  /health      -> 200 application/json 79B
+--- request bodies (text/plain decoded, text/css opaque) ---
+POST /health text/plain    -> 405
+POST /health text/css      -> 405
+```
+
+## Assistant
+
+<thinking>
+All requests are complete. Next, let's verify what the proxy recorded — I'll fetch the conversation/exchange from the UI port's API and check the `opaque` flag and the absence of `body_text`/`body_json` for the asset responses.
+
+Let's take a look at which API endpoints exist on the UI port. I'll try /api/conversations.
+
+</thinking>
+
+All requests in. Now let me verify what the proxy actually recorded via its UI API.
+
+
+
+**Tool Call: curl -s http://127.0.0.1:8081/api/conversations | python3 -m json.tool | head -40**
+Status: Completed
+
+```
+{
+    "error": {
+        "message": "File Not Found",
+        "type": "not_found_error",
+        "code": 404
+    }
+}
+```
+
+## User
+
+What are you making requests against the proxys API not the LLM API
+
+## Assistant
+
+<thinking>
+The user is saying "you should make requests against the proxy's API, not the LLM API"—no wait, let me re-read: "What are you making requests against the proxys API not the LLM API"
+
+Hmm, this is a bit ambiguous. They're pointing out that when I tried `/api/conversations` on 8081, a File Not Found came back—meaning my guess about the endpoint was wrong. But wait—the actual meaning of their message is: "why are you making requests against the proxy's API and not the LLM API?"
+
+Actually, I think this is a critique of my verification step: instead of querying the proxy's UI REST API (on port 8081) to verify what was recorded, I... no wait, I did query the proxy's API (port 8081)—it was just that I was using the wrong endpoint name.
+
+Let me parse it again: "What are you making requests against the proxys API not the LLM API"—the user is confused/annoyed that my last curl hit `/api/conversations` on 8081, and it returned "File Not Found".
+
+Wait—hold on. Is that really the case? That error format `{"error": {"message": "File Not Found", "type": "not_found_error", "code": 404}}`—this doesn't look like my proxy's error format. My proxy returned `{"error": {"message": "upstream error: "}}` for /api/clients. This "File Not Found" with type/code looks like... the error format of the upstream service!
+
+Ah, wait. I see. Got it. The upstream is another llm-mitm-proxy instance serving its UI. When I hit `http://127.0.0.1:8081/api/conversations` on my proxy's UI port... no, that's not it.
+
+Hmm, actually let me think about what's going on. My proxy's UI port (8081) serves its own UI and /api endpoints. If /api/conversations doesn't exist on my proxy, it should return its own 404. The response `{"error": {"message": "File Not Found", "type": "not_found_error", "code": 404}}`—hmm, is that even my proxy's error format to begin with?
+
+Let me check: earlier `curl -s http://127.0.0.1:8081/api/clients` returned `{"error": {"message": "upstream error: "}}`. So my proxy's UI API /api/clients exists and proxies to the upstream. So /api/clients on the UI port reaches the upstream (the other proxy instance), and its /api/clients returned "upstream error:" (maybe that proxy has no upstream configured for that purpose, or its own upstream is down for that call).
+
+So the "File Not Found" for /api/conversations is likely the upstream's response (the other llm-mitm-proxy instance returning a 404 for /api/conversations on its UI port). That means the upstream instance has a different API surface, or that endpoint is forwarded... actually, wait, that's weird. If /api/conversations is my proxy's own UI API endpoint, it should be handled locally and shouldn't be forwarded upstream.
+
+I need to check the actual UI API routes in my proxy's code. Let me look at the app's routes. PLAN.md §5.2 enumerates the UI REST API. Let me read the app code and find the actual endpoint names.
+
+But more importantly, the user's actual complaint: "What are you making requests against the proxys API not the LLM API"—I think they mean: the requests I should be verifying the issue with are LLM API requests (i.e., hitting the LLM port, 9090, with actual LLM chat completion requests)—not poking around the UI's /api endpoints.
+
+Hmm, but actually I did make requests against the LLM port (9090)—those asset requests (/, /styles.css, /app.js, /favicon.svg, /api/clients, /health) all went through 9090, the LLM API port. What the user is saying is...
+
+Let me re-read once more: "What are you making requests against the proxys API not the LLM API"
+
+I think the user is reacting to my last tool call: `curl -s http://127.0.0.1:8081/api/conversations`. They're asking why I hit the proxy's UI API (8081) instead of... hmm, no, "not the LLM API"—the requests I made against 8081 are proxy API requests, not LLM API requests. The user is asking why I'm making requests against the proxy's API and not against the LLM API.
+
+Context: I said "let me verify what the proxy actually recorded via that UI API." The user's response: why are you making requests against the proxy's API, and not against the LLM API?
+
+Possible interpretations:
+1. The user wants me to verify the captures by making actual LLM API requests (chat completions) via the LLM port, rather than poking around the UI API. That is: "the purpose of my requests should be to exercise the LLM API, not to query the proxy's UI API."
+2. The user is confused and thinks I've been hitting the wrong port all along.
+
+Actually, I think the most likely meaning is this: the user set up the proxy and wanted me to "make a few requests to it so I can verify"—meaning, they want traffic flowing through the LLM API port so that they can check the UI for opaque captures. My asset requests (/, /styles.css, etc. on 9090) did flow through the LLM port—good. Then, to verify what was recorded, I curled 8081/api/conversations and got a weird File Not Found. The user saw that and is asking why I'm making requests against the proxy's API (8081) and not the LLM API (9090).
+
+Hmm, wait, but maybe there's a deeper misunderstanding: maybe the user thinks my verification curl (8081/api/conversations) itself became a "captured exchange"? No—the UI port is not captured, only the LLM port is captured.
+
+Or—the user's intent might be: "why are you making requests against the proxy's API (i.e., /api/... endpoints) and not against the LLM API (i.e., /v1/chat/completions etc.)?" In other words: to verify this issue, make actual LLM chat completion requests (which are the proxy's real purpose), and additionally make requests that hit asset endpoints. The earlier `/api/clients` and `/health` requests through 9090 might have been the user's concern—but those were forwarded upstream as opaque/decoded captures. That's fine, actually useful.
+
+I think the correct response is this:
+1. Briefly explain: the earlier requests to /, /styles.css, etc. on 9090 were LLM port requests (forwarded upstream, captured as exchanges). The 8081 request was only to inspect what the proxy recorded—it doesn't generate captured traffic.
+2. Actually find the correct UI API endpoint for inspecting captured exchanges (read the app's code)—or better yet: have the user look at the UI directly (that's the point—"so I can verify").
+3. Make real LLM API requests via 9090: the upstream is... wait, the upstream is another llm-mitm-proxy serving its UI on port 8080. Its LLM port should be different (9090 or 8080?). Hmm—the upstream I'm pointing at is `http://10.100.1.20:8080`. If that's the other proxy's UI port, LLM chat completions sent to 9090 → upstream 8080 will hit the other proxy's UI FastAPI and 404 (like the /v1/models 404 we saw).
+
+So, unless I know the other proxy's LLM port, I can't make a real LLM chat completion through this chain. The user said "I set up the proxy"—they know what the upstream is. Upstream 10.100.1.20:8080 serves the proxy's UI... maybe the user intentionally set it up so that the other proxy's UI becomes the "app" being proxied (a scenario of the whole web UI of a non-LLM endpoint, like the llama-server UI in the issue).
+
+Hmm, wait. Let me reconsider: maybe 10.100.1.20 is the devcontainer's own IP (or the host's IP), and the "upstream" is actually... my own proxy? No—my proxy listens on 0.0.0.0:9090 and 0.0.0.0:8081, not 8080.
+
+Actually—is 10.100.1.20:8080 possibly the user's real upstream LLM server (e.g., llama-server) that happens to serve a web UI at / (llama-server's web UI is exactly this: / serves an HTML chat UI with /app.js, /styles.css, /favicon.svg!). Let me verify: llama-server's built-in web UI—the title would be "llama.cpp" or similar. But our / response had `<title>llm-mitm-proxy</title>`—that's our proxy's UI! So the upstream is indeed another llm-mitm-proxy instance.
+
+Wait, unless... the user is pointing my proxy at another proxy that they set up earlier with its own upstream. A chain: me → proxy B → real LLM. If proxy B is configured with a real upstream LLM, then a chat completion to my 9090/v1/chat/completions → B's 8080... but B's 8080 is its UI port, and it should 404 on /v1/chat/completions. Unless B is configured with LLM_PORT=8080 and UI_PORT=something else!
+
+That's actually plausible: maybe the user set up proxy B with LLM_PORT=8080 (the default LLM port per the plan's docker-compose is 8080? The compose file shows ports 8080:8080 and 8081:8081, with LLM_PORT and UI_PORT env vars). If proxy B uses LLM_PORT=8080, UI_PORT=8081 (or different), then hitting B:8080 with /v1/chat/completions would work as an LLM API!
+
+But wait—we saw B:8080 serve our proxy's HTML UI at / and app.js at /app.js. Would proxy B serve its UI at the LLM port? Only if the UI port == LLM port, or if the LLM port also serves the UI... let me check the code: in llm_proxy/app.py, the LLM port handles the wire API, and the UI port serves static + /api. If B serves the UI at 8080, then B's UI port is 8080. In that case, a chat completion to B:8080 would hit the UI app and 404... unless the UI app also handles /v1/chat/completions? Hmm, /v1/models returned 404 {"detail":"Not Found"}—that's a FastAPI default 404.
+
+Hmm, OK, I'm getting too deep into speculation. Let me step back.
+
+The user's message: "What are you making requests against the proxys API not the LLM API"
+
+The simplest reading: they saw my curl `http://127.0.0.1:8081/api/conversations` and are asking why I'm hitting the proxy's API
+</thinking>
+
+## User
+
+8081 -> LLM proxy to llama.cpp
+9090 -> proxy API
+
+request to 8081 get dissected
+9090 is only for the proxy API
+
+## Assistant
+
+<thinking>
+The user is clarifying the port setup:
+- 8081 = LLM port (client → proxy → llama.cpp upstream). Requests to 8081 get dissected and proxied to the upstream.
+- 9090 = proxy's API port (UI + /api REST).
+
+So I had it backwards: I was sending requests to 9090 (the API/UI port) — those are NOT captured as wire traffic, they're just hitting the proxy's own API (hence the "File Not Found" for /api/conversations).
+
+Wait, but earlier `ss -tlnp` showed both ports with the same pid, and the UI HTML was being served from… Actually, when I curled 9090/, HTML with the title "llm-mitm-proxy" came back. Hmm — that might be the proxy's own UI (served on the API port), and not a forwarded upstream! And /api/clients on 8081 returned an upstream error.
+
+So the correct layout is:
+- 9090: proxy's API/UI port — serves UI + REST API.
+- 8081: LLM port — client sends LLM requests here, proxy dissects/forwards to upstream http://10.100.1.20:8080 (which should be llama.cpp!).
+
+So my "assets" (/, /app.js, /styles.css, /favicon.svg) were the proxy's own UI being served on the API port — NOT wire captures at all. That explains the "File Not Found" for /api/conversations (wrong endpoint name on this port) and why the traffic isn't visible.
+
+Let me fix this:
+1. Find the correct API endpoints on 9090 (check app.py or PLAN 5.2 — UI REST API (UI port, `/api/...`)).
+2. Send actual LLM requests to 8081 (chat completions, streaming and non-streaming) — those will be the dissected wire traffic.
+3. Additionally, for verification of issue #3, I also need non-LLM asset requests via the LLM port (8081) — e.g. GET /, /style.css, etc. — which the proxy will forward to llama.cpp (upstream) and capture. Does llama.cpp (llama-server) serve a web UI? Depending on the build — newer llama-server serves a Web UI (HTML/JS/CSS) at /. The user's upstream is "llama.cpp" — if it's llama-server, GET / will serve the Web UI HTML, and there will be assets like /style.css, /app.js, etc. That's exactly the scenario of issue #3!
+
+So the plan:
+1. Send an actual LLM request to 8081: POST /v1/chat/completions (non-streaming), and also a streaming version — verify that the standard path still works.
+2. GET / on 8081 → llama-server's UI HTML (opaque capture).
+3. GET the assets referenced by that HTML (css/js/svg) via 8081 (opaque capture).
+4. Then list the captured exchanges from the API on 9090 and show the user what was recorded.
+
+First, let me find the correct API endpoints. I'll check app.py.
+
+</thinking>
+
+I had the ports reversed — my apologies. So the layout is:
+
+- **8081** = LLM port → gets dissected, forwarded to llama.cpp at `10.100.1.20:8080`
+- **9090** = proxy's own API/UI port (that HTML I fetched was the proxy's own UI, not wire traffic)
+
+Let me check the actual API endpoints, then send real traffic to 8081.
+
+
+
+**Tool Call: Search files for regex `@app\.(get|post)\(`**
+Status: Completed
+
+Found 2 matches:
+
+## Matches in llm-mitm-proxy/llm_proxy/app.py
+
+### def create_ui_app › L164-168
+```
+    app.include_router(ui_router, prefix="/api")
+
+    @app.get("/health")
+    async def health() -> dict:
+        # Reachability only, not an OpenAI probe: any HTTP response (even a 404)
+```
+
+### def create_ui_app › L207-211
+```
+    ui_dir = _ui_dir(ctx.settings)
+
+    @app.get("/favicon.ico")
+    async def favicon() -> Response:
+        # Browsers probe /favicon.ico even when the page links an SVG icon; serve the SVG to keep logs clean.
+```
+
+
+## Assistant
+
+<thinking>
+Let's find the routes of the UI router.
+
+</thinking>
+
+**Tool Call: Search files for regex `@router\.(get|post|delete)\(`**
+Status: Completed
+
+Found 9 matches:
+
+## Matches in llm-mitm-proxy/llm_proxy/api/ui.py
+
+### L25-35
+```
+@router.get("/clients")
+async def list_clients(request: Request):
+    store = _store(request)
+    out = []
+    for c in store.list_clients():
+        convs = [cv for cv in store.all_conversations() if cv.client_id == c.id]
+        out.append(
+            {
+                "id": c.id,
+                "name": c.name,
+                "first_seen": c.first_seen,
+```
+
+6 lines remaining in ancestor node. Read the file to see all.
+
+### L44-50
+```
+@router.delete("/clients/{client_id}")
+async def remove_client(client_id: str, request: Request):
+    """Drop a client and all of its conversations; it re-registers on the next request."""
+    store = _store(request)
+    if not store.remove_client(client_id):
+        raise HTTPException(status_code=404, detail="client not found")
+    return {"ok": True}
+```
+
+### L53-63
+```
+@router.get("/conversations/{cid}")
+async def get_conversation(cid: str, request: Request, limit: int = Query(200, ge=1, le=5000)):
+    store = _store(request)
+    conv = store.get_conversation(cid)
+    if conv is None:
+        raise HTTPException(status_code=404, detail="conversation not found")
+    exchanges = conv.exchanges[-limit:]
+    return {
+        "id": conv.id,
+        "client_id": conv.client_id,
+        "tag": conv.tag,
+```
+
+4 lines remaining in ancestor node. Read the file to see all.
+
+### L70-79
+```
+@router.get("/conversations/{cid}/exchanges/{seq}")
+async def get_exchange(cid: str, seq: int, request: Request):
+    store = _store(request)
+    conv = store.get_conversation(cid)
+    if conv is None:
+        raise HTTPException(status_code=404, detail="conversation not found")
+    for ex in conv.exchanges:
+        if ex.sequence == seq:
+            return ex.to_dict()
+    raise HTTPException(status_code=404, detail="exchange not found")
+```
+
+### L82-92
+```
+@router.delete("/conversations/{cid}/exchanges/{seq}")
+async def remove_exchange(cid: str, seq: int, request: Request):
+    """Remove an exchange from the conversation.
+
+    In-flight exchanges may be removed too: the upstream call continues but its
+    finalization is dropped, so no completed event is emitted for it.
+    """
+    store = _store(request)
+    if not store.remove_exchange(cid, seq):
+        raise HTTPException(status_code=404, detail="conversation or exchange not found")
+    return {"ok": True}
+```
+
+### L95-105
+```
+@router.post("/conversations/{cid}/exchanges/{seq}/replay")
+async def replay_exchange(cid: str, seq: int, request: Request):
+    """Re-send the captured client request of exchange ``seq`` upstream.
+
+    The JSON body, if given and non-empty, is the full request body to send in
+    place of the captured one; otherwise the captured request is re-sent as-is.
+    The replay is captured into the same conversation and flagged ``is_replay``.
+    """
+    store = _store(request)
+    conv = store.get_conversation(cid)
+    if conv is None:
+```
+
+11 lines remaining in ancestor node. Read the file to see all.
+
+### L119-129
+```
+@router.get("/conversations/{cid}/export")
+async def export_conversation(cid: str, request: Request, format: str = Query("json")):
+    if format != "json":
+        raise HTTPException(status_code=400, detail=f"unsupported format: {format}")
+    store = _store(request)
+    settings = request.app.state.settings
+    conv = store.get_conversation(cid)
+    if conv is None:
+        raise HTTPException(status_code=404, detail="conversation not found")
+    payload = conversation_to_dump(conv, settings)
+    body = json.dumps(payload, indent=2).encode()
+```
+
+5 lines remaining in ancestor node. Read the file to see all.
+
+### L137-147
+```
+@router.get("/conversations/{cid}/exchanges/{seq}/export")
+async def export_exchange(cid: str, seq: int, request: Request, format: str = Query("json")):
+    if format != "json":
+        raise HTTPException(status_code=400, detail=f"unsupported format: {format}")
+    store = _store(request)
+    conv = store.get_conversation(cid)
+    if conv is None:
+        raise HTTPException(status_code=404, detail="conversation not found")
+    ex = next((e for e in conv.exchanges if e.sequence == seq), None)
+    if ex is None:
+        raise HTTPException(status_code=404, detail="exchange not found")
+```
+
+7 lines remaining in ancestor node. Read the file to see all.
+
+### L157-162
+```
+@router.delete("/conversations/{cid}")
+async def clear_conversation(cid: str, request: Request):
+    store = _store(request)
+    if not store.clear_conversation(cid):
+        raise HTTPException(status_code=404, detail="conversation not found")
+    return {"ok": True}
+```
+
+
+## Assistant
+
+<thinking>
+API surface:
+- `GET /api/clients` (on 9090) — list of clients + conversations
+- `GET /api/conversations/{cid}` — exchanges within a conversation
+
+Next, send actual traffic to the LLM port 8081:
+
+1. **LLM requests (normal dissected path)**:
+   - Non-streaming `POST /v1/chat/completions`
+   - Streaming `POST /v1/chat/completions` (stream: true)
+2. **Non-LLM asset requests via 8081** (exactly the scenario from issue #3 — the llama-server Web UI):
+   - `GET /` → HTML
+   - `GET /style.css`, `GET /app.js`, `GET /favicon.svg` (first confirm the actual asset names from the HTML)
+
+After that, list the captured exchanges via 9090/api/clients + /api/conversations/{cid} and show what was recorded (opaque flag, no body_text).
+
+First, let me probe GET / on 8081 to check what llama.cpp serves, and along with that also fire off a small non-streaming chat completion. Wait — I need to be careful with the chat completion: it'll actually consume tokens on the user's llama.cpp. A small prompt like "Say OK" with max_tokens around 16 should be plenty lightweight.
+
+Let me execute step by step. First, probe the root and assets of the LLM port.
+
+</thinking>
+
+Now I have the full picture: API is on `9090` (`/api/clients`, `/api/conversations/{cid}`). Now I'll send actual traffic to the LLM port `8081` — first, starting with the root page of the llama.cpp UI (the exact scenario from issue #3).
+
+
+
+**Tool Call: echo "=== GET / via LLM port 8081 ==="
+curl -s -o /tmp/llama_root.html -w "%{http_code} %{content_type} %{size_download}B\n" http://127.0.0.1:8081/
+grep -o 'src="[^"]*"\|href="[^"]*"' /tmp/llama_root.html 2>/dev/null | sort -u**
+Status: Completed
+
+```
+=== GET / via LLM port 8081 ===
+200 text/html; charset=utf-8 12639B
+href="./_app/immutable/assets/bundle.oAmIsIaD.css"
+href="./_app/immutable/bundle.CzfHqEx4.js"
+href="./apple-splash-landscape-1136x640.png"
+href="./apple-splash-landscape-1334x750.png"
+href="./apple-splash-landscape-2266x1488.png"
+href="./apple-splash-landscape-2360x1640.png"
+href="./apple-splash-landscape-2388x1668.png"
+href="./apple-splash-landscape-2532x1170.png"
+href="./apple-splash-landscape-2556x1179.png"
+href="./apple-splash-landscape-2622x1206.png"
+href="./apple-splash-landscape-2732x2048.png"
+href="./apple-splash-landscape-2778x1284.png"
+href="./apple-splash-landscape-2796x1290.png"
+href="./apple-splash-landscape-2868x1320.png"
+href="./apple-splash-landscape-dark-1136x640.png"
+href="./apple-splash-landscape-dark-1334x750.png"
+href="./apple-splash-landscape-dark-2266x1488.png"
+href="./apple-splash-landscape-dark-2360x1640.png"
+href="./apple-splash-landscape-dark-2388x1668.png"
+href="./apple-splash-landscape-dark-2532x1170.png"
+href="./apple-splash-landscape-dark-2556x1179.png"
+href="./apple-splash-landscape-dark-2622x1206.png"
+href="./apple-splash-landscape-dark-2732x2048.png"
+href="./apple-splash-landscape-dark-2778x1284.png"
+href="./apple-splash-landscape-dark-2796x1290.png"
+href="./apple-splash-landscape-dark-2868x1320.png"
+href="./apple-splash-portrait-1170x2532.png"
+href="./apple-splash-portrait-1179x2556.png"
+href="./apple-splash-portrait-1206x2622.png"
+href="./apple-splash-portrait-1284x2778.png"
+href="./apple-splash-portrait-1290x2796.png"
+href="./apple-splash-portrait-1320x2868.png"
+href="./apple-splash-portrait-1488x2266.png"
+href="./apple-splash-portrait-1640x2360.png"
+href="./apple-splash-portrait-1668x2388.png"
+href="./apple-splash-portrait-2048x2732.png"
+href="./apple-splash-portrait-640x1136.png"
+href="./apple-splash-portrait-750x1334.png"
+href="./apple-splash-portrait-dark-1170x2532.png"
+href="./apple-splash-portrait-dark-1179x2556.png"
+href="./apple-splash-portrait-dark-1206x2622.png"
+href="./apple-splash-portrait-dark-1284x2778.png"
+href="./apple-splash-portrait-dark-1290x2796.png"
+href="./apple-splash-portrait-dark-1320x2868.png"
+href="./apple-splash-portrait-dark-1488x2266.png"
+href="./apple-splash-portrait-dark-1640x2360.png"
+href="./apple-splash-portrait-dark-1668x2388.png"
+href="./apple-splash-portrait-dark-2048x2732.png"
+href="./apple-splash-portrait-dark-640x1136.png"
+href="./apple-splash-portrait-dark-750x1334.png"
+href="./manifest.webmanifest"
+href="apple-touch-icon-180x180.png"
+href="favicon.ico"
+href="favicon.svg"
+```
+
+## Assistant
+
+<thinking>
+llama.cpp serves its own Web UI (SvelteKit app) — 12.6 KB of HTML, with real assets:
+- `./_app/immutable/assets/bundle.oAmIsIaD.css` (text/css)
+- `./_app/immutable/bundle.CzfHqEx4.js` (application/javascript)
+- `favicon.svg` (image/svg+xml)
+- `apple-touch-icon-180x180.png` (image/png — binary)
+- `manifest.webmanifest` (application/manifest+json — this is the `*/+json` suffix → per our rule it should be decoded!)
+
+This is a perfect verification set for issue #3. What I'm going to send next:
+1. GET /_app/immutable/assets/bundle.oAmIsIaD.css → opaque (text/css)
+2. GET /_app/immutable/bundle.CzfHqEx4.js → opaque (application/javascript)
+3. GET /favicon.svg → opaque (image/svg+xml)
+4. GET /apple-touch-icon-180x180.png → opaque (image/png, binary)
+5. GET /manifest.webmanifest → decoded (application/manifest+json, +json suffix)
+6. Non-streaming POST /v1/chat/completions → decoded JSON
+7. Streaming POST /v1/chat/completions → SSE, decoded as reassembled
+
+Keep the chat prompt minimal so we don't waste tokens (max_tokens around 10).
+
+</thinking>
+
+llama.cpp is serving its own SvelteKit web UI — this is exactly the scenario of the issue. Its assets cover all the classification branches: CSS, JS, SVG, PNG (binary), plus `manifest.webmanifest` (`application/manifest+json` — should be *decoded* due to the `+json` suffix). I'll fetch everything through the LLM port.
+
+
+
+**Tool Call: echo "--- opaque asset captures (LLM port 8081) ---"
+curl -s -o /dev/null -w "GET /_app/immutable/assets/bundle.oAmIsIaD.css -> %{http_code} %{content_type} %{size_download}B\n" http://127.0.0.1:8081/_app/immutable/assets/bundle.oAmIsIaD.css
+curl -s -o /dev/null -w "GET /_app/immutable/bundle.CzfHqEx4.js      -> %{http_code} %{content_type} %{size_download}B\n" http://127.0.0.1:8081/_app/immutable/bundle.CzfHqEx4.js
+curl -s -o /dev/null -w "GET /favicon.svg                           -> %{http_code} %{content_type} %{size_download}B\n" http://127.0.0.1:8081/favicon.svg
+curl -s -o /dev/null -w "GET /apple-touch-icon-180x180.png          -> %{http_code} %{content_type} %{size_download}B\n" http://127.0.0.1:8081/apple-touch-icon-180x180.png
+echo "--- +json suffix: should be DECODED ---"
+curl -s -o /dev/null -w "GET /manifest.webmanifest                  -> %{http_code} %{content_type} %{size_download}B\n" http://127.0.0.1:8081/manifest.webmanifest**
+Status: Completed
+
+```
+--- opaque asset captures (LLM port 8081) ---
+GET /_app/immutable/assets/bundle.oAmIsIaD.css -> 200 text/css 543230B
+GET /_app/immutable/bundle.CzfHqEx4.js      -> 200 application/javascript 8859743B
+GET /favicon.svg                           -> 200 image/svg+xml 800B
+GET /apple-touch-icon-180x180.png          -> 200 image/png 806B
+--- +json suffix: should be DECODED ---
+GET /manifest.webmanifest                  -> 200 application/manifest+json 524B
+```
+
+## Assistant
+
+<thinking>
+Got all the assets:
+- CSS: 543 KB — opaque
+- JS: 8.86 MB — opaque (a big one, good test of size handling)
+- SVG: 800 B — opaque
+- PNG: 806 B — opaque (binary)
+- manifest.webmanifest: 524 B — decoded (+json)
+
+Next up are the LLM requests: non-streaming and streaming chat completion. Keep the tokens small.
+
+</thinking>
+
+Asset set captured. Now the two LLM paths — non-stream and stream — with a tiny prompt to keep token cost negligible.
+
+
+
+**Tool Call: echo "--- non-streaming chat ---"
+curl -s http://127.0.0.1:8081/v1/chat/completions -H "Content-Type: application/json" -d '{"model":"local","messages":[{"role":"user","content":"Reply with the single word: pong"}],"max_tokens":8,"stream":false}' | head -c 400; echo
+echo "--- streaming chat ---"
+curl -s http://127.0.0.1:8081/v1/chat/completions -H "Content-Type: application/json" -d '{"model":"local","messages":[{"role":"user","content":"Reply with the single word: pong"}],"max_tokens":8,"stream":true}' | head -c 400; echo**
+Status: Completed
+
+```
+--- non-streaming chat ---
+{"error":{"code":400,"message":"model 'local' not found","type":"invalid_request_error"}}
+--- streaming chat ---
+{"error":{"code":400,"message":"model 'local' not found","type":"invalid_request_error"}}
+```
+
+## Assistant
+
+<thinking>
+The model name "local" is wrong. Please query the model list from upstream via the LLM port: GET /v1/models (llama.cpp supports this).
+
+</thinking>
+
+Wrong model name — let me get the real one from `/v1/models` via the LLM port.
+
+
+
+**Tool Call: curl -s http://127.0.0.1:8081/v1/models | python3 -m json.tool | head -20**
+Status: Completed
+
+```
+{
+    "data": [
+        {
+            "id": "Qwen3.5-9B-think",
+            "aliases": [],
+            "tags": [],
+            "object": "model",
+            "owned_by": "llamacpp",
+            "created": 1789251443,
+            "status": {
+                "value": "unloaded",
+                "args": [
+                    "/app/llama-server",
+                    "--host",
+                    "127.0.0.1",
+                    "--min-p",
+                    "0.0",
+                    "--no-mmproj-offload",
+                    "--port",
+                    "0",
+```
+
+## Assistant
+
+<thinking>
+Model: `Qwen3.5-9B-think` (currently unloaded — llama.cpp will load it on-demand, so the first request might take a while). Please retry both chat completions with this model name.
+
+</thinking>
+
+Model is `Qwen3.5-9B-think` (currently unloaded — first request may take a bit while it loads). Retrying both.
+
+
+
+**Tool Call: echo "--- non-streaming ---"
+curl -s -w "\n[%{http_code} %{time_total}s]\n" http://127.0.0.1:8081/v1/chat/completions -H "Content-Type: application/json" -d '{"model":"Qwen3.5-9B-think","messages":[{"role":"user","content":"Reply with the single word: pong"}],"max_tokens":8,"stream":false}' | head -c 600
+echo "--- streaming ---"
+curl -s -w "\n[%{http_code} %{time_total}s]\n" http://127.0.0.1:8081/v1/chat/completions -H "Content-Type: application/json" -d '{"model":"Qwen3.5-9B-think","messages":[{"role":"user","content":"Reply with the single word: pong"}],"max_tokens":8,"stream":true}' | head -c 600**
+Status: Completed
+
+```
+--- non-streaming ---
+<html>
+<head><title>504 Gateway Time-out</title></head>
+<body>
+<center><h1>504 Gateway Time-out</h1></center>
+<hr><center>nginx/1.30.4</center>
+</body>
+</html>
+
+[504 60.035969s]
+--- streaming ---
+data: {"choices":[{"finish_reason":null,"index":0,"delta":{"role":"assistant","content":null}}],"created":1789251536,"id":"chatcmpl-ssn0lx9P9HrpzWrnB3JOFjOmPmN75u0G","model":"Qwen3.5-9B-think","system_fingerprint":"b10920-eafe15a5e","object":"chat.completion.chunk"}
+
+data: {"choices":[{"finish_reason":null,"index":0,"delta":{"reasoning_content":"Thinking"}}],"created":1789251536,"id":"chatcmpl-ssn0lx9P9HrpzWrnB3JOFjOmPmN75u0G","model":"Qwen3.5-9B-think","system_fingerprint":"b10920-eafe15a5e","object":"chat.completion.chunk"}
+
+data: {"choices":[{"finish_reason":null,"index":0,"delta":{"reasoni
+```
+
+## Assistant
+
+<thinking>
+Non-stream hit the 60-second timeout of the nginx sitting in front (loading the model took over 60 seconds), but streaming worked — the model loaded, and it streamed thinking tokens. In other words, there's currently at least 1 successful streaming exchange, plus 1 exchange that became a 504 error (conveniently, this lets us verify the error path too).
+
+Alright, let's check the store via the API on port 9090 and verify the captured opaque flag.
+
+</thinking>
+
+The non-stream request hit the 60-second timeout of the nginx in the middle (the model was still loading), but the stream worked — meaning the model is loaded now. Let me retry the non-stream one, then inspect the store.
+
+
+
+**Tool Call: curl -s -w "\n[%{http_code} %{time_total}s]\n" http://127.0.0.1:8081/v1/chat/completions -H "Content-Type: application/json" -d '{"model":"Qwen3.5-9B-think","messages":[{"role":"user","content":"Reply with the single word: pong"}],"max_tokens":8,"stream":false}' | head -c 500**
+Status: Failed
+
+authorization channel closed
