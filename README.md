@@ -37,8 +37,6 @@ services:
       - "9090:9090" # Web UI
     environment:
       UPSTREAM_BASE_URL: "http://<your-llamacpp>:8080"
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
 ```
 
 ### Docker
