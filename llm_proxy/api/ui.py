@@ -2,8 +2,8 @@
 
 Endpoints: list clients, remove a client, read a conversation, read or remove
 one exchange, replay an exchange (re-send its captured client request
-upstream), export a conversation or a single exchange, and clear a
-conversation.
+upstream), export a conversation or a single exchange, clear a conversation,
+and best-effort model metadata (context windows) from the upstream.
 """
 
 from __future__ import annotations
@@ -48,6 +48,52 @@ async def remove_client(client_id: str, request: Request):
     if not store.remove_client(client_id):
         raise HTTPException(status_code=404, detail="client not found")
     return {"ok": True}
+
+
+@router.get("/models")
+async def list_models(request: Request):
+    """Best-effort model metadata from the upstream's ``/v1/models``.
+
+    The proxy is protocol-agnostic, so any failure (upstream down, non-OpenAI
+    body, no context info) degrades to an empty list rather than an error; the
+    UI then simply hides the context-usage widget it cannot size.
+    """
+    try:
+        r = await request.app.state.http.get("/v1/models", timeout=5.0)
+        r.raise_for_status()
+        data = r.json()
+    except Exception:  # noqa: BLE001
+        return {"models": []}
+    entries = data.get("data") if isinstance(data, dict) else None
+    models = []
+    for m in entries or []:
+        if not isinstance(m, dict) or not isinstance(m.get("id"), str):
+            continue
+        models.append({"id": m["id"], "context": _model_context(m)})
+    return {"models": models}
+
+
+def _model_context(m: dict) -> int | None:
+    """The model's context window in tokens, if the upstream reports one.
+
+    Prefers the *running* context, which is what a client can actually fill:
+    top-level ``n_ctx`` (plain llama.cpp) or ``meta.n_ctx`` (multi-model
+    launchers). Falls back to the trained window (``n_ctx_train``), a generic
+    ``context_length``, and finally ``max_tokens``.
+    """
+    meta = m.get("meta") if isinstance(m.get("meta"), dict) else {}
+    for source, key in (
+        (m, "n_ctx"),
+        (meta, "n_ctx"),
+        (m, "n_ctx_train"),
+        (meta, "n_ctx_train"),
+        (m, "context_length"),
+        (m, "max_tokens"),
+    ):
+        v = source.get(key)
+        if isinstance(v, int) and not isinstance(v, bool) and v > 0:
+            return v
+    return None
 
 
 @router.get("/conversations/{cid}")
