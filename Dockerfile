@@ -8,7 +8,7 @@ COPY ui ./ui
 RUN npm run build
 
 # Backend build
-FROM python:3.14-alpine AS build
+FROM python:3.15-alpine AS build
 
 RUN apk add --no-cache --update git
 RUN pip install --no-cache-dir build
