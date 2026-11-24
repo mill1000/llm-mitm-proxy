@@ -28,6 +28,7 @@ import { marked } from "marked";
     lastSeq: 0,
     stick: true,
     replaySeq: null, // sequence loaded into the replay dock
+    modelCtx: new Map(), // model id -> context window tokens (upstream /v1/models)
     md: localStorage.getItem("llmproxy.md") !== "0", // markdown rendering on by default
   };
 
@@ -52,6 +53,15 @@ import { marked } from "marked";
     if (n < 1024) return `${n} B`;
     if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
     return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+  }
+  function fmtTok(n) {
+    if (n == null) return "—";
+    if (n < 1000) return String(n);
+    if (n < 1_000_000) {
+      const k = n / 1000;
+      return `${k < 10 ? k.toFixed(1) : Math.round(k)}k`;
+    }
+    return `${(n / 1_000_000).toFixed(1)}M`;
   }
   function toksPerSec(ex) {
     const t = ex.timings || {};
@@ -192,6 +202,65 @@ import { marked } from "marked";
       list.innerHTML = `<div class="err">failed to load: ${esc(e.message)}</div>`;
     }
     maybeScroll();
+  }
+
+  // ---------- context usage ----------
+  // "N of M tokens" per exchange: N is that exchange's prompt_tokens (the
+  // context the client sent upstream); M is the model's context window from
+  // the upstream's /v1/models. Rendered only on exchanges that reported usage
+  // (e.g. chat completions); when the model's window is unknown, the absolute
+  // token count is shown so prompt growth can still be compared per message.
+  async function refreshModels() {
+    try {
+      const r = await api("/api/models");
+      const m = new Map();
+      for (const x of r.models || []) if (typeof x.context === "number" && x.context > 0) m.set(x.id, x.context);
+      state.modelCtx = m;
+    } catch {
+      /* upstream models unavailable: chips show absolute tokens only */
+      return;
+    }
+    syncCtxChips();
+  }
+  function ctxInfo(ex) {
+    const n = ex && ex.usage && ex.usage.prompt_tokens;
+    if (typeof n !== "number" || n <= 0) return null;
+    const cr = ex.client_request || {};
+    const model = (cr.body_json || {}).model || cr.model || null;
+    const m = model ? state.modelCtx.get(model) : undefined;
+    const known = typeof m === "number" && m > 0;
+    return { n, m: known ? m : null, model, pct: known ? (n / m) * 100 : null };
+  }
+  function ctxChipHtml(info) {
+    if (!info) return "";
+    const pctTxt = info.pct != null ? ` · ${info.pct.toFixed(1)}%` : "";
+    const bar =
+      info.pct != null
+        ? `<span class="ctx-bar ctx-bar-sm" aria-hidden="true"><span class="ctx-fill" style="width:${Math.min(100, info.pct)}%"></span></span>`
+        : "";
+    const label = info.m != null ? `${fmtTok(info.n)} / ${fmtTok(info.m)}${pctTxt}` : `${fmtTok(info.n)} ctx`;
+    const model = info.model ? ` · ${esc(info.model)}` : "";
+    const title =
+      info.m != null
+        ? `context: ${info.n} of ${info.m} tokens (${info.pct.toFixed(1)}%)${model}`
+        : `context: ${info.n} tokens${model}`;
+    return `<span class="ex-ctx${info.pct >= 80 ? " warn" : ""}" title="${title}">${bar}<span>${label}</span></span>`;
+  }
+  // Cards render before (or without) the model windows being known; this syncs
+  // the chip on every rendered card whenever the windows update.
+  function syncCtxChips() {
+    for (const el of $("ex-list").querySelectorAll(".exchange")) {
+      const ex = state.exById.get(el.dataset.exid);
+      if (!ex) continue;
+      const html = ctxChipHtml(ctxInfo(ex));
+      const cur = el.querySelector(".ex-ctx");
+      if (!html) {
+        if (cur) cur.remove();
+        continue;
+      }
+      if (cur) cur.outerHTML = html;
+      else el.querySelector(".ex-actions").insertAdjacentHTML("beforebegin", html);
+    }
   }
 
   // ---------- exchange rendering ----------
@@ -665,6 +734,7 @@ import { marked } from "marked";
         <span class="ex-time">${fmtTime(ex.client_request && ex.client_request.timestamp)}</span>
         <span class="ex-timings"></span>
         ${badges.join("")}
+        ${ctxChipHtml(ctxInfo(ex))}
         <span class="ex-actions">
           <button class="btn btn-sm" data-action="replay" title="Edit and re-send this request">replay</button>
           <button class="btn btn-sm" data-action="export" title="Download this exchange as JSON">export</button>
@@ -975,9 +1045,11 @@ import { marked } from "marked";
     wireDockResize();
     wireReplayDock();
     checkUpstream();
+    refreshModels(); // context windows (re-polled below: models can hot-swap)
     setInterval(() => {
       checkUpstream(); // keep the upstream pill honest (recovers when it comes back)
       checkWsStale();
+      refreshModels();
     }, 30000);
     await refreshClients();
     connectWs();

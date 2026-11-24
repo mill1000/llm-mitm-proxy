@@ -12,10 +12,17 @@ from pathlib import Path
 
 try:  # package form (unittest discover)
     from . import mock_upstream
-    from .helpers import CHAT, CID, MockedCase, payload
+    from .helpers import CHAT, CID, MockedCase, close_ui, payload, ui_client
 except ImportError:  # direct execution fallback
     import mock_upstream  # type: ignore
-    from helpers import CHAT, CID, MockedCase, payload  # type: ignore
+    from helpers import (  # type: ignore
+        CHAT,
+        CID,
+        MockedCase,
+        close_ui,
+        payload,
+        ui_client,
+    )
 
 
 def _replay_path(cid: str, seq: int) -> str:
@@ -121,6 +128,34 @@ class TestReplayAndExport(MockedCase):
         auth = exp["exchanges"][0]["client_request"]["headers"]["authorization"]
         self.assertIn("***", auth)
         self.assertNotIn("sk-export-secret-123", auth)
+
+
+class TestModels(MockedCase):
+    """GET /api/models: best-effort model metadata (context window) from the
+    upstream's /v1/models. Any upstream failure degrades to an empty list so
+    the UI can hide the context-usage widget it cannot size."""
+
+    def test_models_reports_context(self):
+        r = self.ui.get("/api/models")
+        self.assertEqual(r.status_code, 200)
+        by_id = {m["id"]: m["context"] for m in r.json()["models"]}
+        # n_ctx is the running context; the entry also carries n_ctx_train and
+        # max_tokens, which must not win the fallback.
+        self.assertEqual(by_id["local-model"], 4096)
+        # Launcher shape: no top-level n_ctx; the running context sits in meta
+        # and must beat context_length (the trained window).
+        self.assertEqual(by_id["launcher-model"], 32768)
+        # Bare entries fall back to the generic context_length.
+        self.assertEqual(by_id["bare-model"], 8192)
+
+    def test_models_empty_when_upstream_down(self):
+        ui = ui_client(upstream_base_url="http://127.0.0.1:59999")
+        try:
+            r = ui.get("/api/models")
+            self.assertEqual(r.status_code, 200)
+            self.assertEqual(r.json()["models"], [])
+        finally:
+            close_ui(ui)
 
 
 class TestClientRemoval(MockedCase):

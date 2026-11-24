@@ -137,6 +137,39 @@ body {
   flex: 0 0 auto;
 }
 .conv-title { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Context usage chip per exchange: that message's prompt tokens vs the model's
+   context window (rendered only on exchanges that reported usage; warn colour
+   once 80% of the window is in use). */
+.ex-ctx {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex: 0 0 auto;
+  font-size: 0.7rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.ex-ctx.warn { color: var(--err); }
+.ex-ctx.warn .ctx-fill { background: var(--err); }
+/* Track sits on .ex-head (var(--panel)), so it needs its own lighter shade or
+   the unfilled half of the bar is invisible. */
+.ctx-bar {
+  flex: 0 0 auto;
+  width: 90px;
+  height: 7px;
+  border-radius: 999px;
+  background: rgba(230, 230, 230, 0.16);
+  overflow: hidden;
+}
+.ctx-bar-sm { width: 60px; }
+.ctx-fill {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: var(--accent);
+  transition: width 0.25s ease;
+}
 .conv-actions { display: flex; align-items: center; gap: 0.6rem; flex: 0 0 auto; }
 .stick { font-size: 0.78rem; color: var(--muted); display: flex; align-items: center; gap: 0.3rem; cursor: pointer; }
 .btn {

@@ -30,7 +30,35 @@ REQUESTS: list[dict] = []
 
 @mock.get("/v1/models")
 async def models() -> dict:
-    return {"object": "list", "data": [{"id": "local-model", "object": "model"}]}
+    # llama.cpp-style entry: n_ctx is the running context window; the other
+    # fields must not shadow it (n_ctx_train is the trained window, max_tokens
+    # the default generation cap).
+    return {
+        "object": "list",
+        "data": [
+            {
+                "id": "local-model",
+                "object": "model",
+                "n_ctx": 4096,
+                "n_ctx_train": 8192,
+                "max_tokens": 512,
+            },
+            # Multi-model launcher shape: no top-level n_ctx; the running
+            # context lives in meta, and context_length is the trained window.
+            {
+                "id": "launcher-model",
+                "object": "model",
+                "context_length": 65536,
+                "meta": {"n_ctx": 32768, "n_ctx_train": 65536},
+            },
+            # Bare entry: only a generic context_length.
+            {
+                "id": "bare-model",
+                "object": "model",
+                "context_length": 8192,
+            },
+        ],
+    }
 
 
 @mock.get("/props")
