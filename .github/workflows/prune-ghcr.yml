@@ -41,7 +41,7 @@ jobs:
           # Keep PRs, CalVer releases, latest and edge
           keep-tags-regexes: |
             ^pr-
-            ^\d{4}\.\d{2}\.\d{2}
+            ^\d+\.\d+\.\d+
           keep-tags: |
             edge
             latest
