@@ -16,7 +16,7 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-python@v6
         with:
-          python-version: "3.14"
+          python-version: "3.15"
       # The wheel ships the WebUI as in-package build output (llm_proxy/web),
       # so the UI must be built before the wheel.
       - uses: actions/setup-node@v4

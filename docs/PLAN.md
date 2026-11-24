@@ -30,7 +30,7 @@
 
 | Decision | Choice | Rationale |
 |---|---|---|
-| Language / runtime | **Python 3.11–3.14 (3.14 in the image), async (`asyncio`)** | User's home language. Traffic is I/O-bound (LLM latency dominates), so async Python adds negligible overhead while keeping iteration fast. Avoids the dev-speed cost of Rust/Go for a tool where raw CPU is not the bottleneck. |
+| Language / runtime | **Python 3.11–3.15 (3.15 in the image/devcontainer), async (`asyncio`)** | User's home language. Traffic is I/O-bound (LLM latency dominates), so async Python adds negligible overhead while keeping iteration fast. Avoids the dev-speed cost of Rust/Go for a tool where raw CPU is not the bottleneck. |
 | HTTP framework | **FastAPI + Uvicorn** (Starlette core) | Async-native, serves the proxy, UI static files, REST, and WebSocket from one process, two ports. `uvloop` optional. |
 | Upstream client | **`httpx2` (async, connection-pooled, HTTP/1.1 + keep-alive, streaming)** | First-class async streaming (`aiter_*`), connection reuse, clean timeout control. |
 | Live UI transport | **WebSocket** (`/ws`) | One persistent, low-overhead channel for live token/exchange events. Better than polling; simpler than SSE for bidirectional (replay, selection) control. |
@@ -491,7 +491,7 @@ services:
 
 | Layer | Choice |
 |---|---|
-| Language | Python 3.11–3.14 (3.14 in the image/devcontainer) |
+| Language | Python 3.11–3.15 (3.15 in the image/devcontainer) |
 | Async | `asyncio` (+ optional `uvloop`) |
 | Web framework | FastAPI + Uvicorn |
 | HTTP client | `httpx2` (async, pooled, streaming) |
@@ -499,7 +499,7 @@ services:
 | SSE parsing | small hand-rolled line parser (no heavy dep) |
 | Config | pydantic `Settings` (CLI args; container env vars mapped by the image `CMD`) |
 | Packaging | `pyproject.toml` + `pip` (PEP 621) |
-| Container | `node:alpine` (UI build) + `python:3.14-alpine` (wheel) → `alpine` runtime (pipx, non-root, tini, healthcheck) |
+| Container | `node:alpine` (UI build) + `python:3.15-alpine` (wheel) → `alpine` runtime (pipx, non-root, tini, healthcheck) |
 
 ---
 
